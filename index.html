@@ -98,7 +98,7 @@
   <button id="bD"></button>
 </div>
 
-<div class="screen show" id="menu"><div id="ver">v0.5</div><div class="panel">
+<div class="screen show" id="menu"><div id="ver">v0.6</div><div class="panel">
   <h1>LEVEL 0<small>THE BACKROOMS</small></h1>
   <p class="tag">You noclipped out of reality. Something else lives here.</p>
   <input id="name" maxlength="12" placeholder="Your name" autocomplete="off">
@@ -281,11 +281,11 @@ function zoneOf(i,j){ if (i>=13 && j<=8) return 1; if (i<=8 && j>=13) return 2; 
 const zoneAt = (x,z) => zoneOf(cellOf(x), cellOf(z));
 function edgeCells(e){ if (e < VN){ const i=Math.floor(e/N), j=e%N; return [[i-1,j],[i,j]]; } const k=e-VN, j=Math.floor(k/N), i=k%N; return [[i,j-1],[i,j]]; }
 function edgeZoneOf(e){ const cs = edgeCells(e).filter(([i,j])=>inGrid(i,j)); if (cs.some(([i,j])=>zoneOf(i,j)===2)) return 2; if (cs.some(([i,j])=>zoneOf(i,j)===1)) return 1; return 0; }
-const ZH = [WH, WH, 7];
-const ZFOG = [new THREE.Color(0x15120a), new THREE.Color(0x0a0c0d), new THREE.Color(0x0c0604)];
-const ZDENS = [0.075, 0.08, 0.085];
-const ZSKY = [new THREE.Color(0x8a7a40), new THREE.Color(0x56626a), new THREE.Color(0x6a3a20)];
-const ZGND = [new THREE.Color(0x1a1608), new THREE.Color(0x101214), new THREE.Color(0x100806)];
+const ZH = [WH, WH, 3.8];
+const ZFOG = [new THREE.Color(0x15120a), new THREE.Color(0x0a0c0d), new THREE.Color(0x1a170c)];
+const ZDENS = [0.075, 0.08, 0.05];
+const ZSKY = [new THREE.Color(0x8a7a40), new THREE.Color(0x56626a), new THREE.Color(0x9a8c58)];
+const ZGND = [new THREE.Color(0x1a1608), new THREE.Color(0x101214), new THREE.Color(0x221c0c)];
 const ZNAME = ['', 'PARKING LEVEL', 'THE PITFALLS'];
 const concWallTex = canvasTex(128,128,(g,w,h)=>{
   g.fillStyle='#7a7c76'; g.fillRect(0,0,w,h);
@@ -309,10 +309,25 @@ const concCeilTex = canvasTex(64,64,(g,w,h)=>{
   g.fillStyle='#3e403a'; g.fillRect(0,28,w,8); g.fillStyle='rgba(20,20,18,.4)'; g.fillRect(0,36,w,2);
 });
 const pitWallTex = canvasTex(128,128,(g,w,h)=>{
-  g.fillStyle='#3d3028'; g.fillRect(0,0,w,h);
-  for (let i=0;i<1800;i++){ const v=texR(); g.fillStyle=v<.5?'rgba(20,14,10,.45)':'rgba(110,70,45,.3)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
-  for (let i=0;i<10;i++){ const x=texR()*w; g.fillStyle='rgba(90,45,20,.35)'; g.fillRect(x,texR()*40,2,30+texR()*90); }
-  for (let y=0;y<h;y+=32){ g.fillStyle='rgba(15,10,8,.5)'; g.fillRect(0,y,w,2); }
+  g.fillStyle='#d8d0a4'; g.fillRect(0,0,w,h);
+  for (let y=6;y<h-8;y+=12) for (let x=(y/12%2)*6;x<w;x+=12){ g.fillStyle='rgba(170,160,110,.35)'; g.fillRect(x,y,2,2); }
+  for (let i=0;i<900;i++){ g.fillStyle=`rgba(150,140,95,${texR()*.18})`; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  for (let x=0;x<w;x+=32){ g.fillStyle='rgba(150,140,95,.25)'; g.fillRect(x,0,1,h); }
+  g.fillStyle='#b8ae84'; g.fillRect(0,h-6,w,6);
+});
+const walkTex = canvasTex(32,32,(g,w,h)=>{
+  g.fillStyle='#d6cfb2'; g.fillRect(0,0,w,h);
+  for (let i=0;i<260;i++){ g.fillStyle=texR()<.5?'rgba(170,160,130,.5)':'rgba(240,235,215,.5)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+});
+const shaftTex = canvasTex(64,64,(g,w,h)=>{
+  g.fillStyle='#b9a678'; g.fillRect(0,0,w,h);
+  for (let x=0;x<w;x++){ const v=texR(); g.fillStyle=`rgba(${v<.5?110:200},${v<.5?90:180},${v<.5?50:130},.35)`; g.fillRect(x,0,1,h); }
+  for (let x=0;x<w;x+=16){ g.fillStyle='rgba(90,70,40,.45)'; g.fillRect(x,0,1,h); }
+});
+const tileCeilTex = canvasTex(32,32,(g,w,h)=>{
+  g.fillStyle='#c4ad3e'; g.fillRect(0,0,w,h);
+  for (let i=0;i<180;i++){ g.fillStyle=texR()<.5?'rgba(120,100,20,.45)':'rgba(230,210,110,.4)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  g.fillStyle='#6e6230'; g.fillRect(0,0,w,1); g.fillRect(0,0,1,h);
 });
 const grateTex = canvasTex(64,64,(g,w,h)=>{
   g.fillStyle='#2a221c'; g.fillRect(0,0,w,h);
@@ -331,7 +346,7 @@ function genWalls(rng){
   }
   for (let e=0;e<E;e++) if (!isBoundary(e) && w[e] && rng()<0.4) w[e]=0;
   for (let e=0;e<E;e++){ if (isBoundary(e) || !w[e]) continue; const [a,b]=edgeCells(e); const za=zoneOf(a[0],a[1]), zb=zoneOf(b[0],b[1]);
-    if (za===1 && zb===1 && rng()<0.8) w[e]=0; else if (za===2 && zb===2 && rng()<0.45) w[e]=0; }
+    if (za===1 && zb===1 && rng()<0.8) w[e]=0; else if (za===2 && zb===2) w[e]=0; }
   const rooms=[];
   for (let k=0;k<6;k++){
     const rw=3+Math.floor(rng()*3), rh=3+Math.floor(rng()*2);
@@ -383,6 +398,7 @@ function buildLevel(seed){
   instCells(cellPlane(CS/1.2,true), lam(0xffffff,{map:ceilTex}), zc[0], WH);
   instCells(cellPlane(1,false), lam(0xffffff,{map:concFloorTex}), zc[1], 0);
   instCells(cellPlane(1,true), lam(0xffffff,{map:concCeilTex}), zc[1], WH);
+  instCells(cellPlane(CS/0.6,true), lam(0xffffff,{map:tileCeilTex}), zc[2], ZH[2]);
   // walls (one instanced mesh per zone, every edge slot in each; hidden ones are scaled to zero)
   L.edgeZ = new Uint8Array(E); for (let e=0;e<E;e++) L.edgeZ[e] = edgeZoneOf(e);
   const wmats = [wallMat, lam(0xffffff,{map:concWallTex}), lam(0xffffff,{map:pitWallTex})];
@@ -400,24 +416,24 @@ function buildLevel(seed){
   const inRed = (i,j) => i>=L.red.i0 && i<=L.red.i1 && j>=L.red.j0 && j<=L.red.j1;
   L.panels = []; L.panelAt = new Int16Array(N*N).fill(-1);
   for (let i=0;i<N;i++) for (let j=0;j<N;j++){
-    const t = zoneOf(i,j), chance = [0.8, 0.62, 0.42][t];
+    const t = zoneOf(i,j), chance = [0.8, 0.62, 1.0][t];
     if (rng() < chance || inRed(i,j)){
-      const p = { idx:L.panels.length, i, j, t, x:cc(i), z:cc(j), faulty: rng() < [0.14,0.25,0.3][t], dead: rng()<0.06, red: t===0 && inRed(i,j), ph: rng()*10, b:1 };
+      const p = { idx:L.panels.length, i, j, t, x:cc(i), z:cc(j), faulty: rng() < [0.14,0.25,0.12][t], dead: rng()<0.06, red: t===0 && inRed(i,j), ph: rng()*10, b:1 };
       if (p.red) p.dead = false;
       L.panelAt[i*N+j] = p.idx; L.panels.push(p);
     }
   }
   L.panelMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial({ color:0xffffff }), L.panels.length);
-  const cords = L.panels.filter(p=>p.t===2);
+  const cords = [];
   const cordMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.015,1,0.015), lam(0x111111), Math.max(1,cords.length));
   L.panels.forEach(p=>{
     if (p.t===0){ tmpV.set(p.x, WH-0.03, p.z); tmpS.set(1.3,0.05,0.62); }
     else if (p.t===1){ tmpV.set(p.x, WH-0.06, p.z); tmpS.set(1.9,0.07,0.13); }
-    else { tmpV.set(p.x, 2.45, p.z); tmpS.set(0.13,0.17,0.13); }
+    else { tmpV.set(p.x, ZH[2]-0.03, p.z); tmpS.set(0.95,0.05,0.62); }
     tmpQ.identity(); tmpM.compose(tmpV, tmpQ, tmpS); L.panelMesh.setMatrixAt(p.idx, tmpM); L.panelMesh.setColorAt(p.idx, tmpC.setRGB(1,1,1));
   });
   cords.forEach((p,k)=>{ tmpV.set(p.x, 2.53 + (ZH[2]-2.53)/2, p.z); tmpS.set(1, ZH[2]-2.53, 1); tmpQ.identity(); tmpM.compose(tmpV,tmpQ,tmpS); cordMesh.setMatrixAt(k, tmpM); });
-  g.add(cordMesh);
+
   L.panelMesh.frustumCulled = false; g.add(L.panelMesh);
 
   // placement helpers
@@ -540,38 +556,31 @@ function buildLevel(seed){
     const dx = Math.sin(rot), dz = Math.cos(rot);
     for (const o of [-1.1, 0, 1.1]) L.circles.push({ x:x+dx*o, z:z+dz*o, r:0.92 });
   }
-  // the pitfalls: holes in the floor that drop into nothing
+  // the pitfalls: one big hall, a grid of deep square pits with narrow walkways between them
   L.holes = [];
-  const strips = [];
+  const strips = [], WK = 0.32;
   for (const [i,j] of zc[2]){
     const x0=i*CS, z0=j*CS;
-    if (!L.used.has(i*N+j) && rng() < 0.62){
-      const hw = 1.6+rng()*1.0, hd = 1.6+rng()*1.0;
-      const mx = (CS-hw)/2-0.7, mz = (CS-hd)/2-0.7;
-      const hx0 = x0+(CS-hw)/2+(rng()*2-1)*mx, hz0 = z0+(CS-hd)/2+(rng()*2-1)*mz;
-      const h = { x0:hx0, x1:hx0+hw, z0:hz0, z1:hz0+hd }; L.holes.push(h);
-      strips.push([x0,h.x0,z0,z0+CS],[h.x1,x0+CS,z0,z0+CS],[h.x0,h.x1,z0,h.z0],[h.x0,h.x1,h.z1,z0+CS]);
+    if (!L.used.has(i*N+j) && rng() < 0.88){
+      const h = { x0:x0+WK, x1:x0+CS-WK, z0:z0+WK, z1:z0+CS-WK }; L.holes.push(h);
+      strips.push([x0,x0+CS,z0,h.z0],[x0,x0+CS,h.z1,z0+CS],[x0,h.x0,h.z0,h.z1],[h.x1,x0+CS,h.z0,h.z1]);
     } else strips.push([x0,x0+CS,z0,z0+CS]);
   }
   const unitFloor = new THREE.PlaneGeometry(1,1); unitFloor.rotateX(-Math.PI/2);
-  const sf = new THREE.InstancedMesh(unitFloor, lam(0xffffff,{map:grateTex}), strips.length);
+  const sf = new THREE.InstancedMesh(unitFloor, lam(0xffffff,{map:walkTex}), strips.length);
   strips.forEach(([a0,a1,b0,b1],k)=>{ tmpV.set((a0+a1)/2, 0, (b0+b1)/2); tmpS.set(Math.max(0.001,a1-a0),1,Math.max(0.001,b1-b0)); tmpQ.identity(); tmpM.compose(tmpV,tmpQ,tmpS); sf.setMatrixAt(k,tmpM); });
   sf.frustumCulled=false; g.add(sf);
   if (L.holes.length){
-    const shaft = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), lam(0xffffff,{map:pitWallTex}), L.holes.length*4);
-    const rim = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), lam(0x7a5636), L.holes.length*4);
+    const shaft = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), lam(0xffffff,{map:shaftTex}), L.holes.length*4);
     L.holes.forEach((h,k)=>{
-      const w=h.x1-h.x0, d=h.z1-h.z0, cx=(h.x0+h.x1)/2, cz=(h.z0+h.z1)/2, D=14;
-      const sides = [[h.x0,cz,0.05,d],[h.x1,cz,0.05,d],[cx,h.z0,w,0.05],[cx,h.z1,w,0.05]];
-      sides.forEach(([x,z,sx,sz],q)=>{ tmpQ.identity();
-        tmpV.set(x,-D/2,z); tmpS.set(sx,D,sz); tmpM.compose(tmpV,tmpQ,tmpS); shaft.setMatrixAt(k*4+q,tmpM);
-        tmpV.set(x,0.02,z); tmpS.set(Math.max(sx,0.09),0.05,Math.max(sz,0.09)); tmpM.compose(tmpV,tmpQ,tmpS); rim.setMatrixAt(k*4+q,tmpM); });
+      const w=h.x1-h.x0, d=h.z1-h.z0, cx=(h.x0+h.x1)/2, cz=(h.z0+h.z1)/2, D=16;
+      [[h.x0,cz,0.04,d],[h.x1,cz,0.04,d],[cx,h.z0,w,0.04],[cx,h.z1,w,0.04]].forEach(([x,z,sx,sz],q)=>{ tmpQ.identity(); tmpV.set(x,-D/2,z); tmpS.set(sx,D,sz); tmpM.compose(tmpV,tmpQ,tmpS); shaft.setMatrixAt(k*4+q,tmpM); });
     });
-    g.add(shaft, rim);
-    const voidp = new THREE.Mesh(new THREE.PlaneGeometry(9*CS,9*CS), new THREE.MeshBasicMaterial({ color:0x000000 })); voidp.rotation.x=-Math.PI/2; voidp.position.set(4.5*CS,-14,17.5*CS); g.add(voidp);
+    shaft.frustumCulled=false; g.add(shaft);
+    const voidp = new THREE.Mesh(new THREE.PlaneGeometry(9*CS,9*CS), new THREE.MeshBasicMaterial({ color:0x000000 })); voidp.rotation.x=-Math.PI/2; voidp.position.set(4.5*CS,-16,17.5*CS); g.add(voidp);
   }
 }
-function inPit(x,z){ if (!level.holes) return false; for (const h of level.holes) if (x>h.x0+0.16 && x<h.x1-0.16 && z>h.z0+0.16 && z<h.z1-0.16) return true; return false; }
+function inPit(x,z){ if (!level.holes) return false; for (const h of level.holes) if (x>h.x0+0.12 && x<h.x1-0.12 && z>h.z0+0.12 && z<h.z1-0.12) return true; return false; }
 
 /* ================= collision / sight ================= */
 function edgeBox(e){ const t=0.1; if (e < VN){ const i=Math.floor(e/N), j=e%N; return [i*CS-t, i*CS+t, j*CS-t, (j+1)*CS+t]; } const k=e-VN, j=Math.floor(k/N), i=k%N; return [i*CS-t, (i+1)*CS+t, j*CS-t, j*CS+t]; }
@@ -906,6 +915,7 @@ function doShift(cx, cz, rad, count){
     const e = cand[Math.floor(Math.random()*cand.length)];
     const [x,z] = edgeMid(e);
     if (all.some(p=>Math.hypot(p.x-x,p.z-z) < 2.6) || Math.hypot(mp.x-x, mp.z-z) < 2.6) continue;
+    { const [ca,cb] = edgeCells(e); if (zoneOf(ca[0],ca[1])===2 && zoneOf(cb[0],cb[1])===2) continue; }
     const [i,j] = (()=>{ if (e < VN) return [Math.floor(e/N), e%N]; const k=e-VN; return [k%N, Math.floor(k/N)]; })();
     if (level.pillarSet.has(i+','+j) || level.pillarSet.has((e<VN?i:i+1)+','+(e<VN?j+1:j))) continue;
     if (edgeVisible(e, viewers)) continue;
@@ -1603,7 +1613,7 @@ function updatePanels(t){
     p.b = panelBright(p, t, mx, mz);
     if (p.red) tmpC.setRGB(1*p.b+0.05, 0.12*p.b+0.02, 0.06*p.b+0.02);
     else if (p.t===1) tmpC.setRGB(0.06+0.8*p.b, 0.07+0.93*p.b, 0.07+0.86*p.b);
-    else if (p.t===2) tmpC.setRGB(0.08+0.92*p.b, 0.04+0.55*p.b, 0.02+0.25*p.b);
+    else if (p.t===2) tmpC.setRGB(0.08+0.92*p.b, 0.08+0.92*p.b, 0.07+0.86*p.b);
     else tmpC.setRGB(0.07+0.93*p.b, 0.07+0.9*p.b, 0.05+0.78*p.b);
     L.panelMesh.setColorAt(p.idx, tmpC);
   }
@@ -1618,9 +1628,9 @@ function updatePanels(t){
     const l = PL[k], e = near[k];
     if (!e){ l.intensity = 0; continue; }
     const p = e[1];
-    l.position.set(p.x, p.t===2 ? 2.3 : WH-0.25, p.z);
-    l.intensity = LI * Math.min(1.3, p.b) * (p.t===2 ? 0.8 : 1);
-    l.color.setHex(p.red ? 0xff3018 : p.t===1 ? 0xd8ffe6 : p.t===2 ? 0xff8a48 : 0xfff0c0);
+    l.position.set(p.x, p.t===2 ? ZH[2]-0.25 : WH-0.25, p.z);
+    l.intensity = LI * Math.min(1.3, p.b) * (p.t===2 ? 1.25 : 1);
+    l.color.setHex(p.red ? 0xff3018 : p.t===1 ? 0xd8ffe6 : p.t===2 ? 0xfff6dc : 0xfff0c0);
     localLight = Math.max(localLight, p.b * clamp(1 - e[0]/6.5, 0, 1));
   }
   if (near[0]){ const nb = near[0][1].b; if (Math.abs(nb-lastNearB) > 0.5 && near[0][0] < 6) sfx.click({x:near[0][1].x, y:WH, z:near[0][1].z}); lastNearB = nb; }
