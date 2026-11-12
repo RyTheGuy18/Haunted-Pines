@@ -108,6 +108,7 @@
   #stam{position:absolute;left:50%;bottom:14px;width:170px;height:4px;margin-left:-85px;background:rgba(255,255,255,.12);opacity:0;transition:opacity .4s}
   #stam i{display:block;height:100%;width:100%;background:var(--ink)}
   #stam.adr i{background:var(--red)}
+  #stam.winded i{background:#7d7560}
   #stun{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px;border-radius:50%;display:none;background:conic-gradient(var(--hot) calc(var(--p)*1%),rgba(255,255,255,.12) 0);-webkit-mask:radial-gradient(circle,transparent 23px,#000 24px);mask:radial-gradient(circle,transparent 23px,#000 24px)}
   #stunTxt{position:absolute;left:0;right:0;top:calc(50% + 36px);text-align:center;font-size:20px;letter-spacing:.2em;color:var(--hot);display:none}
   #msg{position:absolute;left:50%;bottom:36%;transform:translateX(-50%);max-width:min(90vw,700px);text-align:center;font-size:clamp(20px,3.6vw,28px);padding:4px 14px;background:rgba(0,0,0,.45);opacity:0;transition:opacity .4s}
@@ -153,7 +154,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.8</div>
+<div class="osd" id="ver">v0.8.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -1362,7 +1363,7 @@ function startRoundLocal(){
   applyWalls(false); wallsLoadedV = G.wv;
   if (role === 'monster'){ me.x = level.mspawn[0]; me.z = level.mspawn[1]; me.yaw = Math.random()*6; }
   else { const k = hashStr(myPid)%4; me.x = cc(1) + [-0.8,0.8,-0.8,0.8][k]; me.z = cc(1) + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; }
-  me.pitch = 0; me.bat = 100; me.light = false; me.stam = 100; me.alive = true; me.esc = false; me.crouch = false; me.san = 100; me.loudT = 0; me.hidden = -1; me.cans = 2; me.breath = 100;
+  me.pitch = 0; me.bat = 100; me.light = false; me.stam = 100; me.alive = true; me.esc = false; me.crouch = false; me.san = 100; me.loudT = 0; me.hidden = -1; me.cans = 2; me.breath = 100; me.winded = false; me.vmRun = 0;
   stunCharge = 0; stunCD = 0; searchCD = 0; roundT0 = nowS(); $('locker').style.display='none';
   seenPl = G.pl; seenOpen = G.open; pendingEnd = false; specIdx = 0; knownBo.clear(); abCD = { blackout:8, shift:8, lure:5 };
   mode = 'play';
@@ -1712,7 +1713,9 @@ function updateMe(dt){
   if (runReq && me.crouch) me.crouch = false;
   const md = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
   me.adren = role==='survivor' && G.grace <= 0 && md < 10;
-  me.running = runReq && me.stam > 3;
+  if (me.stam <= 0.5) me.winded = true;
+  if (me.winded && (me.stam >= 35 || (!runReq && me.stam >= 12))) me.winded = false;
+  me.running = runReq && !me.winded && me.stam > 0.5;
   me.stam = clamp(me.stam + (me.running ? (role==='monster' ? -17 : me.adren ? -12 : -21) : (role==='monster' ? 9 : 13))*dt, 0, 100);
   let sp;
   if (role === 'monster') sp = me.running ? 4.9 : 3.0;
@@ -2033,7 +2036,7 @@ function updateHUD(dt){
     $('kit').style.display = '';
     $('batfill').style.width = me.bat+'%'; $('batfill').style.background = me.bat < 20 ? '#e25a44' : '#e8de9e';
     const ct = `CANS ×${me.cans}`; if ($('cans').textContent !== ct) $('cans').textContent = ct;
-    const st = $('stam'); st.style.opacity = me.stam < 99 && me.hidden < 0 ? 1 : 0; $('stamf').style.width = me.stam+'%'; st.classList.toggle('adr', !!me.adren);
+    const st = $('stam'); st.style.opacity = me.stam < 99 && me.hidden < 0 ? 1 : 0; $('stamf').style.width = me.stam+'%'; st.classList.toggle('adr', !!me.adren); st.classList.toggle('winded', !!me.winded);
     const showStun = stunCharge > 0.05; $('stun').style.display = showStun ? 'block' : 'none'; $('stunTxt').style.display = showStun ? 'block' : 'none'; if (showStun) $('stun').style.setProperty('--p', (stunCharge/0.7*100).toFixed(0));
   }
   if (!net.solo){
@@ -2051,7 +2054,8 @@ function placeCamera(dt){
     camera.position.set(me.x, eye + Math.sin(me.bob)*(role==='monster'?0.07:0.045), me.z);
     VM.visible = role==='survivor' && me.hidden < 0;
     if (me.hidden >= 0){ const lk = level.lockers[me.hidden]; camera.position.set(lk.x + Math.sin(lk.ry)*0.18, 1.55 + Math.sin(nowS()*1.3)*0.008, lk.z + Math.cos(lk.ry)*0.18); }
-    VM.position.set(0.28 + Math.sin(me.bob*0.5)*0.012, -0.3 + Math.abs(Math.cos(me.bob*0.5))*0.012 - (me.running?0.03:0), -0.5);
+    me.vmRun = lerp(me.vmRun||0, me.running ? 1 : 0, 1 - Math.exp(-8*dt));
+    VM.position.set(0.28 + Math.sin(me.bob*0.5)*0.012, -0.3 + Math.abs(Math.cos(me.bob*0.5))*0.012 - me.vmRun*0.03, -0.5);
     VM.userData.lens.material.color.setHex(lightOn() ? 0xfff6d8 : 0x333333);
     camera.rotation.set(me.pitch, me.yaw, Math.sin(me.bob*0.5)*(role==='monster'?0.02:0.006));
   } else if (mode==='deadAnim'){
@@ -2163,7 +2167,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos };
+window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos };
 </script>
 </body>
 </html>

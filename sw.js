@@ -1,4 +1,4 @@
-const V='level0-v8';
+const V='level0-v8-1';
 const CORE=['./','./index.html','./manifest.webmanifest','./peerjs.min.js','./three.module.min.js','./icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V&&k!=='level0-fonts').map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
