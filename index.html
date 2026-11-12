@@ -53,6 +53,7 @@
   #code{font-size:64px;letter-spacing:.3em;color:#f0e2a0;margin:4px 0 0;text-indent:.3em}
   #lplayers{font-size:24px;margin:12px 0;min-height:56px}
   #netnote{color:#c0907a;font-size:18px;margin-top:8px;min-height:18px}
+  #ver{position:fixed;right:max(10px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));font-size:17px;color:#6f6748;letter-spacing:.06em;pointer-events:none}
   #endtitle{font-family:'Special Elite',serif;font-size:clamp(30px,8vw,54px);margin:0 0 8px}
   #touch{position:fixed;inset:0;display:none;z-index:5}
   #stick{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border:2px solid rgba(230,220,170,.22);border-radius:50%;display:none;pointer-events:none;z-index:6}
@@ -93,7 +94,7 @@
   <button id="bD"></button>
 </div>
 
-<div class="screen show" id="menu"><div class="panel">
+<div class="screen show" id="menu"><div id="ver">v0.3</div><div class="panel">
   <h1>LEVEL 0<small>THE BACKROOMS</small></h1>
   <p class="tag">You noclipped out of reality. Something else lives here.</p>
   <input id="name" maxlength="12" placeholder="Your name" autocomplete="off">
