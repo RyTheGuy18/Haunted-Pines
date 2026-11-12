@@ -94,7 +94,7 @@
   <button id="bD"></button>
 </div>
 
-<div class="screen show" id="menu"><div id="ver">v0.3</div><div class="panel">
+<div class="screen show" id="menu"><div id="ver">v0.4</div><div class="panel">
   <h1>LEVEL 0<small>THE BACKROOMS</small></h1>
   <p class="tag">You noclipped out of reality. Something else lives here.</p>
   <input id="name" maxlength="12" placeholder="Your name" autocomplete="off">
@@ -662,47 +662,88 @@ let role = 'none';
 const lightOn = () => role==='survivor' && me.alive && !me.esc && me.light && me.bat > 0;
 const remotes = new Map();
 const jackets = [0x4a2a20, 0x203a4a, 0x3a4a22, 0x4a4220, 0x3a2a4a];
-const SUIT = lam(0xd6b622), SUIT_D = lam(0xa88a14), RUBBER = lam(0x121212), TAPE = lam(0x8a8a80), VISOR = new THREE.MeshBasicMaterial({ color:0x0c1014 });
+/* ---- survivor: hooded hazmat coverall with block gas mask (pixel textures) ---- */
+let pxSeed = 7; const prnd = () => (pxSeed = (pxSeed*16807) % 2147483647) / 2147483647;
+function px(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d');
+  draw((x,y,col)=>{ g.fillStyle=col; g.fillRect(x,y,1,1); }, (x,y,ww,hh,col)=>{ g.fillStyle=col; g.fillRect(x,y,ww,hh); }, w, h);
+  const t=new THREE.CanvasTexture(c); t.magFilter=THREE.NearestFilter; t.minFilter=THREE.NearestFilter; t.colorSpace=THREE.SRGBColorSpace; return t; }
+const YP=['#e2bf2a','#d6b224','#c9a51e','#b8941a','#a48316'];
+const yel = () => YP[Math.floor(prnd()*prnd()*5)];
+function fabric(p,r,w,h){ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y,yel()); for(let k=0;k<3;k++){ const y=Math.floor(prnd()*h); for(let x=0;x<w;x++) if(prnd()<.6) p(x,y,'#a8871a'); } }
+const PT = {
+  fab: px(16,16,(p,r,w,h)=>fabric(p,r,w,h)),
+  seam: px(16,16,(p,r,w,h)=>{ fabric(p,r,w,h); for(let y=0;y<h;y++){ p(7,y,'#8f7214'); if(y%2) p(8,y,'#f0d24a'); } }),
+  chest: px(32,32,(p,r,w,h)=>{ fabric(p,r,w,h); for(let y=0;y<32;y++){ p(16,y,y%2?'#3a3a36':'#9a9a92'); p(15,y,'#8f7214'); } r(19,6,9,8,'#b8941a'); r(19,6,9,2,'#8f7214'); p(23,8,'#555'); r(5,7,7,1,'#8f7214'); r(5,20,8,1,'#8f7214'); }),
+  hood: px(16,16,(p,r,w,h)=>{ fabric(p,r,w,h); r(2,2,12,12,'#0e0e0e'); r(2,2,12,1,'#8f7214'); r(2,13,12,1,'#8f7214'); }),
+  boot: px(16,16,(p,r,w,h)=>{ r(0,0,w,h,'#171717'); for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(prnd()<.12) p(x,y,'#262626'); r(0,12,w,4,'#0c0c0c'); for(let x=0;x<w;x+=2) p(x,13,'#3a3a3a'); r(0,3,w,1,'#2c2c2c'); }),
+  glove: px(8,8,(p,r,w,h)=>{ r(0,0,w,h,'#161616'); for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(prnd()<.15) p(x,y,'#2a2a2a'); p(1,1,'#3a3a3a'); }),
+  tape: px(16,4,(p,r,w,h)=>{ r(0,0,w,h,'#8c8c84'); for(let x=0;x<w;x++){ p(x,0,'#6e6e66'); if(prnd()<.3) p(x,2,'#a6a69e'); } }),
+  lens: px(8,8,(p,r,w,h)=>{ r(0,0,w,h,'#5a5a54'); r(1,1,6,6,'#0b1218'); p(2,2,'#c8dce8'); p(3,2,'#7f97a6'); p(2,3,'#7f97a6'); p(5,5,'#14222c'); }),
+  mask: px(16,16,(p,r,w,h)=>{ r(0,0,w,h,'#141414'); for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(prnd()<.12) p(x,y,'#232323'); r(0,0,w,1,'#2e2e2e'); r(6,11,4,3,'#2a2a2a'); }),
+  filt: px(8,8,(p,r,w,h)=>{ r(0,0,w,h,'#5a5a52'); for(let y=0;y<h;y+=2) r(0,y,w,1,'#46463f'); r(2,2,4,4,'#2e2e2a'); p(3,3,'#6e6e66'); }),
+  belt: px(16,4,(p,r,w,h)=>{ r(0,0,w,h,'#1a1a1a'); r(0,0,w,1,'#2c2c2c'); r(6,0,4,4,'#7a7a72'); r(7,1,2,2,'#1a1a1a'); }),
+  pouch: px(8,8,(p,r,w,h)=>{ r(0,0,w,h,'#24241f'); r(0,0,w,3,'#30302a'); r(0,3,w,1,'#141412'); r(3,2,2,2,'#5a5a52'); }),
+};
+const PM = {}; for (const k in PT) PM[k] = lam(0xffffff, { map: PT[k] });
+const FL_BODY = lam(0x2a2a2a);
+const pfaces = (front, side=PM.fab, back=side, top=side) => [side, side, top, top, front, back];
+function bx(p, w,h,d, x,y,z, mat){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); m.position.set(x,y,z); p.add(m); return m; }
+function gp(p,x,y,z){ const g=new THREE.Group(); g.position.set(x,y,z); p.add(g); return g; }
+function blockHand(p, y, w){ bx(p, w,0.1,w*0.8, 0,y,0, PM.glove); for (let k=0;k<4;k++) bx(p, w/5,0.07,w/5, -w*0.36+k*w*0.24, y-0.08, w*0.18, PM.glove); bx(p, w/4,0.08,w/4, w*0.45,y-0.02,w*0.3, PM.glove); }
+const BAND = jackets.map(c=>lam(c));
 function makeAvatar(pid){
   const g = new THREE.Group(), P = {};
-  const add = (geo, mat, x,y,z, parent=g) => { const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); parent.add(m); return m; };
-  const legG = new THREE.CylinderGeometry(0.115,0.1,0.8,6); legG.translate(0,-0.4,0);
-  for (const sx of [-0.12,0.12]){
-    const leg = new THREE.Group(); leg.position.set(sx,0.88,0); g.add(leg);
-    add(legG, SUIT, 0,0,0, leg); add(new THREE.CylinderGeometry(0.105,0.105,0.05,6), TAPE, 0,-0.62,0, leg);
-    add(new THREE.BoxGeometry(0.17,0.16,0.3), RUBBER, 0,-0.8,0.04, leg);
-    if (sx<0) P.legL = leg; else P.legR = leg;
-  }
-  add(new THREE.CylinderGeometry(0.27,0.24,0.72,7), SUIT, 0,1.24,0);
-  add(new THREE.CylinderGeometry(0.245,0.245,0.07,7), SUIT_D, 0,0.92,0);
-  add(new THREE.BoxGeometry(0.06,0.5,0.02), SUIT_D, 0,1.3,0.255);
-  add(new THREE.BoxGeometry(0.34,0.42,0.16), SUIT_D, 0,1.3,-0.28);
-  const armG = new THREE.CylinderGeometry(0.085,0.075,0.62,6); armG.translate(0,-0.31,0);
-  const band = lam(jackets[hashStr(pid)%jackets.length]);
-  for (const sx of [-0.33,0.33]){
-    const arm = new THREE.Group(); arm.position.set(sx,1.54,0); g.add(arm);
-    add(armG, SUIT, 0,0,0, arm); add(new THREE.CylinderGeometry(0.08,0.08,0.05,6), TAPE, 0,-0.52,0, arm);
-    add(new THREE.BoxGeometry(0.12,0.16,0.1), RUBBER, 0,-0.66,0, arm);
-    if (sx<0){ add(new THREE.CylinderGeometry(0.09,0.09,0.08,6), band, 0,-0.12,0, arm); P.armL = arm; } else P.armR = arm;
-  }
-  const hood = add(new THREE.SphereGeometry(0.21,8,6), SUIT, 0,1.8,0); hood.scale.set(1,1.15,1.05);
-  add(new THREE.BoxGeometry(0.25,0.15,0.08), VISOR, 0,1.83,0.17);
-  const mask = add(new THREE.CylinderGeometry(0.06,0.07,0.1,6), RUBBER, 0,1.7,0.2); mask.rotation.x = Math.PI/2;
-  for (const sx of [-0.09,0.09]){ const f = add(new THREE.CylinderGeometry(0.045,0.045,0.07,6), lam(0x4a4a46), sx,1.68,0.21); f.rotation.z = Math.PI/2; }
-  const fl = add(new THREE.CylinderGeometry(0.035,0.045,0.22,6), lam(0x2a2a2a), 0,-0.7,0.1, P.armR); fl.rotation.x = Math.PI/2;
+  for (const s of [-1,1]){ const L=gp(g, s*0.12,0.92,0);
+    bx(L, 0.19,0.44,0.2, 0,-0.21,0, pfaces(PM.seam));
+    bx(L, 0.2,0.06,0.16, 0,-0.42,0.04, PM.seam);
+    bx(L, 0.17,0.3,0.18, 0,-0.6,0, PM.fab);
+    bx(L, 0.19,0.05,0.2, 0,-0.72,0, PM.tape);
+    bx(L, 0.19,0.16,0.28, 0,-0.82,0.04, pfaces(PM.boot));
+    bx(L, 0.2,0.04,0.3, 0,-0.9,0.05, PM.boot);
+    if (s<0) P.legL = L; else P.legR = L; }
+  bx(g, 0.46,0.2,0.3, 0,0.98,0, PM.fab);
+  bx(g, 0.48,0.06,0.32, 0,0.96,0, PM.belt);
+  bx(g, 0.11,0.12,0.08, -0.17,0.94,0.18, PM.pouch); bx(g, 0.09,0.1,0.08, 0.17,0.94,0.18, PM.pouch); bx(g, 0.07,0.15,0.08, 0.27,0.92,0, PM.pouch);
+  bx(g, 0.5,0.56,0.32, 0,1.33,0, pfaces(PM.chest));
+  bx(g, 0.6,0.1,0.3, 0,1.6,0, PM.fab);
+  for (const s of [-1,1]){ const A=gp(g, s*0.33,1.57,0); A.rotation.z=s*0.12;
+    bx(A, 0.16,0.34,0.17, 0,-0.15,0, pfaces(PM.seam));
+    if (s<0) bx(A, 0.17,0.06,0.18, 0,-0.08,0, BAND[hashStr(pid)%BAND.length]);   // armband tells players apart
+    const F=gp(A, 0,-0.33,0);
+    bx(F, 0.15,0.2,0.16, 0,-0.1,0, PM.fab);
+    bx(F, 0.17,0.13,0.18, 0,-0.24,0, PM.glove);
+    blockHand(F, -0.35, 0.15);
+    if (s>0){ bx(F, 0.07,0.07,0.24, 0,-0.38,0.14, FL_BODY); bx(F, 0.05,0.05,0.005, 0,-0.38,0.262, new THREE.MeshBasicMaterial({ color:0xfff2b8 })); P.armR = A; P.foreR = F; }
+    else { P.armL = A; P.foreL = F; } }
+  const H=gp(g, 0,1.82,0);
+  bx(H, 0.22,0.1,0.22, 0,-0.17,0, PM.fab);
+  bx(H, 0.38,0.4,0.38, 0,0.04,-0.02, pfaces(PM.hood, PM.seam));
+  bx(H, 0.3,0.06,0.3, 0,0.26,-0.02, PM.fab);
+  const K=gp(H, 0,0,0.19);
+  bx(K, 0.26,0.3,0.08, 0,0,0, PM.mask);
+  bx(K, 0.2,0.08,0.06, 0,0.17,-0.02, PM.mask);
+  for (const s of [-1,1]){ bx(K, 0.09,0.09,0.03, s*0.065,0.05,0.05, PM.lens);
+    const f=gp(K, s*0.11,-0.11,0.05); f.rotation.set(0.5,0,s*0.55); bx(f, 0.1,0.1,0.11, 0,0,0, PM.filt); bx(f, 0.11,0.03,0.12, 0,0.04,0, PM.mask); }
+  bx(K, 0.08,0.08,0.06, 0,-0.1,0.06, PM.mask); bx(K, 0.05,0.05,0.02, 0,-0.1,0.1, PM.filt);
+  bx(H, 0.4,0.04,0.04, 0,0.04,0.17, PM.mask);
+  P.head = H;
   scene.add(g); return { g, P };
 }
 function animAvatar(A, t, mv){
   const sw = mv ? Math.sin(t*(mv===2?11:7)) : 0;
   A.P.legL.rotation.x = sw*0.55; A.P.legR.rotation.x = -sw*0.55;
-  A.P.armL.rotation.x = -sw*0.45; A.P.armR.rotation.x = -0.9 + sw*0.15;
+  A.P.armL.rotation.x = -sw*0.45; A.P.foreL.rotation.x = -0.15 - Math.max(0,sw)*0.3;
+  A.P.armR.rotation.x = -0.35 + sw*0.12; A.P.foreR.rotation.x = -0.9;
+  A.P.head.rotation.y = Math.sin(t*0.6)*0.25;
 }
-// first-person glove + flashlight
+// first-person: gauntlet + block glove + flashlight
 const VM = new THREE.Group(); camera.add(VM); VM.position.set(0.28,-0.3,-0.5); VM.scale.setScalar(0.75);
-{ const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.05,0.16,6), SUIT); sl.rotation.x = Math.PI/2 - 0.3; sl.position.set(0.01,-0.03,0.09); VM.add(sl);
-  const gl = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.09,0.12), RUBBER); gl.position.set(0,0,-0.04); VM.add(gl);
-  const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.04,0.2,8), lam(0x2a2a2a)); fl.rotation.x = Math.PI/2; fl.position.set(0,0.03,-0.12); VM.add(fl);
-  VM.userData.lens = new THREE.Mesh(new THREE.CircleGeometry(0.03,8), new THREE.MeshBasicMaterial({ color:0x333333 })); VM.userData.lens.position.set(0,0.03,-0.221); VM.add(VM.userData.lens); }
+{ const sl = bx(VM, 0.11,0.11,0.2, 0.0,-0.04,0.1, PM.seam); sl.rotation.x = -0.3;
+  bx(VM, 0.13,0.13,0.1, 0,-0.01,0.0, PM.glove);
+  bx(VM, 0.11,0.1,0.12, 0,0,-0.08, PM.glove);
+  for (let k=0;k<3;k++) bx(VM, 0.025,0.025,0.06, -0.035+k*0.035,0.06,-0.1, PM.glove);
+  bx(VM, 0.06,0.06,0.22, 0,0.03,-0.16, FL_BODY);
+  VM.userData.lens = bx(VM, 0.05,0.05,0.005, 0,0.03,-0.271, new THREE.MeshBasicMaterial({ color:0x333333 })); }
 VM.visible = false;
 
 /* ================= shared state ================= */
