@@ -16,6 +16,9 @@
   #game{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;transform-origin:50% 50%}
   #grain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;opacity:.04;image-rendering:pixelated}
   #vig{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(0,0,0,.8) 100%)}
+  #vhs{position:fixed;inset:0;pointer-events:none;opacity:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.07) 0 1px,transparent 1px 3px)}
+  #vband{position:absolute;left:0;right:0;height:12%;top:30%;background:linear-gradient(transparent,rgba(255,255,255,.22),rgba(120,200,255,.12),transparent)}
+  #vtxt{position:absolute;left:max(18px,env(safe-area-inset-left));bottom:18%;font-size:26px;color:#e8f0ff;text-shadow:2px 0 #f33,-2px 0 #3cf;opacity:0}
   #flash{position:fixed;inset:0;pointer-events:none;background:#8a0000;opacity:0}
   #white{position:fixed;inset:0;pointer-events:none;background:#fffbe8;opacity:0;transition:opacity 1.5s}
   #black{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity 1.2s;text-align:center;padding:0 20px}
@@ -72,6 +75,7 @@
 <canvas id="grain" width="160" height="100"></canvas>
 <div id="vig"></div>
 <div id="flash"></div>
+<div id="vhs"><div id="vband"></div><div id="vtxt">◄◄ TRACKING</div></div>
 <div id="white"></div>
 
 <div id="hud">
@@ -94,12 +98,13 @@
   <button id="bD"></button>
 </div>
 
-<div class="screen show" id="menu"><div id="ver">v0.4</div><div class="panel">
+<div class="screen show" id="menu"><div id="ver">v0.5</div><div class="panel">
   <h1>LEVEL 0<small>THE BACKROOMS</small></h1>
   <p class="tag">You noclipped out of reality. Something else lives here.</p>
   <input id="name" maxlength="12" placeholder="Your name" autocomplete="off">
   <div class="row"><button id="bSolo">PLAY SOLO</button><button id="bHost" class="y">HOST GAME</button></div>
   <div class="row"><input id="joincode" maxlength="4" placeholder="CODE" autocomplete="off" style="text-transform:uppercase"><button id="bJoin">JOIN</button></div>
+  <div class="row"><button id="bSkin" class="red" style="font-size:21px">OCCUPANT SKIN</button></div>
   <div id="netnote"></div>
   <div class="how">
     <b>Survivors:</b> find 3 fuses, bring them to the breaker box, then find the exit before the hallways rearrange themselves around you.<br><br>
@@ -116,6 +121,7 @@
   <div class="small" style="margin-top:0">Friends open this same page, tap JOIN, and enter the code.</div>
   <div id="lplayers"></div>
   <button id="bMon" class="red">THE OCCUPANT: RANDOM</button>
+  <div class="row"><button id="bSkin2" style="font-size:21px">OCCUPANT SKIN</button></div>
   <div id="monText" class="tag" style="margin:10px 0 0"></div>
   <div class="row"><button id="bStart" class="y">START</button></div>
   <div id="lwait" class="tag" style="margin-top:6px">Waiting for the host to start…</div>
@@ -613,7 +619,7 @@ function lookDir(yaw, pitch){ return [ -Math.sin(yaw)*Math.cos(pitch), Math.sin(
 /* ================= the Occupant ================= */
 function buildMonster(){
   const g = new THREE.Group(), P = {};
-  const body = lam(0x0e0d0c), limb = lam(0x1a1714);
+  const body = lam(0xffffff, { map: ST.occBody }), limb = lam(0xbbbbbb, { map: ST.occBody });
   const face = new THREE.MeshBasicMaterial({ color:0xb4ad98 }), black = new THREE.MeshBasicMaterial({ color:0x000000 }), tooth = new THREE.MeshBasicMaterial({ color:0xe8e2cc });
   const add = (geo, mat, x,y,z, parent=g) => { const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); parent.add(m); return m; };
   const legG = new THREE.CylinderGeometry(0.05,0.035,1.35,5); legG.translate(0,-0.675,0);
@@ -637,8 +643,7 @@ function buildMonster(){
   scene.add(g);
   return { g, P };
 }
-const MON = buildMonster();
-const PHANTOM = buildMonster(); PHANTOM.g.visible = false;
+let MON = null, PHANTOM = null;
 function animMonster(M, t, moving, speed){
   const P = M.P, crawl = moving && speed > 3;
   M.crawl = lerp(M.crawl||0, crawl ? 1 : 0, 0.15);
@@ -746,8 +751,70 @@ const VM = new THREE.Group(); camera.add(VM); VM.position.set(0.28,-0.3,-0.5); V
   VM.userData.lens = bx(VM, 0.05,0.05,0.005, 0,0.03,-0.271, new THREE.MeshBasicMaterial({ color:0x333333 })); }
 VM.visible = false;
 
+/* ================= Occupant skins (all original designs) ================= */
+const SKIN_NAMES = ['THE OCCUPANT', 'THE MANNEQUIN', 'THE WALLPAPER MAN'];
+const ST = {
+  occBody: px(16,16,(p,r,w,h)=>{ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y, prnd()<.2?'#1e1c1a':prnd()<.1?'#060606':'#0f0e0d'); }),
+  man: px(16,16,(p,r,w,h)=>{ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y, prnd()<.12?'#c8b89c':prnd()<.06?'#e6d8c0':'#d8c8ae'); let x=3,y=0; for(let k=0;k<10;k++){ p(x,y,'#5a4a3a'); x+=prnd()<.5?1:0; y++; } r(10,9,2,1,'#8a7a64'); }),
+  manFace: px(16,16,(p,r,w,h)=>{ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y, prnd()<.1?'#cbbba0':'#dccdb4'); r(4,6,3,2,'#bfae92'); r(9,6,3,2,'#bfae92'); r(6,11,4,1,'#c4b398'); let x=8,y=0; for(let k=0;k<12;k++){ p(x,y,'#4a3a2c'); if(prnd()<.4) p(x+1,y,'#6a5a48'); x+=prnd()<.4?(prnd()<.5?1:-1):0; y++; } }),
+  joint: px(8,8,(p,r,w,h)=>{ r(0,0,w,h,'#3a3028'); p(2,2,'#5a4a3c'); p(5,5,'#241c16'); }),
+  paper: px(16,32,(p,r,w,h)=>{ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y, prnd()<.15?'#b4a258':'#c4b265'); for(let x=0;x<w;x+=4) for(let y=0;y<h;y++) if(prnd()<.7) p(x,y,'#a8954e'); for(let y=4;y<h;y+=8) for(let x=2;x<w;x+=4) p(x,y,'#8a7838');
+    for(let k=0;k<4;k++){ const x=Math.floor(prnd()*w); for(let y=Math.floor(prnd()*h);y<h;y++) if(prnd()<.8) p(x,y,'#6e5a2a'); } r(0,h-3,w,3,'#5e4e26'); }),
+  paperFace: px(16,16,(p,r,w,h)=>{ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y, prnd()<.15?'#b4a258':'#c4b265'); for(let x=0;x<w;x+=4) for(let y=0;y<h;y++) if(prnd()<.6) p(x,y,'#a8954e');
+    for(let y=3;y<14;y++){ const hw = 2 + Math.round(Math.sin((y-3)/11*Math.PI)*3 + (prnd()-.5)*1.5); r(8-hw,y,hw*2,1,'#050403'); }
+    r(4,6,1,1,'#ffffff'); r(11,7,1,1,'#ffffff'); for(let y=14;y<16;y++) p(8,y,'#3a2a14'); }),
+};
+const SM = {}; for (const k in ST) SM[k] = lam(0xffffff, { map: ST[k] });
+const eyeGlow = new THREE.MeshBasicMaterial({ color:0xf4f0e0 });
+function skinFrame(){ const g=new THREE.Group(), P={};
+  P.legL=new THREE.Group(); P.legL.position.set(-0.12,1.35,0); g.add(P.legL);
+  P.legR=new THREE.Group(); P.legR.position.set(0.12,1.35,0); g.add(P.legR);
+  P.torso=new THREE.Group(); P.torso.position.set(0,1.35,0); P.torso.rotation.x=0.32; g.add(P.torso);
+  P.armL=new THREE.Group(); P.armL.position.set(-0.32,0.95,0); P.torso.add(P.armL);
+  P.armR=new THREE.Group(); P.armR.position.set(0.32,0.95,0); P.torso.add(P.armR);
+  P.head=new THREE.Group(); P.head.position.set(0,1.2,0.05); P.torso.add(P.head);
+  scene.add(g); return { g, P }; }
+// a cracked, faceless shop mannequin with exposed joints
+function buildMannequin(){
+  const M = skinFrame(), P = M.P;
+  for (const L of [P.legL, P.legR]){ bx(L,0.15,0.6,0.15, 0,-0.3,0, SM.man); bx(L,0.12,0.1,0.12, 0,-0.64,0, SM.joint); bx(L,0.12,0.58,0.12, 0,-0.98,0, SM.man); bx(L,0.14,0.06,0.3, 0,-1.31,0.06, SM.man); }
+  bx(P.torso,0.36,0.16,0.21, 0,0.0,0, SM.man);
+  bx(P.torso,0.22,0.28,0.16, 0,0.22,0, SM.joint);
+  bx(P.torso,0.48,0.44,0.24, 0,0.6,0, SM.man);
+  bx(P.torso,0.18,0.1,0.1, 0.12,0.72,0.12, SM.joint);              // broken chunk
+  for (const A of [P.armL, P.armR]){ bx(A,0.12,0.12,0.12, 0,0,0, SM.joint); bx(A,0.1,0.7,0.1, 0,-0.4,0, SM.man); bx(A,0.09,0.09,0.09, 0,-0.79,0, SM.joint); bx(A,0.09,0.72,0.09, 0,-1.18,0, SM.man);
+    bx(A,0.11,0.2,0.04, 0,-1.62,0, SM.man); for (let k=0;k<4;k++) bx(A,0.02,0.22,0.02, -0.04+k*0.027,-1.83,0, SM.man); }
+  bx(P.head,0.08,0.2,0.08, 0,-0.08,0, SM.joint);
+  bx(P.head,0.27,0.36,0.28, 0,0.16,0, [SM.man,SM.man,SM.man,SM.man,SM.manFace,SM.man]);
+  return M;
+}
+// a thin thing made of peeling wallpaper; it blends into the halls
+function buildPaperMan(){
+  const M = skinFrame(), P = M.P;
+  for (const L of [P.legL, P.legR]){ bx(L,0.09,1.35,0.07, 0,-0.67,0, SM.paper); const st=bx(L,0.08,0.3,0.01, 0.04,-0.4,-0.05, SM.paper); st.rotation.z=0.4; }
+  bx(P.torso,0.42,1.0,0.1, 0,0.5,0, SM.paper);
+  for (let k=0;k<4;k++){ const st=bx(P.torso,0.1,0.42,0.012, -0.15+k*0.1,0.3+k*0.12,-0.07, SM.paper); st.rotation.set(-0.6-k*0.15,0,(k-1.5)*0.3); }
+  for (const A of [P.armL, P.armR]){ bx(A,0.07,1.55,0.05, 0,-0.78,0, SM.paper); for (let k=0;k<3;k++) bx(A,0.015,0.24,0.015, -0.02+k*0.02,-1.66,0, lam(0x0c0a06)); const st=bx(A,0.06,0.35,0.01, 0.05,-0.6,0.03, SM.paper); st.rotation.z=-0.5; }
+  bx(P.head,0.05,0.22,0.05, 0,-0.08,0, SM.paper);
+  bx(P.head,0.36,0.44,0.08, 0,0.18,0, [SM.paper,SM.paper,SM.paper,SM.paper,SM.paperFace,SM.paper]);
+  const flap = bx(P.head,0.2,0.2,0.01, 0.12,0.42,-0.05, SM.paper); flap.rotation.x = -0.8;
+  bx(P.head,0.025,0.025,0.01, -0.09,0.24,0.045, eyeGlow); bx(P.head,0.025,0.025,0.01, 0.075,0.2,0.045, eyeGlow);
+  return M;
+}
+const MONS = [buildMonster(), buildMannequin(), buildPaperMan()];
+const PHANS = [buildMonster(), buildMannequin(), buildPaperMan()];
+for (const m of [...MONS, ...PHANS]) m.g.visible = false;
+MON = MONS[0]; PHANTOM = PHANS[0];
+let mySkin = 0; try { mySkin = (+localStorage.getItem('lvl0_skin') || 0) % 3; } catch(e){}
+function useSkin(k){
+  k = ((k|0)%3+3)%3;
+  if (MON !== MONS[k]){ const v = MON.g.visible; MON.g.visible = false; MON = MONS[k]; MON.g.visible = v; }
+  if (PHANTOM !== PHANS[k]){ const v = PHANTOM.g.visible; PHANTOM.g.visible = false; PHANTOM.g.position.copy(PHANTOM.g.position); const old = PHANTOM; PHANTOM = PHANS[k]; PHANTOM.g.position.copy(old.g.position); PHANTOM.g.rotation.y = old.g.rotation.y; PHANTOM.g.visible = v; }
+}
+function skinLabel(){ return 'OCCUPANT SKIN: ' + SKIN_NAMES[mySkin].replace('THE ',''); }
+
 /* ================= shared state ================= */
-function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0 }; }
+function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0 }; }
 let G = freshState();
 const H = { ai:{}, shiftT:30, ringT:25, ringEnd:0 };
 let mode = 'menu';
@@ -786,7 +853,7 @@ function hostStartRound(){
     else if (monChoice !== 'ai') mo = ids[Math.floor(Math.random()*ids.length)];
   }
   G = freshState(G.r + 1);
-  G.ph = 'play'; G.mo = mo;
+  G.ph = 'play'; G.mo = mo; G.sk = mySkin;
   walls = level.base.slice(); G.w = wallsHex(); G.wv = 1;
   G.fz = level.fuses.map(f=>[0, +f[0].toFixed(2), +f[1].toFixed(2), '']);
   G.aw = level.aw.map(()=>0); G.bt = level.bt.map(()=>0);
@@ -927,7 +994,7 @@ function safe(fn){ try { const r = fn(); if (r && r.catch) r.catch(e=>console.wa
 function broadcastState(){ if (net.solo || !net.room || !net.hostFlag) return; safe(()=>net.room.emit('state', G)); }
 function sendPresence(){
   if (net.solo || !net.room) return;
-  safe(()=>net.room.presence({ pid:myPid, n:myName, h:net.hostFlag?1:0, x:+me.x.toFixed(2), z:+me.z.toFixed(2), y:+me.yaw.toFixed(3), p:+me.pitch.toFixed(3), l:lightOn()?1:0, a:me.alive?1:0, m:noiseLevel(), mv:me.moving?(me.running?2:1):0 }));
+  safe(()=>net.room.presence({ pid:myPid, n:myName, h:net.hostFlag?1:0, x:+me.x.toFixed(2), z:+me.z.toFixed(2), y:+me.yaw.toFixed(3), p:+me.pitch.toFixed(3), l:lightOn()?1:0, a:me.alive?1:0, m:noiseLevel(), mv:me.moving?(me.running?2:1):0, sk:mySkin }));
 }
 function useReq(m){ if (amHost()) applyUse(myPid, m); else safe(()=>net.room.emit('use', { ...m, pid:myPid })); }
 function onPeers(list){
@@ -940,7 +1007,7 @@ function onPeers(list){
     let r = remotes.get(d.pid);
     if (!r){ const av = makeAvatar(d.pid); r = { pid:d.pid, x:+d.x||0, z:+d.z||0, yaw:+d.y||0, pitch:+d.p||0, step:0, mesh:av.g, av, ping:0 }; remotes.set(d.pid, r); }
     r.n = String(d.n||'Someone').slice(0,12); r.h = !!d.h;
-    r.tx = +d.x||0; r.tz = +d.z||0; r.tyaw = +d.y||0; r.tp = +d.p||0; r.l = d.l?1:0; r.a = d.a?1:0; r.m = d.m|0; r.mv = d.mv|0;
+    r.tx = +d.x||0; r.tz = +d.z||0; r.tyaw = +d.y||0; r.tp = +d.p||0; r.l = d.l?1:0; r.a = d.a?1:0; r.m = d.m|0; r.mv = d.mv|0; r.sk = (d.sk|0)%3;
   }
   for (const [pid,r] of remotes) if (!seen.has(pid)){ scene.remove(r.mesh); remotes.delete(pid); }
   renderLobby();
@@ -1073,6 +1140,7 @@ function leaveRoom(){
   remotes.clear();
 }
 function goMenu(note){
+  vhsK = 0; $('vhs').style.opacity = 0;
   mode='menu'; role='none'; VM.visible = false; amb.intensity = 0.16; PHANTOM.g.visible = false; $('hud').style.display='none'; $('black').style.opacity=0; $('white').style.opacity=0; setTouchUI(false); showScreen('menu');
   canvas.style.filter=''; canvas.style.transform='';
   try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
@@ -1164,6 +1232,7 @@ function powerOn(){
   level.slotLeds.forEach(l=>l.material.color.setHex(0x30ff60));
 }
 function showEnd(){
+  vhsK = 0; $('vhs').style.opacity = 0;
   mode = 'end'; setTouchUI(false); VM.visible = false; PHANTOM.g.visible = false;
   try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
   $('hud').style.display='none'; $('black').style.opacity=0; $('white').style.opacity=0; canvas.style.filter=''; canvas.style.transform='';
@@ -1403,6 +1472,9 @@ $('bMon').onclick = ()=>{
   const opts = ['random','ai', myPid, ...remotes.keys()];
   monChoice = opts[(opts.indexOf(monChoice)+1) % opts.length]; renderLobby();
 };
+function cycleSkin(){ mySkin = (mySkin+1)%3; try { localStorage.setItem('lvl0_skin', mySkin); } catch(e){} $('bSkin').textContent = skinLabel(); $('bSkin2').textContent = skinLabel(); sendPresence(); }
+$('bSkin').onclick = cycleSkin; $('bSkin2').onclick = cycleSkin;
+$('bSkin').textContent = skinLabel(); $('bSkin2').textContent = skinLabel();
 $('bStart').onclick = ()=>{ sfx.init(); hostStartRound(); };
 $('bLeave').onclick = ()=>{ leaveRoom(); goMenu(''); };
 $('bAgain').onclick = ()=>{ sfx.init(); hostStartRound(); };
@@ -1506,6 +1578,7 @@ function updateMonsterDisplay(dt){
     mDisp.ry = angLerp(mDisp.ry, G.ay, 1-Math.exp(-8*dt)); mDisp.mv = G.amv;
   } else if (G.mo === myPid){ mDisp.x=me.x; mDisp.z=me.z; mDisp.ry=me.yaw+Math.PI; mDisp.mv = me.moving ? (me.running?2:1) : 0; }
   else { const r = remotes.get(G.mo); if (r){ mDisp.x=r.x; mDisp.z=r.z; mDisp.ry=r.yaw+Math.PI; mDisp.mv=r.mv; } }
+  useSkin(G.mo === 'AI' ? G.sk : G.mo === myPid ? mySkin : ((remotes.get(G.mo)||{}).sk|0));
   MON.g.visible = G.mo !== myPid && myRound===G.r && (mode==='play'||mode==='spect'||mode==='deadAnim') && G.ph==='play';
   if (mode !== 'deadAnim'){ MON.g.position.set(mDisp.x, 0, mDisp.z); MON.g.rotation.y = mDisp.ry; }
   animMonster(MON, nowS(), mDisp.mv>0, mDisp.mv===2?4:2);
@@ -1636,6 +1709,17 @@ function updateAmbience(dt){
 }
 let ringT = 0;
 
+let vhsK = 0;
+function updateVHS(dt){
+  let target = 0;
+  if (role==='survivor' && G.ph==='play' && (mode==='play' || mode==='deadAnim')){
+    const d = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
+    target = mode==='deadAnim' ? 1 : clamp(1 - (d-2)/9, 0, 1);
+  }
+  vhsK = lerp(vhsK, target, 1-Math.exp(-6*dt));
+  const el = $('vhs'); el.style.opacity = vhsK > 0.02 ? Math.min(1, vhsK*1.2) : 0;
+  if (vhsK > 0.02){ $('vband').style.top = ((nowS()*37) % 120 - 15) + '%'; $('vtxt').style.opacity = (vhsK > 0.5 && Math.sin(nowS()*9) > 0) ? 0.85 : 0; }
+}
 function updateSanity(dt, sees){
   if (role!=='survivor' || !me.alive || me.esc) return;
   let ds = 0;
@@ -1644,8 +1728,9 @@ function updateSanity(dt, sees){
   for (const r of remotes.values()) if (r.pid!==G.mo && !isDead(r.pid) && !isEsc(r.pid) && Math.hypot(r.x-me.x, r.z-me.z) < 6){ ds += 0.5; break; }
   me.san = clamp(me.san + ds*dt, 0, 100);
   const k = 1 - me.san/100, t = nowS();
-  canvas.style.filter = k > 0.1 ? `saturate(${1-k*0.55}) contrast(${1+k*0.35}) hue-rotate(${Math.sin(t*0.3)*k*25}deg)` : '';
-  canvas.style.transform = k > 0.5 ? `scale(1.04) skew(${Math.sin(t*0.7)*(k-0.5)*2.4}deg, ${Math.cos(t*0.53)*(k-0.5)*1.2}deg)` : '';
+  const v = vhsK, jit = v > 0.05 ? (Math.random()-0.5)*v*14 : 0;
+  canvas.style.filter = (k > 0.1 ? `saturate(${1-k*0.55}) contrast(${1+k*0.35}) hue-rotate(${Math.sin(t*0.3)*k*25}deg)` : '') + (v > 0.05 ? ` drop-shadow(${(3+v*5).toFixed(1)}px 0 0 rgba(255,40,40,.45)) drop-shadow(${(-3-v*5).toFixed(1)}px 0 0 rgba(40,200,255,.35))` : '');
+  canvas.style.transform = (k > 0.5 ? `scale(1.04) skew(${Math.sin(t*0.7)*(k-0.5)*2.4}deg, ${Math.cos(t*0.53)*(k-0.5)*1.2}deg)` : '') + (jit ? ` translateX(${jit.toFixed(1)}px)` : '');
   // hallucinations
   if (PHANTOM.g.visible){
     halluLife -= dt;
@@ -1742,6 +1827,7 @@ function placeCamera(dt){
   }
 }
 function toSpectate(){
+  vhsK = 0; $('vhs').style.opacity = 0;
   VM.visible = false; $('flash').style.opacity = 0; canvas.style.filter=''; canvas.style.transform='';
   if (pendingEnd || G.ph === 'end'){ showEnd(); return; }
   mode = 'spect'; $('black').style.opacity = 0; $('spec').style.display = 'block'; $('bat').style.display='none'; setTouchUI(isTouch);
@@ -1799,6 +1885,7 @@ function frame(now){
     const sees = survivorSeesMonster();
     stingCD -= dt;
     if (sees){ if (t - lastSeen > 7 && stingCD <= 0 && Math.hypot(mDisp.x-me.x, mDisp.z-me.z) < 12){ sfx.stinger(); stingCD = 9; vibrate(120); } lastSeen = t; }
+    updateVHS(dt);
     updateSanity(dt, sees);
     updateMonsterSenses(dt);
     updateAmbience(dt);
@@ -1810,7 +1897,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { me, H, net, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos };
+window.__hp = { me, H, net, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos };
 </script>
 </body>
 </html>
