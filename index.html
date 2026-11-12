@@ -154,7 +154,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.8.1</div>
+<div class="osd" id="ver">v0.10.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -192,11 +192,13 @@
   </div>
   <details class="how"><summary>HOW TO SURVIVE</summary><br>
     <b>Find 3 fuses</b>, bring them to the breaker, then find the exit door.<br><br>
-    <b>Hide</b> in lockers. Hold your breath, and don't let it see you climb in.<br>
+    <b>Hide</b> in lockers. It can't open them, but hold your breath when it's close.<br>
     <b>Blind it:</b> hold your flashlight on its face up close to stun it.<br>
     <b>Throw cans</b> to make noise somewhere else and pull it away.<br>
-    <b>Adrenaline</b> kicks in when it's close, so run.<br><br>
-    <i>The Occupant</i> hunts by sound: it hears running, cans and gasps, but can't see you through walls. It can kill the lights, move the walls, fake footsteps and search lockers.<br><br>
+    <b>Adrenaline</b> kicks in when it's close, so run. It walks faster than you but it can't sprint.<br>
+    <b>Crouch in the dark</b> with your light off and it can barely see you.<br>
+    <b>Trust nobody far away.</b> It can look like one of you. Watch for a hazmat suit with no flashlight and lights flickering around it, or hold your light on them.<br><br>
+    <i>The Occupant</i> hunts by sound: it hears running, cans and gasps, but can't see you through walls. It can kill the lights, move the walls, fake footsteps, disguise itself as a survivor, and crawl through vents (you'll hear it climb out). It hears every fuse you place.<br><br>
     <span id="controls"></span>
   </details>
   <div class="foot">Headphones on. Listen to the hum.</div>
@@ -245,13 +247,15 @@ const isTouch = ('ontouchstart' in window) || matchMedia('(pointer:coarse)').mat
 document.body.classList.toggle('touch', isTouch);
 $('controls').textContent = isTouch
   ? 'Left thumb moves, right thumb looks. USE pops up next to lockers.'
-  : 'Click to look · WASD move · Shift run · C crouch · F flashlight · E hide/search · G throw can · Occupant: 1 blackout, 2 shift walls, 3 lure.';
+  : 'Click to look · WASD move · Shift run · C crouch · F flashlight · E hide/vent · G throw can · Occupant: 1 blackout, 2 shift walls, 3 lure, 4 disguise.';
 function vibrate(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
 
 /* ================= constants ================= */
 const N = 16, CS = 4, WH = 2.8, W = N*CS, EYE = 1.6;
 const VN = (N+1)*N, E = 2*VN;
 const FUSES = 3;
+const MON_SPEED = 4.0;   // the Occupant never runs: ~1.5x a survivor's walk (2.6), still under their sprint (4.5)
+const DISGUISE_T = 12, DISGUISE_RANGE = 5;
 const vIdx = (i,j) => i*N+j;
 const hIdx = (i,j) => VN + j*N + i;
 const inGrid = (i,j) => i>=0 && j>=0 && i<N && j<N;
@@ -523,12 +527,15 @@ function buildLevel(seed){
   // lights: office panels, garage tubes, bare bulbs over the pits
   L.red = gen.rooms.slice(gen.halls.length).find(r=>zoneOf(r.i0,r.j0)===0) || gen.rooms[gen.rooms.length-1] || {i0:-1,j0:-1,i1:-1,j1:-1};
   const inRed = (i,j) => i>=L.red.i0 && i<=L.red.i1 && j>=L.red.j0 && j<=L.red.j1;
+  L.clean = gen.rooms.slice(gen.halls.length).find(r=>r!==L.red && zoneOf(r.i0,r.j0)===0 && zoneOf(r.i1,r.j1)===0) || null;
+  const inClean = (i,j) => L.clean && i>=L.clean.i0 && i<=L.clean.i1 && j>=L.clean.j0 && j<=L.clean.j1;
   L.panels = []; L.panelAt = new Int16Array(N*N).fill(-1);
   for (let i=0;i<N;i++) for (let j=0;j<N;j++){
     const t = zoneOf(i,j), chance = [0.8, 0.62, 1.0][t];
     if (rng() < chance || inRed(i,j)){
       const p = { idx:L.panels.length, i, j, t, x:cc(i), z:cc(j), faulty: rng() < [0.14,0.25,0.12][t], dead: rng()<0.06, red: t===0 && inRed(i,j), ph: rng()*10, b:1 };
       if (p.red) p.dead = false;
+      if (inClean(i,j)){ p.faulty = false; p.dead = false; }
       L.panelAt[i*N+j] = p.idx; L.panels.push(p);
     }
   }
@@ -609,7 +616,8 @@ function buildLevel(seed){
     const pad = new THREE.Mesh(new THREE.PlaneGeometry(0.12,0.14), lam(0x777766)); pad.position.set(0.03,-0.05,0.051); ph.add(pad);
     L.phones.push({ x:p.x+p.nx*0.7, z:p.z+p.nz*0.7, mesh:ph, hs }); }
   // exit signs (they lie)
-  for (let k=0;k<5;k++){ const p = takeSlot(); if (!p) break; const arrow = ['←','→','↑'][Math.floor(rng()*3)];
+  L.high = [];
+  for (let k=0;k<5;k++){ const p = takeSlot(); if (!p) break; L.high.push({ ...p, sign:1 }); const arrow = ['←','→','↑'][Math.floor(rng()*3)];
     const s = new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.22), new THREE.MeshBasicMaterial({ map: textTex(arrow,64,22,(c,w,h,t)=>{ c.fillStyle='#062a10'; c.fillRect(0,0,w,h); c.fillStyle='#4dff7a'; c.font='bold 16px monospace'; c.textAlign='center'; c.fillText('EXIT '+t,w/2,16); }) }));
     s.position.set(p.x+p.nx*0.12, 2.3, p.z+p.nz*0.12); s.rotation.y = p.ry; g.add(s); }
   // doors to nowhere
@@ -618,7 +626,7 @@ function buildLevel(seed){
     const kn=new THREE.Mesh(new THREE.SphereGeometry(0.04,6,4), lam(0xb0a070)); kn.position.set(0.42,1.05,0.05); d.add(kn); }
   // scrawled messages
   const msgs = SCRAWLS.slice().sort(()=>rng()-0.5);
-  for (let k=0;k<7;k++){ const p = takeSlot(); if (!p) break; const txt = msgs[k%msgs.length];
+  for (let k=0;k<7;k++){ const p = takeSlot(); if (!p) break; L.high.push(p); const txt = msgs[k%msgs.length];
     const tex = textTex(txt,512,96,(c,w,h,t)=>{ c.clearRect(0,0,w,h); c.save(); c.translate(w/2,h/2); c.rotate((rng()-0.5)*0.08); c.font='bold 34px "Special Elite", "Courier New", monospace'; c.textAlign='center'; c.fillStyle='rgba(70,18,8,.85)'; c.fillText(t,0,10);
       for (let d=0; d<10; d++){ const x=(rng()-0.5)*w*0.8; c.fillRect(x, 14, 2, 8+rng()*26); } c.restore(); });
     const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.5), new THREE.MeshLambertMaterial({ map:tex, transparent:true, depthWrite:false }));
@@ -699,6 +707,77 @@ function buildLevel(seed){
     shaft.frustumCulled=false; g.add(shaft);
     const voidp = new THREE.Mesh(new THREE.PlaneGeometry(ZS*CS,ZS*CS), new THREE.MeshBasicMaterial({ color:0x000000 })); voidp.rotation.x=-Math.PI/2; voidp.position.set(ZS/2*CS,-16,(N-ZS/2)*CS); g.add(voidp);
   }
+  buildExtras(L, g, rngFrom(seed ^ 0x5eed10), takeSlot, dist0, far);
+}
+const notPit = q => zoneOf(q.i,q.j) !== 2;
+const footTex = textTex('',32,64,(c,w,h)=>{ c.clearRect(0,0,w,h); c.fillStyle='rgba(28,22,8,.78)';
+  c.beginPath(); c.ellipse(16,22,9,15,0,0,Math.PI*2); c.fill(); c.beginPath(); c.ellipse(16,50,7,9,0,0,Math.PI*2); c.fill();
+  c.fillStyle='rgba(28,22,8,.5)'; for (let k=0;k<5;k++){ c.beginPath(); c.arc(9+k*3.6, 5+Math.abs(k-1.5)*1.6, 2.2, 0, Math.PI*2); c.fill(); } });
+const cleanRugTex = canvasTex(64,64,(g,w,h)=>{ g.fillStyle='#6f7c78'; g.fillRect(0,0,w,h); for (let i=0;i<500;i++){ g.fillStyle=texR()<.5?'rgba(90,104,100,.5)':'rgba(130,142,138,.4)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); } });
+function buildExtras(L, g, rng, takeSlot, dist0, far){
+  const cellsAt = (min,max,ok) => { const out=[]; for (let i=0;i<N;i++) for (let j=0;j<N;j++){ const d=dist0[i*N+j]; if (d>=min && d<=max && !L.used.has(i*N+j) && ok(i,j)) out.push([i,j]); } return out; };
+  const pickC = (min,max,ok=()=>true) => { let c = cellsAt(min,max,ok); if (!c.length) c = cellsAt(0,999,ok); if (!c.length) return null; const r=c[Math.floor(rng()*c.length)]; L.used.add(r[0]*N+r[1]); return r; };
+  // ---- vents: pairs of floor-level grates on the outer walls, Occupant only
+  // wall spots: share the ones under exit signs / scrawls (those hang high), then any free ones left
+  const shared = L.high.filter(notPit);
+  const along = (p, off) => ({ ...p, x: p.x + (p.nx ? 0 : off), z: p.z + (p.nz ? 0 : off) });
+  const spot = (filter=()=>true) => { const k = shared.findIndex(filter); if (k>=0) return shared.splice(k,1)[0]; return takeSlot(q=>notPit(q) && filter(q)); };
+  L.offhook = [];
+  { const p0 = spot(q=>q.sign); if (p0){ const p = along(p0, 1.1); const ph = new THREE.Group(); ph.position.set(p.x+p.nx*0.13, 1.35, p.z+p.nz*0.13); ph.rotation.y = p.ry; g.add(ph);
+      bx(ph, 0.26,0.38,0.1, 0,0,0, lam(0xb8ac88)); bx(ph, 0.12,0.14,0.005, 0.03,-0.05,0.051, lam(0x777766));
+      const hs = bx(ph, 0.07,0.32,0.07, -0.05,-1.05,0.12, lam(0x2a2a2a)); hs.rotation.set(0.5,0,0.35);
+      const cord = bx(ph, 0.012,0.8,0.012, -0.12,-0.55,0.08, lam(0x111111)); cord.rotation.z = 0.12;
+      L.offhook.push({ x:p.x+p.nx*0.4, z:p.z+p.nz*0.4 }); } }
+  L.vents = [];
+  const vs = []; for (let k=0;k<6;k++){ const p = spot(); if (p) vs.push(along(p, (rng()<0.5?-1:1)*0.9)); }
+  const ventMat = lam(0xffffff,{ map: grateTex }), frameMat = lam(0x2a2620);
+  for (const p of vs){
+    const v = new THREE.Group(); v.position.set(p.x+p.nx*0.105, 0, p.z+p.nz*0.105); v.rotation.y = p.ry; g.add(v);
+    bx(v, 0.86,0.6,0.03, 0,0.36,0, frameMat); bx(v, 0.76,0.5,0.03, 0,0.36,0.012, ventMat);
+    L.vents.push({ x:p.x+p.nx*0.3, z:p.z+p.nz*0.3, fx:p.x+p.nx*0.95, fz:p.z+p.nz*0.95, nx:p.nx, nz:p.nz, to:-1 });
+  }
+  // pair each vent with the farthest unpaired one
+  for (let a=0;a<L.vents.length;a++){ if (L.vents[a].to>=0) continue; let best=-1, bd=-1;
+    for (let b=0;b<L.vents.length;b++){ if (b===a || L.vents[b].to>=0) continue; const d=Math.hypot(L.vents[a].x-L.vents[b].x, L.vents[a].z-L.vents[b].z); if (d>bd){ bd=d; best=b; } }
+    if (best>=0){ L.vents[a].to=best; L.vents[best].to=a; } }
+  L.vents = L.vents.filter(v=>v.to>=0);
+  // ---- wet footprints that aren't yours, walking straight into a wall
+  for (let t=0;t<2;t++){ const p = spot(q=>zoneOf(q.i,q.j)===0); if (!p) break;
+    const dx=-p.nx, dz=-p.nz, px=-dz, pz=dx, ry=Math.atan2(-dx,-dz);
+    for (let k=0;k<9;k++){ const d = 3.5 - k*0.4; if (d < 0.2) break; const side = k%2 ? 1 : -1;
+      const fg = new THREE.Group(); fg.position.set(p.x+p.nx*d + px*side*0.11, 0.014, p.z+p.nz*d + pz*side*0.11); fg.rotation.y = ry + (rng()-0.5)*0.12; g.add(fg);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.13,0.27), new THREE.MeshLambertMaterial({ map:footTex, transparent:true, depthWrite:false })); m.rotation.x=-Math.PI/2; if (side>0) m.scale.x=-1; fg.add(m); }
+    L.wet.push({ x:p.x+p.nx*1.8, z:p.z+p.nz*1.8, r:0.4 }); }
+  // ---- an office chair that rolls on its own
+  L.roller = null;
+  { const c = pickC(3, far, (i,j)=>zoneOf(i,j)===0 && L.kind[i*N+j]!==2); if (c){
+      const x=cc(c[0])+(rng()-0.5), z=cc(c[1])+(rng()-0.5), ch = new THREE.Group(); ch.position.set(x,0,z); ch.rotation.y = rng()*6; g.add(ch);
+      const dark = lam(0x2b2b2e), fab = lam(0x3c4a5c);
+      for (let k=0;k<5;k++){ const a=k/5*Math.PI*2, leg=bx(ch, 0.34,0.04,0.05, Math.cos(a)*0.17,0.08,Math.sin(a)*0.17, dark); leg.rotation.y=-a;
+        const w=new THREE.Mesh(new THREE.SphereGeometry(0.035,6,4), dark); w.position.set(Math.cos(a)*0.33,0.035,Math.sin(a)*0.33); ch.add(w); }
+      bx(ch, 0.05,0.36,0.05, 0,0.27,0, dark);
+      const top = new THREE.Group(); top.position.y = 0.46; ch.add(top);
+      bx(top, 0.48,0.08,0.46, 0,0,0, fab); bx(top, 0.46,0.55,0.07, 0,0.34,-0.22, fab); bx(top, 0.04,0.24,0.04, 0,0.08,-0.2, dark);
+      const circ = { x, z, r:0.36 }; L.circles.push(circ);
+      L.roller = { g:ch, top, circ, cd: 12 + rng()*15, t:0, T:0, sx:x, sz:z, tx:x, tz:z, sq:0 }; } }
+  // ---- the clean room: one perfectly normal office that shouldn't be here
+  L.cleanDesk = null;
+  if (L.clean){ const r = L.clean, x0=r.i0*CS, x1=(r.i1+1)*CS, z0=r.j0*CS, z1=(r.j1+1)*CS;
+    const rugTex = cleanRugTex.clone(); rugTex.needsUpdate = true; rugTex.repeat.set((x1-x0)/2, (z1-z0)/2);
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(x1-x0-0.3, z1-z0-0.3), lam(0xffffff,{ map:rugTex })); rug.rotation.x=-Math.PI/2; rug.position.set((x0+x1)/2, 0.006, (z0+z1)/2); g.add(rug);
+    let cell = null; for (let i=r.i0;i<=r.i1 && !cell;i++) for (let j=r.j0;j<=r.j1;j++) if (!L.used.has(i*N+j)){ cell=[i,j]; break; }
+    if (cell){ L.used.add(cell[0]*N+cell[1]); const d = new THREE.Group(); d.position.set(cc(cell[0]), 0, cc(cell[1])); d.rotation.y = Math.floor(rng()*4)*Math.PI/2; g.add(d);
+      const wood = lam(0x8a6a44), legM = lam(0x5a4630);
+      bx(d, 1.3,0.05,0.65, 0,0.74,0, wood); for (const [lx,lz] of [[-.6,-.28],[.6,-.28],[-.6,.28],[.6,.28]]) bx(d, 0.05,0.72,0.05, lx,0.36,lz, legM);
+      bx(d, 0.14,0.02,0.12, -0.05,0.775,-0.12, lam(0x333333)); bx(d, 0.04,0.16,0.04, -0.05,0.86,-0.14, lam(0x333333));
+      bx(d, 0.52,0.34,0.05, -0.05,1.1,-0.15, lam(0x2c2c2c)); bx(d, 0.46,0.28,0.005, -0.05,1.1,-0.122, new THREE.MeshBasicMaterial({ color:0x1d3346 }));
+      bx(d, 0.4,0.02,0.14, -0.05,0.775,0.12, lam(0xd8d4c8));
+      const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.036,0.1,10), lam(0xf2efe6)); mug.position.set(0.42,0.82,0.1); d.add(mug);
+      bx(d, 0.012,0.05,0.03, 0.465,0.82,0.1, lam(0xf2efe6));
+      const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.08,0.2,8), lam(0xa0583a)); pot.position.set(0.5,0.87,-0.18); d.add(pot);
+      for (let k=0;k<5;k++){ const lf = new THREE.Mesh(new THREE.ConeGeometry(0.05,0.32,4), lam(0x3f7a2c)); lf.position.set(0.5+(rng()-0.5)*0.08, 1.1, -0.18+(rng()-0.5)*0.08); lf.rotation.set((rng()-0.5)*0.7,0,(rng()-0.5)*0.7); d.add(lf); }
+      L.circles.push({ x:cc(cell[0]), z:cc(cell[1]), r:0.7 });
+      L.cleanDesk = { x:cc(cell[0]), z:cc(cell[1]) }; } }
 }
 function inPit(x,z){ if (!level.holes) return false; for (const h of level.holes) if (x>h.x0+0.12 && x<h.x1-0.12 && z>h.z0+0.12 && z<h.z1-0.12) return true; return false; }
 
@@ -949,7 +1028,7 @@ function useSkin(k){
 function skinLabel(){ return 'OCCUPANT SKIN: ' + SKIN_NAMES[mySkin].replace('THE ',''); }
 
 /* ================= shared state ================= */
-function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0 }; }
+function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0, dg:0, dgp:'' }; }
 let G = freshState();
 const H = { ai:{}, shiftT:30, ringT:25, ringEnd:0 };
 let mode = 'menu';
@@ -959,8 +1038,8 @@ const amHost = () => net.solo || net.hostFlag;
 const isDead = pid => G.dead.includes(pid);
 const isEsc = pid => G.esc.includes(pid);
 function allPlayers(){
-  const out = [{ pid:myPid, n:myName, x:me.x, z:me.z, yaw:me.yaw, pitch:me.pitch, l:lightOn()?1:0, a:me.alive?1:0, m:noiseLevel(), hd:me.hidden+1 }];
-  for (const r of remotes.values()) out.push({ pid:r.pid, n:r.n, x:r.tx, z:r.tz, yaw:r.tyaw, pitch:r.tp, l:r.l, a:r.a, m:r.m, hd:r.hd|0 });
+  const out = [{ pid:myPid, n:myName, x:me.x, z:me.z, yaw:me.yaw, pitch:me.pitch, l:lightOn()?1:0, a:me.alive?1:0, m:noiseLevel(), hd:me.hidden+1, c:me.crouch?1:0, vt:ventT>0?1:0 }];
+  for (const r of remotes.values()) out.push({ pid:r.pid, n:r.n, x:r.tx, z:r.tz, yaw:r.tyaw, pitch:r.tp, l:r.l, a:r.a, m:r.m, hd:r.hd|0, c:r.c|0, vt:r.vt|0 });
   return out;
 }
 function noiseLevel(){
@@ -973,6 +1052,8 @@ function noiseLevel(){
   if (onWet(me.x, me.z)) m = Math.min(2, m+1);
   return m;
 }
+// true when the Occupant is disguised and this point is far enough away to be fooled
+function disguisedFrom(x,z){ return G.dg > 0 && G.stun <= 0 && G.mo !== myPid && Math.hypot(mDisp.x-x, mDisp.z-z) >= DISGUISE_RANGE; }
 function monsterPos(){
   if (G.mo === 'AI') return { x:G.ax, z:G.az };
   if (G.mo === myPid) return { x:me.x, z:me.z };
@@ -1014,19 +1095,15 @@ function applyUse(pid, m){
   else if (m.k === 'cn'){ G.cn[m.i|0] = 1; }
   else if (m.k === 'stun'){
     const mp = monsterPos();
-    if (P && G.stun <= 0.5 && Math.hypot(P.x-mp.x, P.z-mp.z) < 11){ G.stun = 3.6; if (G.mo==='AI'){ H.ai.mode='hunt'; H.ai.lt=1.5; H.ai.lx=G.ax; H.ai.lz=G.az; } }
+    if (P && G.stun <= 0.5 && Math.hypot(P.x-mp.x, P.z-mp.z) < 11){ G.stun = 3.6; G.dg = 0; if (G.mo==='AI'){ H.ai.mode='hunt'; H.ai.lt=1.5; H.ai.lx=G.ax; H.ai.lz=G.az; } }
   }
   else if (m.k === 'noise'){
     if (G.mo === 'AI' && H.ai.mode !== 'chase'){ H.ai.mode='hunt'; H.ai.lx=+m.x||0; H.ai.lz=+m.z||0; H.ai.lt=10; H.ai.rp=0; }
   }
-  else if (m.k === 'search' && pid === G.mo){
-    const i = m.i|0, lk = level.lockers[i];
-    for (const p of allPlayers()) if (p.pid!==G.mo && p.hd === i+1 && !isDead(p.pid)) killSurvivor(p);
-    if (lk) safe(()=>net.room && net.room.emit('snd',{k:'bang',x:lk.x,z:lk.z}));
-  }
   else if (m.k === 'ab' && pid === G.mo){
     if (m.a === 'blackout') G.bo.push([+m.x||0, +m.z||0, 18]);
     else if (m.a === 'shift') doShift(+m.x||0, +m.z||0, 16, 16);
+    else if (m.a === 'disguise'){ const s = survivorsAlive(); if (s.length){ G.dg = DISGUISE_T; G.dgp = s[Math.floor(Math.random()*s.length)].pid; } }
   }
 }
 function killSurvivor(p){
@@ -1076,19 +1153,14 @@ function aiTick(dt, alive){
   const A = H.ai;
   if (G.grace > 0 || G.stun > 0){ G.amv = 0; return; }
   const ax=G.ax, az=G.az;
-  // it saw you climb into a locker: it walks over and rips it open
-  if (A.search != null){
-    const lk = level.lockers[A.search];
-    if (!lk || !alive.some(p=>p.hd===A.search+1)){ A.search = null; }
-    else if (Math.hypot(lk.fx-ax, lk.fz-az) < 1.3){ for (const p of alive) if (p.hd===A.search+1) killSurvivor(p); playEventSound('bang', lk.x, lk.z); safe(()=>net.room && net.room.emit('snd',{k:'bang',x:lk.x,z:lk.z})); A.search=null; A.mode='wander'; return; }
-    else { A.mode='chase'; A.lx=lk.fx; A.lz=lk.fz; A.lt=3; }
-  }
-  for (const p of alive) if (p.hd && A.mode==='chase' && A.target===p.pid && A.search==null){ if (Math.hypot(p.x-ax,p.z-az) < 9) A.search = p.hd-1; else { A.mode='hunt'; } A.target=null; }
+  // lockers are safe: if the one it was chasing hides, it loses them and searches the area
+  for (const p of alive) if (p.hd && A.mode==='chase' && A.target===p.pid){ A.mode='hunt'; A.lt=4; A.target=null; }
   alive = alive.filter(p=>!p.hd);
   let seen=null, sd=1e9;
   for (const p of alive){
     const d = Math.hypot(p.x-ax, p.z-az);
-    if (d < 15 && (p.l || d < 6 || lightAtCell(p.x,p.z) > 0.5) && losClear(ax,az,p.x,p.z)){ if (d < sd){ sd=d; seen=p; } }
+    const dark = !p.l && lightAtCell(p.x,p.z) < 0.25;
+    if (d < 15 && (p.l || d < (p.c && dark ? 2.5 : 6) || lightAtCell(p.x,p.z) > 0.5) && losClear(ax,az,p.x,p.z)){ if (d < sd){ sd=d; seen=p; } }
     const hear = p.m>=3 ? 60 : p.m===2 ? 22 : p.m===1 ? 6 : 0;
     if (d < hear){ A.lx=p.x; A.lz=p.z; if (A.mode!=='chase') A.mode='hunt'; A.lt=8; }
   }
@@ -1096,8 +1168,8 @@ function aiTick(dt, alive){
   else if (A.mode==='chase') A.mode='hunt';
   A.lt -= dt; if (A.mode==='hunt' && A.lt<=0) A.mode='wander';
   let tx, tz, sp;
-  if (A.mode==='chase'){ tx=A.lx; tz=A.lz; sp=A.search!=null ? 3.0 : 3.8; }
-  else if (A.mode==='hunt'){ tx=A.lx; tz=A.lz; sp=3.0; if (Math.hypot(tx-ax,tz-az)<1.2){ A.mode='wander'; A.wp=null; } }
+  if (A.mode==='chase'){ tx=A.lx; tz=A.lz; sp=MON_SPEED; }
+  else if (A.mode==='hunt'){ tx=A.lx; tz=A.lz; sp=MON_SPEED; if (Math.hypot(tx-ax,tz-az)<1.2){ A.mode='wander'; A.wp=null; } }
   else {
     if (!A.wp || Math.hypot(A.wp[0]-ax,A.wp[1]-az) < 1.5){
       // wander, but drift toward survivors
@@ -1117,13 +1189,14 @@ function aiTick(dt, alive){
   }
   const dx=gx-ax, dz=gz-az, d=Math.hypot(dx,dz)||1;
   [G.ax, G.az] = collide(ax+dx/d*sp*dt, az+dz/d*sp*dt, 0.35);
-  G.ay = Math.atan2(dx, dz); G.amv = sp > 2.5 ? 2 : 1;
+  G.ay = Math.atan2(dx, dz); G.amv = 1;
   A.boT -= dt;
   if (A.mode!=='wander' && A.boT <= 0){ A.boT = 45+Math.random()*30; G.bo.push([ax,az,15]); }
 }
 function hostTick(dt){
   if (G.ph !== 'play') return;
   G.grace = Math.max(0, G.grace - dt);
+  G.dg = Math.max(0, G.dg - dt);
   G.bo = G.bo.map(b=>[b[0],b[1],b[2]-dt]).filter(b=>b[2]>0);
   const ps = allPlayers();
   const surv = ps.filter(p=>p.pid!==G.mo);
@@ -1133,11 +1206,11 @@ function hostTick(dt){
   if (G.mo === 'AI'){ aiTick(dt, alive); mp = { x:G.ax, z:G.az }; }
   else {
     const m = ps.find(p=>p.pid===G.mo);
-    if (!m){ G.mo = 'AI'; H.ai = { mode:'hunt', lx:G.ax, lz:G.az, lt:6, rp:0, boT:40, lc:-1 }; return; }
+    if (!m){ G.dg = 0; G.mo = 'AI'; H.ai = { mode:'hunt', lx:G.ax, lz:G.az, lt:6, rp:0, boT:40, lc:-1 }; return; }
     mp = m; G.ax = m.x; G.az = m.z;
   }
   G.stun = Math.max(0, G.stun - dt);
-  if (G.grace <= 0 && G.stun <= 0) for (const p of alive) if (!p.hd && Math.hypot(p.x-mp.x, p.z-mp.z) < 1.1) killSurvivor(p);
+  if (G.grace <= 0 && G.stun <= 0 && !mp.vt) for (const p of alive) if (!p.hd && Math.hypot(p.x-mp.x, p.z-mp.z) < 1.1) killSurvivor(p);
   // the phones ring
   H.ringT -= dt;
   if (G.ring < 0 && H.ringT <= 0 && level.phones.length){
@@ -1157,7 +1230,7 @@ function safe(fn){ try { const r = fn(); if (r && r.catch) r.catch(e=>console.wa
 function broadcastState(){ if (net.solo || !net.room || !net.hostFlag) return; safe(()=>net.room.emit('state', G)); }
 function sendPresence(){
   if (net.solo || !net.room) return;
-  safe(()=>net.room.presence({ pid:myPid, n:myName, h:net.hostFlag?1:0, x:+me.x.toFixed(2), z:+me.z.toFixed(2), y:+me.yaw.toFixed(3), p:+me.pitch.toFixed(3), l:lightOn()?1:0, a:me.alive?1:0, m:noiseLevel(), mv:me.moving?(me.running?2:1):0, sk:mySkin, hd:me.hidden+1 }));
+  safe(()=>net.room.presence({ pid:myPid, n:myName, h:net.hostFlag?1:0, x:+me.x.toFixed(2), z:+me.z.toFixed(2), y:+me.yaw.toFixed(3), p:+me.pitch.toFixed(3), l:lightOn()?1:0, a:me.alive?1:0, m:noiseLevel(), mv:me.moving?(me.running?2:1):0, sk:mySkin, hd:me.hidden+1, c:me.crouch?1:0, vt:ventT>0?1:0 }));
 }
 function useReq(m){ if (amHost()) applyUse(myPid, m); else safe(()=>net.room.emit('use', { ...m, pid:myPid })); }
 function onPeers(list){
@@ -1170,7 +1243,7 @@ function onPeers(list){
     let r = remotes.get(d.pid);
     if (!r){ const av = makeAvatar(d.pid); r = { pid:d.pid, x:+d.x||0, z:+d.z||0, yaw:+d.y||0, pitch:+d.p||0, step:0, mesh:av.g, av, ping:0 }; remotes.set(d.pid, r); }
     r.n = String(d.n||'Someone').slice(0,12); r.h = !!d.h;
-    r.tx = +d.x||0; r.tz = +d.z||0; r.tyaw = +d.y||0; r.tp = +d.p||0; r.l = d.l?1:0; r.a = d.a?1:0; r.m = d.m|0; r.mv = d.mv|0; r.sk = (d.sk|0)%3; r.hd = d.hd|0;
+    r.tx = +d.x||0; r.tz = +d.z||0; r.tyaw = +d.y||0; r.tp = +d.p||0; r.l = d.l?1:0; r.a = d.a?1:0; r.m = d.m|0; r.mv = d.mv|0; r.sk = (d.sk|0)%3; r.hd = d.hd|0; r.c = d.c|0; r.vt = d.vt|0;
   }
   for (const [pid,r] of remotes) if (!seen.has(pid)){ scene.remove(r.mesh); remotes.delete(pid); }
   renderLobby();
@@ -1345,7 +1418,8 @@ function afterState(){
   }
   if (G.ph === 'play' && myRound !== G.r){ myRound = G.r; startRoundLocal(); }
   if (myRound === G.r && G.ph === 'play'){
-    if (G.pl > seenPl){ seenPl = G.pl; if (G.pl < FUSES){ msg(`A fuse clicks into the breaker. ${G.pl}/${FUSES}`, 3); sfx.clunk(level.breaker[0], level.breaker[1]); } }
+    if (G.pl > seenPl && role === 'monster') breakerClunk();   // only the Occupant hears it from across the level
+    if (G.pl > seenPl){ seenPl = G.pl; if (G.pl < FUSES){ msg(`A fuse clicks into the breaker. ${G.pl}/${FUSES}`, 3); if (role !== 'monster') sfx.clunk(level.breaker[0], level.breaker[1]); } }
     if (G.open && !seenOpen){ seenOpen = 1; powerOn(); }
     if (G.stun > 0 && !seenStun){ seenStun = true; sfx.recoil(mDisp.x, mDisp.z); if (role==='monster'){ $('white').style.transition='none'; $('white').style.opacity=0.85; setTimeout(()=>{ $('white').style.transition='opacity 3s'; $('white').style.opacity=0; },60); msg('BLINDED.', 2.5); } }
     if (G.stun <= 0) seenStun = false;
@@ -1364,8 +1438,8 @@ function startRoundLocal(){
   if (role === 'monster'){ me.x = level.mspawn[0]; me.z = level.mspawn[1]; me.yaw = Math.random()*6; }
   else { const k = hashStr(myPid)%4; me.x = cc(1) + [-0.8,0.8,-0.8,0.8][k]; me.z = cc(1) + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; }
   me.pitch = 0; me.bat = 100; me.light = false; me.stam = 100; me.alive = true; me.esc = false; me.crouch = false; me.san = 100; me.loudT = 0; me.hidden = -1; me.cans = 2; me.breath = 100; me.winded = false; me.vmRun = 0;
-  stunCharge = 0; stunCD = 0; searchCD = 0; roundT0 = nowS(); $('locker').style.display='none';
-  seenPl = G.pl; seenOpen = G.open; pendingEnd = false; specIdx = 0; knownBo.clear(); abCD = { blackout:8, shift:8, lure:5 };
+  stunCharge = 0; stunCD = 0; ventCD = 8; ventT = 0; roundT0 = nowS(); creakT = 25 + Math.random()*20; silT = 0; silNext = 70 + Math.random()*50; $('locker').style.display='none';
+  seenPl = G.pl; seenOpen = G.open; pendingEnd = false; specIdx = 0; knownBo.clear(); abCD = { blackout:8, shift:8, lure:5, disguise:20 };
   mode = 'play';
   showScreen(null);
   $('hud').style.display = 'block'; $('black').style.opacity = 0; $('white').style.opacity = 0; $('spec').style.display = 'none';
@@ -1379,7 +1453,7 @@ function startRoundLocal(){
   setTouchUI(true); setButtons();
   sfx.init();
   if (role === 'monster'){
-    $('blacktext').textContent = 'YOU ARE THE OCCUPANT'; $('blacksub').textContent = 'They wake up in the halls. Running gives them away. Don\'t let them reach the exit.';
+    $('blacktext').textContent = 'YOU ARE THE OCCUPANT'; $('blacksub').textContent = 'They wake up in the halls. You can\'t run, but you walk faster than they do. Listen for them, and don\'t let them reach the exit.';
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
   } else msg('Find 3 fuses. Something else is awake.', 5);
 }
@@ -1461,7 +1535,10 @@ const sfx = {
   bindLevel(){
     if (!this.ctx || !level || level.soundsBound) return;
     level.soundsBound = true;
-    for (const tv of level.tvs){ const s=this.ctx.createBufferSource(); s.buffer=this.white; s.loop=true; const f=this.ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=2600; f.Q.value=0.7; const g=this.ctx.createGain(); g.gain.value=0.12; s.connect(f).connect(g).connect(this.panner(tv.x,0.3,tv.z,1)); s.start(); level.sounds.push(s); }
+    level.ambG = [];
+    for (const tv of level.tvs){ const s=this.ctx.createBufferSource(); s.buffer=this.white; s.loop=true; const f=this.ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=2600; f.Q.value=0.7; const g=this.ctx.createGain(); g.gain.value=0.12; g.base=0.12; s.connect(f).connect(g).connect(this.panner(tv.x,0.3,tv.z,1)); s.start(); level.sounds.push(s); level.ambG.push(g); }
+    for (const ph of level.offhook || []){ const g=this.ctx.createGain(); g.gain.value=0.03; g.base=0.03; g.connect(this.panner(ph.x,0.9,ph.z,0.6));
+      for (const fr of [350,440]){ const o=this.ctx.createOscillator(); o.frequency.value=fr; o.connect(g); o.start(); level.sounds.push(o); } level.ambG.push(g); }
   },
   panner(x,y,z,ref=1.5){
     const p=this.ctx.createPanner(); p.panningModel='HRTF'; p.distanceModel='inverse'; p.refDistance=ref; p.maxDistance=80; p.rolloffFactor=1.3;
@@ -1515,6 +1592,7 @@ const sfx = {
     else if (kind===5){ this.tone(o,{f:180,to:120,type:'sawtooth',dur:1.6,gain:0.05,attack:0.3}); this.noise(o,{dur:1.6,type:'bandpass',freq:500,q:2,gain:0.15,attack:0.4}); }
     else if (kind===6){ for (let k=0;k<6;k++) this.tone(o,{f:k%2?1250:950,type:'square',dur:0.18,gain:0.05,at:k*0.22}); }
     else if (kind===7){ this.tone(o,{f:42,dur:2.5,type:'sawtooth',gain:0.08,attack:0.4}); this.noise(o,{dur:2.5,freq:160,gain:0.35,attack:0.5}); }
+    else if (kind===9){ this.ding(pos); }
     else { for (let k=0;k<7;k++) this.noise(o,{dur:0.06,type:'bandpass',freq:1200+Math.random()*900,q:3,gain:0.35*(1-k/8),at:k*0.13+Math.random()*0.05}); }
   },
   fall(){ if(!this.ctx) return; const f=this.noise(this.master,{dur:3.5,type:'bandpass',freq:300,q:0.8,gain:0.7,attack:0.3,buf:this.brown}); f.frequency.exponentialRampToValueAtTime(1800,this.ctx.currentTime+3); this.noise(this.master,{dur:0.3,freq:300,gain:0.6}); },
@@ -1523,12 +1601,20 @@ const sfx = {
   clatter(x,z){ if(!this.ctx) return; const o=this.panner(x,0.2,z,2); for (let k=0;k<5;k++) this.noise(o,{dur:0.06,type:'bandpass',freq:2200+Math.random()*1500,q:4,gain:0.7*(1-k/6),at:k*0.11+Math.random()*0.04}); },
   whoosh(){ if(!this.ctx) return; this.noise(this.master,{dur:0.25,type:'bandpass',freq:900,q:1,gain:0.12,attack:0.08}); },
   recoil(x,z){ if(!this.ctx) return; const o=this.panner(x,2,z,3); const f=this.noise(o,{dur:1.2,type:'bandpass',freq:1800,q:2,gain:0.9}); f.frequency.exponentialRampToValueAtTime(500,this.ctx.currentTime+1); this.tone(o,{f:330,to:140,type:'sawtooth',dur:1,gain:0.12}); },
+  ding(pos){ if(!this.ctx) return; const o=this.out(pos); this.tone(o,{f:1318.5,dur:2.4,gain:0.09,attack:0.004}); this.tone(o,{f:2637,dur:1.1,gain:0.025,attack:0.004}); this.tone(o,{f:659.3,dur:1.8,gain:0.03,attack:0.004}); },
+  creak(x,z){ if(!this.ctx) return; const o=this.panner(x,WH,z,2); const f=this.noise(o,{dur:1.5,type:'bandpass',freq:240,q:9,gain:0.45,attack:0.35,buf:this.brown}); f.frequency.exponentialRampToValueAtTime(150,this.ctx.currentTime+1.4); for (let k=0;k<3;k++) this.noise(o,{dur:0.04,type:'bandpass',freq:1400+Math.random()*600,q:3,gain:0.18,at:0.3+k*0.35+Math.random()*0.1}); },
+  squeak(x,z){ if(!this.ctx) return; const o=this.panner(x,0.3,z,1.5); this.tone(o,{f:1900+Math.random()*500,to:1500,type:'triangle',dur:0.22,gain:0.03,attack:0.05}); this.noise(o,{dur:0.3,freq:260,gain:0.1,attack:0.05}); },
+  tick(x,z){ if(!this.ctx) return; const o=this.panner(x,1.6,z,0.8); this.noise(o,{dur:0.02,type:'highpass',freq:3200,gain:0.35}); },
+  ventIn(){ if(!this.ctx) return; this.noise(this.master,{dur:0.3,type:'bandpass',freq:700,q:4,gain:0.4}); this.tone(this.master,{f:140,to:90,type:'square',dur:0.15,gain:0.05}); },
+  ventCrawl(){ if(!this.ctx) return; this.noise(this.master,{dur:0.12,type:'bandpass',freq:300+Math.random()*200,q:5,gain:0.5}); this.tone(this.master,{f:70+Math.random()*30,dur:0.1,gain:0.25}); },
+  vent(x,z){ if(!this.ctx) return; const o=this.panner(x,0.4,z,4); for (let k=0;k<3;k++){ this.noise(o,{dur:0.35,type:'bandpass',freq:520+k*130,q:6,gain:1,at:k*0.09}); this.tone(o,{f:180-k*30,type:'square',dur:0.3,gain:0.08,at:k*0.09}); } this.noise(o,{dur:0.9,type:'bandpass',freq:2600,q:8,gain:0.25,at:0.15}); },
   escape(){ if(!this.ctx) return; for (const f of [261.6,329.6,392,523.3]) this.tone(this.master,{f,type:'sine',dur:3,gain:0.06,attack:0.8}); },
 };
 function playEventSound(k, x, z){
   if (!sfx.ctx) return;
   if (k === 'can'){ sfx.clatter(x, z); return; }
   if (k === 'bang'){ sfx.bang(x, z); return; }
+  if (k === 'vent'){ sfx.vent(x, z); return; }
   if (k === 'gasp'){ const o=sfx.panner(x,1.5,z,role==='monster'?4:2); sfx.noise(o,{dur:0.9,type:'bandpass',freq:900,q:0.7,gain:0.5,attack:0.05}); return; }
   if (k === 'lure'){
     const a = Math.random()*6;
@@ -1551,6 +1637,7 @@ addEventListener('keydown', e=>{
     if (e.code==='Digit1') ability('blackout');
     if (e.code==='Digit2') ability('shift');
     if (e.code==='Digit3') ability('lure');
+    if (e.code==='Digit4') ability('disguise');
   }
   if (mode==='play' && e.code==='KeyE'){ const a = contextAction(); if (a) a.fn(); }
   if (mode==='spect' && e.code==='Space') specIdx++;
@@ -1607,6 +1694,7 @@ const ICON = {
   can:'<svg viewBox="0 0 24 24"><path d="M8 7h8v13H8z"/><path d="M9 4h6v3H9zM8 11h8"/><path d="M18 3l3-1M19 6l3 1"/></svg>',
   dark:'<svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10c1 1 1 2 1 3h6c0-1 0-2 1-3a6 6 0 0 0-4-10z"/><path d="M4 4l16 16"/></svg>',
   walls:'<svg viewBox="0 0 24 24"><path d="M3 5h8v14H3zM13 5h8v14h-8"/><path d="M15 9l3 3-3 3"/></svg>',
+  mask:'<svg viewBox="0 0 24 24"><path d="M4 6c5-2 11-2 16 0 0 7-3 12-8 13C7 18 4 13 4 6z"/><path d="M8 10h3M13 10h3M10 15c1 .8 3 .8 4 0"/></svg>',
   lure:'<svg viewBox="0 0 24 24"><path d="M5 18c2 0 2-3 4-3s2 3 4 3M11 10c2 0 2-3 4-3s2 3 4 3"/><circle cx="6" cy="6" r="1.5"/></svg>',
 };
 function setButtons(){
@@ -1616,10 +1704,10 @@ function setButtons(){
     { label:'LIGHT', icon:'light', down:()=>{ if(mode==='play' && me.hidden<0){ me.light=!me.light; sfx.click(); } }, on:()=>lightOn() }, run,
     { label:'CROUCH', icon:'crouch', down:()=>{ me.crouch=!me.crouch; }, on:()=>me.crouch },
     { label:'THROW', icon:'can', down:()=>throwCan(), cnt:()=>me.cans } ];
-  else cfg = [ { label:'DARK', icon:'dark', m:1, down:()=>ability('blackout'), cd:'blackout' }, run, { label:'SHIFT', icon:'walls', m:1, down:()=>ability('shift'), cd:'shift' }, { label:'LURE', icon:'lure', m:1, down:()=>ability('lure'), cd:'lure' } ];
+  else cfg = [ { label:'DARK', icon:'dark', m:1, down:()=>ability('blackout'), cd:'blackout' }, { label:'DISGUISE', icon:'mask', m:1, down:()=>ability('disguise'), cd:'disguise' }, { label:'SHIFT', icon:'walls', m:1, down:()=>ability('shift'), cd:'shift' }, { label:'LURE', icon:'lure', m:1, down:()=>ability('lure'), cd:'lure' } ];
   ['bA','bB','bC','bD'].forEach((id,k)=>{ const c=cfg[k]; BTN[id]=c; const b=$(id); b.style.display = c ? '' : 'none'; if (c){ b.innerHTML = ICON[c.icon] + c.label; b.classList.toggle('m', !!c.m); } });
   BTN.bUse = { down:()=>{ const a=contextAction(); if (a) a.fn(); } };
-  $('abil').innerHTML = role==='monster' ? ['blackout','shift','lure'].map((k,i)=>`<div class="ab" id="ab_${k}"><div class="k">[${i+1}]</div><div class="n">${['BLACKOUT','SHIFT WALLS','LURE'][i]}</div><div class="cdf"></div></div>`).join('') : '';
+  $('abil').innerHTML = role==='monster' ? ['blackout','shift','lure','disguise'].map((k,i)=>`<div class="ab" id="ab_${k}"><div class="k">[${i+1}]</div><div class="n">${['BLACKOUT','SHIFT WALLS','LURE','DISGUISE'][i]}</div><div class="cdf"></div></div>`).join('') : '';
 }
 function updateButtons(){
   for (const id of ['bA','bB','bC','bD']){ const c=BTN[id]; if (!c) continue; const b=$(id);
@@ -1629,7 +1717,7 @@ function updateButtons(){
   const act = contextAction();
   const u = $('bUse'); const want = act && isTouch ? 'block' : 'none'; if (u.style.display !== want) u.style.display = want; if (act && u.textContent !== act.label) u.textContent = act.label;
   const p = $('prompt'); if (act){ const h = isTouch ? act.label : `<kbd>${act.key}</kbd>${act.label}`; if (p.innerHTML !== h) p.innerHTML = h; p.style.display='block'; } else p.style.display='none';
-  if (role==='monster' && !isTouch) for (const k of ['blackout','shift','lure']){ const el=$('ab_'+k); if (!el) continue; const v=abCD[k]; el.classList.toggle('ready', v<=0 && G.grace<=0); el.querySelector('.cdf').style.width = (v>0 ? (1-v/AB_CD[k])*100 : 100) + '%'; }
+  if (role==='monster' && !isTouch) for (const k of ['blackout','shift','lure','disguise']){ const el=$('ab_'+k); if (!el) continue; const v=abCD[k]; el.classList.toggle('ready', v<=0 && G.grace<=0); el.querySelector('.cdf').style.width = (v>0 ? (1-v/AB_CD[k])*100 : 100) + '%'; }
 }
 function setTouchUI(on){
   const show = on && isTouch;
@@ -1637,10 +1725,11 @@ function setTouchUI(on){
   $('btns').style.display = show ? 'grid' : 'none';
   if (!show){ stick.style.display='none'; stickId=null; lookId=null; stickV=[0,0]; runHeld=false; }
 }
-let abCD = { blackout:0, shift:0, lure:0 };
-const AB_CD = { blackout:32, shift:22, lure:14 };
+let abCD = { blackout:0, shift:0, lure:0, disguise:0 };
+const AB_CD = { blackout:32, shift:22, lure:14, disguise:40 };
 function ability(k){
   if (mode!=='play' || role!=='monster' || G.grace>0 || abCD[k]>0) return;
+  if (k === 'disguise' && (G.stun > 0 || !survivorsAlive().length)) return;
   abCD[k] = AB_CD[k];
   if (k === 'lure'){
     const [lx,,lz] = lookDir(me.yaw, 0);
@@ -1649,7 +1738,7 @@ function ability(k){
     msg('You make footsteps somewhere ahead.', 2);
   } else {
     useReq({ k:'ab', a:k, x:+me.x.toFixed(2), z:+me.z.toFixed(2) });
-    msg(k==='blackout' ? 'The lights around you die.' : 'The halls around you rearrange.', 2);
+    msg(k==='blackout' ? 'The lights around you die.' : k==='disguise' ? `You look like one of them from afar. Don't get closer than ${DISGUISE_RANGE}m until you strike.` : 'The halls around you rearrange.', k==='disguise' ? 4 : 2);
   }
 }
 
@@ -1695,6 +1784,9 @@ function getPing(pid){
   return p;
 }
 
+function breakerClunk(){
+  if (sfx.ctx){ const o = sfx.panner(level.breaker[0], 1.3, level.breaker[1], 10); sfx.noise(o,{dur:0.2,freq:600,gain:1}); sfx.tone(o,{f:90,dur:0.3,gain:0.6}); }
+}
 function moveInput(){
   let fx=0, fz=0;
   if (keys.has('KeyW')||keys.has('ArrowUp')) fz-=1;
@@ -1708,17 +1800,17 @@ function moveInput(){
 function updateMe(dt){
   const [fx, fz, want] = moveInput();
   const runReq = (keys.has('ShiftLeft')||keys.has('ShiftRight')||runHeld) && want && fz < 0.3;
-  if (role === 'monster' && (G.grace > 0 || G.stun > 0)){ me.moving = false; me.running = false; return; }
+  if (role === 'monster' && (G.grace > 0 || G.stun > 0 || ventT > 0)){ me.moving = false; me.running = false; return; }
   if (role === 'survivor' && me.hidden >= 0){ updateHidden(dt); return; }
   if (runReq && me.crouch) me.crouch = false;
   const md = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
-  me.adren = role==='survivor' && G.grace <= 0 && md < 10;
+  me.adren = role==='survivor' && G.grace <= 0 && md < 10 && !disguisedFrom(me.x, me.z);
   if (me.stam <= 0.5) me.winded = true;
   if (me.winded && (me.stam >= 35 || (!runReq && me.stam >= 12))) me.winded = false;
-  me.running = runReq && !me.winded && me.stam > 0.5;
+  me.running = role !== 'monster' && runReq && !me.winded && me.stam > 0.5;
   me.stam = clamp(me.stam + (me.running ? (role==='monster' ? -17 : me.adren ? -12 : -21) : (role==='monster' ? 9 : 13))*dt, 0, 100);
   let sp;
-  if (role === 'monster') sp = me.running ? 4.9 : 3.0;
+  if (role === 'monster') sp = MON_SPEED;
   else sp = me.crouch ? 1.35 : me.running ? (me.adren ? 5.1 : 4.5) : 2.6;
   const sn = Math.sin(me.yaw), cs = Math.cos(me.yaw);
   const vx = (fx*cs + fz*sn)*sp, vz = (-fx*sn + fz*cs)*sp;
@@ -1761,7 +1853,7 @@ function contextAction(){
     if (me.hidden >= 0) return { label:'LEAVE', key:'E', fn:()=>unhide() };
     const k = nearLocker(1.3); if (k>=0 && !lockerTaken(k)) return { label:'HIDE', key:'E', fn:()=>hide(k) };
   }
-  if (role==='monster' && G.grace<=0 && G.stun<=0){ const k = nearLocker(1.7); if (k>=0 && searchCD<=0) return { label:'SEARCH', key:'E', fn:()=>search(k) }; }
+  if (role==='monster' && G.grace<=0 && G.stun<=0 && ventT<=0){ const k = nearVent(1.5); if (k>=0 && ventCD<=0) return { label:'VENT', key:'E', fn:()=>enterVent(k) }; }
   return null;
 }
 function hide(k){ const lk = level.lockers[k]; me.hidden = k; me.breath = 100; me.x = lk.x; me.z = lk.z; me.yaw = lk.ry + Math.PI; me.pitch = 0; me.light = false; me.crouch=false; sfx.locker(lk.x, lk.z); $('locker').style.display='block'; VM.visible = false; }
@@ -1776,8 +1868,28 @@ function updateHidden(dt){
   $('breathb').style.width = Math.max(0, me.breath) + '%';
   if (me.breath <= 0) unhide(true);
 }
-let searchCD = 0;
-function search(k){ searchCD = 3; useReq({ k:'search', i:k }); const lk=level.lockers[k]; playEventSound('bang', lk.x, lk.z); }
+/* ---------- vents (Occupant only) ---------- */
+let ventCD = 0, ventT = 0, ventTo = -1, ventThump = 0;
+const VENT_TIME = 2, VENT_CD = 15;
+function nearVent(maxD){ let best=-1, bd=maxD; (level.vents||[]).forEach((v,k)=>{ const d=Math.hypot(v.fx-me.x, v.fz-me.z); if (d<bd){ bd=d; best=k; } }); return best; }
+function enterVent(k){
+  const v = level.vents[k]; ventTo = v.to; ventT = VENT_TIME; ventThump = 0;
+  if (sfx.ctx) sfx.ventIn();
+  const b = $('black'); b.style.transition='none'; b.style.opacity=1; $('blacktext').textContent=''; $('blacksub').textContent='crawling through the vent…';
+}
+function updateVent(dt){
+  ventCD = Math.max(0, ventCD - dt);
+  if (ventT <= 0) return;
+  ventT -= dt; ventThump -= dt;
+  if (ventThump <= 0){ ventThump = 0.32 + Math.random()*0.1; if (sfx.ctx) sfx.ventCrawl(); }
+  if (ventT <= 0 || role !== 'monster' || mode !== 'play'){
+    ventT = 0; ventCD = VENT_CD;
+    const v = level.vents[ventTo];
+    if (v && role === 'monster'){ me.x = v.fx; me.z = v.fz; me.yaw = Math.atan2(-v.nx, -v.nz); me.pitch = 0;
+      playEventSound('vent', v.x, v.z); safe(()=>net.room && net.room.emit('snd',{k:'vent',x:v.x,z:v.z})); }
+    const b = $('black'); b.style.opacity = 0; setTimeout(()=>{ b.style.transition=''; }, 50);
+  }
+}
 let stunCharge = 0, stunCD = 0;
 function updateStun(dt){
   stunCD = Math.max(0, stunCD - dt);
@@ -1833,11 +1945,14 @@ function updateRemotes(dt){
     r.yaw = angLerp(r.yaw, r.tyaw, k); r.pitch = lerp(r.pitch, r.tp, k);
     const isMon = r.pid === G.mo;
     const gone = isDead(r.pid) || isEsc(r.pid) || !r.a;
-    r.mesh.visible = !isMon && !gone && !r.hd && !(mode==='spect' && r.pid===specPid) && myRound===G.r;
+    const shadowed = role==='monster' && r.c && !r.l && lightAtCell(r.x, r.z) < 0.25 && Math.hypot(r.x-me.x, r.z-me.z) > 4;
+    r.mesh.visible = !isMon && !gone && !r.hd && !shadowed && !(mode==='spect' && r.pid===specPid) && myRound===G.r;
     r.mesh.position.set(r.x,0,r.z); r.mesh.rotation.y = r.yaw + Math.PI; animAvatar(r.av, nowS()+hashStr(r.pid)%7, r.mv);
     if (!gone && r.mv && !isMon){ r.step += dt*(r.mv===2?2.6:1.7); if (r.step>=1){ r.step-=1; const hunt = role==='monster'; sfx.step((r.m===0?0.05:r.mv===2?0.22:0.14)*(hunt?1.7:1), onWet(r.x,r.z), {x:r.x,y:0.1,z:r.z}, hunt?3.5:1.5); } }
   }
 }
+const fakes = new Map();
+function fakeFor(pid){ let f = fakes.get(pid); if (!f){ f = makeAvatar(pid); f.g.visible = false; fakes.set(pid, f); } return f; }
 function updateMonsterDisplay(dt){
   let x, z, ry, mv;
   if (G.mo === 'AI'){
@@ -1845,9 +1960,13 @@ function updateMonsterDisplay(dt){
     if (Math.hypot(G.ax-mDisp.x, G.az-mDisp.z) > 5){ mDisp.x=G.ax; mDisp.z=G.az; } else { mDisp.x += (G.ax-mDisp.x)*k; mDisp.z += (G.az-mDisp.z)*k; }
     mDisp.ry = angLerp(mDisp.ry, G.ay, 1-Math.exp(-8*dt)); mDisp.mv = G.amv;
   } else if (G.mo === myPid){ mDisp.x=me.x; mDisp.z=me.z; mDisp.ry=me.yaw+Math.PI; mDisp.mv = me.moving ? (me.running?2:1) : 0; }
-  else { const r = remotes.get(G.mo); if (r){ mDisp.x=r.x; mDisp.z=r.z; mDisp.ry=r.yaw+Math.PI; mDisp.mv=r.mv; } }
+  else { const r = remotes.get(G.mo); if (r){ mDisp.x=r.x; mDisp.z=r.z; mDisp.ry=r.yaw+Math.PI; mDisp.mv=r.mv; if (r.vt){ mDisp.x=-999; mDisp.z=-999; mDisp.mv=0; } } }
   useSkin(G.mo === 'AI' ? G.sk : G.mo === myPid ? mySkin : ((remotes.get(G.mo)||{}).sk|0));
-  MON.g.visible = G.mo !== myPid && myRound===G.r && (mode==='play'||mode==='spect'||mode==='deadAnim') && G.ph==='play';
+  const showMon = G.mo !== myPid && myRound===G.r && (mode==='play'||mode==='spect'||mode==='deadAnim') && G.ph==='play';
+  const fooled = showMon && mode !== 'deadAnim' && disguisedFrom(camera.position.x, camera.position.z);
+  MON.g.visible = showMon && !fooled;
+  for (const [pid, f] of fakes) if (!fooled || pid !== G.dgp) f.g.visible = false;
+  if (fooled){ const f = fakeFor(G.dgp); f.g.visible = true; f.g.position.set(mDisp.x, 0, mDisp.z); f.g.rotation.y = mDisp.ry; animAvatar(f, nowS(), mDisp.mv ? 1 : 0); }
   if (mode !== 'deadAnim'){ MON.g.position.set(mDisp.x, 0, mDisp.z); MON.g.rotation.y = mDisp.ry; }
   animMonster(MON, nowS(), mDisp.mv>0 && G.stun<=0, mDisp.mv===2?4:2, G.stun>0);
 }
@@ -1937,6 +2056,7 @@ function survivorSeesMonster(){
   if (d > 16) return false;
   const [fx,fy,fz] = lookDir(me.yaw, me.pitch);
   if ((dx*fx+dz*fz)/d < 0.55) return false;
+  if (disguisedFrom(me.x, me.z)) return false;
   if (!losClear(me.x,me.z,mDisp.x,mDisp.z)) return false;
   return d < 5 || lightOn() || lightAtCell(mDisp.x, mDisp.z) > 0.4;
 }
@@ -1947,42 +2067,91 @@ function updateAmbience(dt){
   sfx.listen(camera);
   const md = (mode==='spect' && specPid) ? (()=>{ const r=remotes.get(specPid); return r ? Math.hypot(mDisp.x-r.x, mDisp.z-r.z) : 99; })() : Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
   const monSelf = role==='monster';
-  const humTarget = 0.085 * Math.min(1.2, localLight) * (monSelf ? 1 : clamp((md-3)/10, 0, 1)) * [1, 0.7, 0.25][Math.max(0,curZone)];
-  sfx.windG.gain.value = lerp(sfx.windG.gain.value, curZone===2 ? 0.22 : 0, 0.03);
-  sfx.humG.gain.value = lerp(sfx.humG.gain.value, humTarget, 0.15);
-  sfx.droneG.gain.value = lerp(sfx.droneG.gain.value, monSelf ? 0.05 : 0.2*clamp(1-md/18,0,1), 0.05);
+  const fooled = !monSelf && disguisedFrom(camera.position.x, camera.position.z);
+  const mdT = fooled ? 99 : md;   // disguised: no drone, no heartbeat, the hum stays on
+  const humTarget = (silenced() ? 0 : 0.085) * Math.min(1.2, localLight) * (monSelf ? 1 : clamp((mdT-3)/10, 0, 1)) * [1, 0.7, 0.25][Math.max(0,curZone)];
+  sfx.windG.gain.value = lerp(sfx.windG.gain.value, curZone===2 && !silenced() ? 0.22 : 0, 0.03);
+  sfx.humG.gain.value = lerp(sfx.humG.gain.value, humTarget, silenced() ? 0.3 : 0.15);
+  sfx.droneG.gain.value = lerp(sfx.droneG.gain.value, monSelf ? 0.05 : 0.2*clamp(1-mdT/18,0,1), 0.05);
   sfx.breathG.gain.value = monSelf ? 0.03*(0.5+0.5*Math.sin(t*1.7)) : 0;
-  sfx.roomG.gain.value = 0.16;
+  sfx.roomG.gain.value = lerp(sfx.roomG.gain.value, silenced() ? 0 : 0.16, 0.2);
+  for (const g of level.ambG || []) g.gain.value = lerp(g.gain.value, silenced() ? 0 : g.base, 0.2);
   // global flicker surges
   nextSurge -= dt; if (nextSurge <= 0){ nextSurge = 35+Math.random()*50; surgeT = 1.4; }
   surgeT = Math.max(0, surgeT - dt); powerFlash = Math.max(0, powerFlash - dt);
   if (G.ph !== 'play') return;
   // distant events
-  farT -= dt;
+  if (!silenced()) farT -= dt;
   if (farT <= 0){ farT = 14+Math.random()*28; const a=Math.random()*6, d=14+Math.random()*16;
-    const kinds = curZone===1 ? [0,0,6,7,2,1] : curZone===2 ? [8,8,1,5,7,2] : [0,1,2,3,4,5];
+    const kinds = curZone===1 ? [0,0,6,7,2,1,9] : curZone===2 ? [8,8,1,5,7,2] : [0,1,2,3,4,5,9];
     sfx.far(kinds[Math.floor(Math.random()*kinds.length)], {x:camera.position.x+Math.cos(a)*d, y:curZone===2?-3:1.2, z:camera.position.z+Math.sin(a)*d}); }
   // drips + phones
-  for (const dp of level.drips){ dp.t -= dt; if (dp.t <= 0){ dp.t = 1.2+Math.random()*2.5; if (Math.hypot(dp.x-camera.position.x, dp.z-camera.position.z) < 18) sfx.drip(dp.x, dp.z); } }
+  for (const dp of level.drips){ dp.t -= dt; if (dp.t <= 0 && !silenced()){ dp.t = 1.2+Math.random()*2.5; if (Math.hypot(dp.x-camera.position.x, dp.z-camera.position.z) < 18) sfx.drip(dp.x, dp.z); } }
   if (G.ring >= 0){ ringT -= dt; if (ringT <= 0){ ringT = 3; const ph=level.phones[G.ring]; if (ph) sfx.ring(ph.x, ph.z); } } else ringT = 0;
   // the Occupant's footsteps
-  if (!monSelf && mDisp.mv && md < 32){ monStepT -= dt; if (monStepT <= 0){ monStepT = (mDisp.mv===2 ? 0.3 : 0.55) * (h01(Math.floor(t*3))<0.5 ? 0.7 : 1.3); sfx.monStep({x:mDisp.x,y:0.1,z:mDisp.z}, mDisp.mv===2); } }
+  if (!monSelf && mDisp.mv && md < 32){ monStepT -= dt; if (monStepT <= 0){ monStepT = 0.42 * (h01(Math.floor(t*3))<0.5 ? 0.75 : 1.25); if (fooled) sfx.step(0.14, onWet(mDisp.x,mDisp.z), {x:mDisp.x,y:0.1,z:mDisp.z}); else sfx.monStep({x:mDisp.x,y:0.1,z:mDisp.z}, false); } }
   if (role==='survivor' && me.alive && !me.esc){
     heartT -= dt;
-    if (md < 16 && heartT <= 0){ const k=md/16; heartT=lerp(0.36,1.1,k); sfx.heart(lerp(0.7,0.15,k)); if (md<9) vibrate(35); }
+    if (mdT < 16 && heartT <= 0){ const k=mdT/16; heartT=lerp(0.36,1.1,k); sfx.heart(lerp(0.7,0.15,k)); if (mdT<9) vibrate(35); }
     if (me.stam < 35){ breathT -= dt; if (breathT<=0){ breathT=0.9; sfx.breath(0.13*(1-me.stam/35)+0.04); } }
-    whisperT -= dt * (me.san < 50 ? 2 : 0.6);
+    if (!silenced()) whisperT -= dt * (me.san < 50 ? 2 : 0.6);
     if (whisperT <= 0){ whisperT = 25+Math.random()*25; const a=me.yaw+(Math.random()-0.5)*1.5+Math.PI, d=1.5+Math.random()*2; sfx.whisper({x:me.x+Math.sin(a)*d, y:1.6, z:me.z+Math.cos(a)*d}); }
   }
 }
 let ringT = 0;
+
+/* ---------- ambience extras: creaking ceiling + dust, rolling chair, clock, silence ---------- */
+const DUST_N = 48;
+const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DUST_N*3), 3));
+const dustMat = new THREE.PointsMaterial({ color:0xd8d0b0, size:0.035, transparent:true, opacity:0, depthWrite:false });
+const dust = new THREE.Points(dustGeo, dustMat); dust.frustumCulled = false; dust.visible = false; scene.add(dust);
+const dustV = new Float32Array(DUST_N*3); let dustLife = 0;
+function dropDust(x, z){
+  const a = dustGeo.attributes.position.array;
+  for (let k=0;k<DUST_N;k++){ a[k*3]=x+(Math.random()-0.5)*0.7; a[k*3+1]=WH-0.05-Math.random()*0.3; a[k*3+2]=z+(Math.random()-0.5)*0.7;
+    dustV[k*3]=(Math.random()-0.5)*0.12; dustV[k*3+1]=-(0.25+Math.random()*0.55); dustV[k*3+2]=(Math.random()-0.5)*0.12; }
+  dustGeo.attributes.position.needsUpdate = true; dustLife = 3.2; dust.visible = true;
+}
+let creakT = 35, silT = 0, silNext = 90, clockT = 0;
+const silenced = () => silT > 0;
+function updateExtras(dt){
+  const t = nowS(), cx = camera.position.x, cz = camera.position.z, playing = G.ph==='play' && (mode==='play' || mode==='spect');
+  // falling dust
+  if (dustLife > 0){ dustLife -= dt; const a = dustGeo.attributes.position.array;
+    for (let k=0;k<DUST_N;k++){ if (a[k*3+1] <= 0.02) continue; a[k*3]+=dustV[k*3]*dt; a[k*3+1]+=dustV[k*3+1]*dt; a[k*3+2]+=dustV[k*3+2]*dt; dustV[k*3]+=(Math.random()-0.5)*dt*0.3; dustV[k*3+2]+=(Math.random()-0.5)*dt*0.3; }
+    dustGeo.attributes.position.needsUpdate = true; dustMat.opacity = Math.min(0.85, dustLife*0.5); if (dustLife <= 0) dust.visible = false; }
+  if (!playing || role==='monster') return;
+  // the ceiling creaks somewhere just ahead of you, and dust falls
+  creakT -= dt;
+  if (creakT <= 0 && !silenced()){ creakT = 40 + Math.random()*45;
+    const [fx,,fz] = lookDir(me.yaw, 0);
+    for (let tries=0; tries<8; tries++){ const a = Math.atan2(fx,fz) + (Math.random()-0.5)*1.8, d = 2.5 + Math.random()*3; const x = cx + Math.sin(a)*d, z = cz + Math.cos(a)*d;
+      if (x<1||z<1||x>W-1||z>W-1 || zoneAt(x,z)===2 || !losClear(cx,cz,x,z)) continue;
+      sfx.creak(x, z); setTimeout(()=>dropDust(x, z), 450); break; } }
+  // the office chair rolls on its own when you're nearby and can see it
+  const R = level.roller;
+  if (R){
+    if (R.T > 0){ R.t += dt; const k = Math.min(1, R.t/R.T), e = k<0.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+      const [nx,nz] = collide(lerp(R.sx,R.tx,e), lerp(R.sz,R.tz,e), 0.36); R.g.position.set(nx,0,nz); R.circ.x = nx; R.circ.z = nz; R.top.rotation.y += dt*(1-k)*0.9;
+      R.sq -= dt; if (R.sq <= 0 && k < 0.9){ R.sq = 0.35+Math.random()*0.3; sfx.squeak(nx, nz); }
+      if (k >= 1){ R.T = 0; R.sx = nx; R.sz = nz; R.cd = 25 + Math.random()*30; } }
+    else { R.cd -= dt; const d = Math.hypot(R.g.position.x-cx, R.g.position.z-cz);
+      if (R.cd <= 0 && d < 13 && d > 3 && losClear(cx,cz,R.g.position.x,R.g.position.z)){ const a = Math.random()*Math.PI*2, dist = 1.2 + Math.random()*1.2;
+        R.sx = R.g.position.x; R.sz = R.g.position.z; R.tx = R.sx + Math.cos(a)*dist; R.tz = R.sz + Math.sin(a)*dist; R.t = 0; R.T = 2.6 + Math.random()*1.2; R.sq = 0; } } }
+  // a clock ticks in the clean room
+  const D = level.cleanDesk;
+  if (D && Math.hypot(D.x-cx, D.z-cz) < 12){ clockT -= dt; if (clockT <= 0){ clockT = 1; sfx.tick(D.x, D.z); } }
+  // silence: every so often the whole level goes quiet for a few seconds
+  if (silT > 0){ silT -= dt; if (silT <= 0 && Math.random() < 0.35) setTimeout(()=>sfx.ding({ x:cx+(Math.random()-0.5)*40, y:1.2, z:cz+(Math.random()-0.5)*40 }), 1500); }
+  else if (me.alive && !me.esc){ silNext -= dt; if (silNext <= 0){ silNext = 80 + Math.random()*70; silT = 8; } }
+}
 
 let vhsK = 0;
 function updateVHS(dt){
   let target = 0;
   if (role==='survivor' && G.ph==='play' && (mode==='play' || mode==='deadAnim')){
     const d = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
-    target = mode==='deadAnim' ? 1 : clamp(1 - (d-2)/9, 0, 1);
+    target = mode==='deadAnim' ? 1 : disguisedFrom(me.x, me.z) ? 0 : clamp(1 - (d-2)/9, 0, 1);
   }
   vhsK = lerp(vhsK, target, 1-Math.exp(-6*dt));
   const el = $('vhs'); el.style.opacity = vhsK > 0.02 ? Math.min(1, vhsK*1.2) : 0;
@@ -2024,9 +2193,9 @@ function updateHUD(dt){
   const obj = $('obj');
   if (role === 'monster'){
     const left = allPlayers().filter(p=>p.pid!==G.mo && !isDead(p.pid) && !isEsc(p.pid)).length;
-    if (G.grace > 0 && mode==='play') $('blacksub').textContent = `You can't see them through walls. Listen. Running footsteps, thrown cans and gasping give them away. Lockers can be searched.  —  ${Math.ceil(G.grace)}`;
+    if (G.grace > 0 && mode==='play') $('blacksub').textContent = `You can't see them through walls. Listen. Running footsteps, thrown cans and gasping give them away. Use the vents to get around.  —  ${Math.ceil(G.grace)}`;
     $('objLbl').textContent = 'THE OCCUPANT';
-    obj.textContent = G.grace > 0 ? `They wake in ${Math.ceil(G.grace)}…` : G.stun > 0 ? 'Blinded…' : G.open ? `The exit is open. ${left} left.` : `Listen for them. ${left} left · fuses ${G.pl}/${FUSES}`;
+    obj.textContent = G.grace > 0 ? `They wake in ${Math.ceil(G.grace)}…` : G.stun > 0 ? 'Blinded…' : ventT > 0 ? 'In the vents…' : G.dg > 0 ? `Disguised · ${Math.ceil(G.dg)}s · ${left} left` : G.open ? `The exit is open. ${left} left.` : `Listen for them. ${left} left · fuses ${G.pl}/${FUSES}`;
     if (G.grace <= 0 && $('black').style.opacity === '1' && mode==='play') $('black').style.opacity = 0;
     $('kit').style.display = 'none';
   } else if (role === 'survivor'){
@@ -2155,10 +2324,11 @@ function frame(now){
     stingCD -= dt;
     if (sees){ if (t - lastSeen > 7 && stingCD <= 0 && Math.hypot(mDisp.x-me.x, mDisp.z-me.z) < 12){ sfx.stinger(); stingCD = 9; vibrate(120); } lastSeen = t; }
     updateVHS(dt);
-    updateCans(dt); searchCD = Math.max(0, searchCD - dt);
+    updateCans(dt); updateVent(dt);
     updateSanity(dt, sees);
     updateMonsterSenses(dt);
     updateAmbience(dt);
+    updateExtras(dt);
     updateHUD(dt);
     updateItems();
   }
@@ -2167,7 +2337,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos };
+window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
 </script>
 </body>
 </html>
