@@ -8,3 +8,4 @@ Online: HOST GAME gives a 4-letter code, friends tap JOIN. The host picks who be
 
 On iPhone: open in Safari, Share, Add to Home Screen. Headphones on.
 v0.10.0: Occupant can't sprint, disguise ability, vents, new ambience.
+v0.11.0: more stamina, scarier lure, big Occupant countdown, back to lobby.
