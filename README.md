@@ -7,3 +7,4 @@ Play / install: https://rytheguy18.github.io/Haunted-Pines/
 Online: HOST GAME gives a 4-letter code, friends tap JOIN. The host picks who becomes the Occupant.
 
 On iPhone: open in Safari, Share, Add to Home Screen. Headphones on.
+v0.10.0: Occupant can't sprint, disguise ability, vents, new ambience.
