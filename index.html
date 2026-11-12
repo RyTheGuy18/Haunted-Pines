@@ -269,6 +269,50 @@ function nextStep(fi,fj,ti,tj){
   for (const [a,b] of nbr4){ const ni=fi+a, nj=fj+b; if (inGrid(ni,nj) && !walls[edgeBetween(fi,fj,ni,nj)] && d[ni*N+nj]>=0 && d[ni*N+nj]<bd){ bd=d[ni*N+nj]; best=[ni,nj]; } }
   return best;
 }
+/* ---- zones: 0 office (Level 0), 1 parking garage, 2 the pitfalls ---- */
+function zoneOf(i,j){ if (i>=13 && j<=8) return 1; if (i<=8 && j>=13) return 2; return 0; }
+const zoneAt = (x,z) => zoneOf(cellOf(x), cellOf(z));
+function edgeCells(e){ if (e < VN){ const i=Math.floor(e/N), j=e%N; return [[i-1,j],[i,j]]; } const k=e-VN, j=Math.floor(k/N), i=k%N; return [[i,j-1],[i,j]]; }
+function edgeZoneOf(e){ const cs = edgeCells(e).filter(([i,j])=>inGrid(i,j)); if (cs.some(([i,j])=>zoneOf(i,j)===2)) return 2; if (cs.some(([i,j])=>zoneOf(i,j)===1)) return 1; return 0; }
+const ZH = [WH, WH, 7];
+const ZFOG = [new THREE.Color(0x15120a), new THREE.Color(0x0a0c0d), new THREE.Color(0x0c0604)];
+const ZDENS = [0.075, 0.08, 0.085];
+const ZSKY = [new THREE.Color(0x8a7a40), new THREE.Color(0x56626a), new THREE.Color(0x6a3a20)];
+const ZGND = [new THREE.Color(0x1a1608), new THREE.Color(0x101214), new THREE.Color(0x100806)];
+const ZNAME = ['', 'PARKING LEVEL', 'THE PITFALLS'];
+const concWallTex = canvasTex(128,128,(g,w,h)=>{
+  g.fillStyle='#7a7c76'; g.fillRect(0,0,w,h);
+  for (let i=0;i<1600;i++){ const v=texR(); g.fillStyle=v<.5?'rgba(60,62,58,.35)':'rgba(150,150,140,.25)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  for (let i=0;i<6;i++){ const x=texR()*w; g.fillStyle='rgba(60,55,45,.25)'; g.fillRect(x,0,2+texR()*3,20+texR()*70); }
+  g.fillStyle='rgba(40,40,38,.35)'; g.fillRect(0,40,w,1); g.fillRect(0,86,w,1);
+  for (let x=-16;x<w+16;x+=16){ g.fillStyle='#c9a21c'; g.beginPath(); g.moveTo(x,h-18); g.lineTo(x+8,h-18); g.lineTo(x+16,h-6); g.lineTo(x+8,h-6); g.fill(); g.fillStyle='#1a1a18'; g.beginPath(); g.moveTo(x+8,h-18); g.lineTo(x+16,h-18); g.lineTo(x+24,h-6); g.lineTo(x+16,h-6); g.fill(); }
+  g.fillStyle='#3a3a36'; g.fillRect(0,h-6,w,6);
+  g.font='bold 34px monospace'; g.fillStyle='rgba(230,225,200,.55)'; g.fillText('P2', 40, 70);
+});
+const concFloorTex = canvasTex(64,64,(g,w,h)=>{
+  g.fillStyle='#4a4b48'; g.fillRect(0,0,w,h);
+  for (let i=0;i<900;i++){ const v=texR(); g.fillStyle=v<.5?'rgba(30,30,28,.4)':'rgba(110,110,100,.3)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  g.fillStyle='rgba(225,225,210,.75)'; g.fillRect(0,0,2,h);
+  const gr=g.createRadialGradient(36,30,0,36,30,14); gr.addColorStop(0,'rgba(10,10,8,.55)'); gr.addColorStop(1,'rgba(10,10,8,0)'); g.fillStyle=gr; g.fillRect(20,14,32,32);
+  g.strokeStyle='rgba(20,20,18,.5)'; g.beginPath(); g.moveTo(10,50); g.lineTo(22,44); g.lineTo(30,52); g.stroke();
+});
+const concCeilTex = canvasTex(64,64,(g,w,h)=>{
+  g.fillStyle='#55574f'; g.fillRect(0,0,w,h);
+  for (let i=0;i<600;i++){ g.fillStyle='rgba(30,30,28,.35)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  g.fillStyle='#3e403a'; g.fillRect(0,28,w,8); g.fillStyle='rgba(20,20,18,.4)'; g.fillRect(0,36,w,2);
+});
+const pitWallTex = canvasTex(128,128,(g,w,h)=>{
+  g.fillStyle='#3d3028'; g.fillRect(0,0,w,h);
+  for (let i=0;i<1800;i++){ const v=texR(); g.fillStyle=v<.5?'rgba(20,14,10,.45)':'rgba(110,70,45,.3)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  for (let i=0;i<10;i++){ const x=texR()*w; g.fillStyle='rgba(90,45,20,.35)'; g.fillRect(x,texR()*40,2,30+texR()*90); }
+  for (let y=0;y<h;y+=32){ g.fillStyle='rgba(15,10,8,.5)'; g.fillRect(0,y,w,2); }
+});
+const grateTex = canvasTex(64,64,(g,w,h)=>{
+  g.fillStyle='#2a221c'; g.fillRect(0,0,w,h);
+  for (let i=0;i<500;i++){ g.fillStyle='rgba(90,55,30,.35)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  g.fillStyle='#4a3a2e'; for (let k=0;k<w;k+=8){ g.fillRect(k,0,2,h); g.fillRect(0,k,w,2); }
+});
+function cellPlane(rep, up){ const geo=new THREE.PlaneGeometry(CS,CS); const uv=geo.attributes.uv; for (let k=0;k<uv.count;k++) uv.setXY(k, uv.getX(k)*rep, uv.getY(k)*rep); geo.rotateX(up ? Math.PI/2 : -Math.PI/2); return geo; }
 function genWalls(rng){
   const w = new Uint8Array(E).fill(1);
   const vis = new Uint8Array(N*N), st=[[0,0]]; vis[0]=1;
@@ -279,6 +323,8 @@ function genWalls(rng){
     const [a,b] = nb[Math.floor(rng()*nb.length)]; w[edgeBetween(i,j,a,b)] = 0; vis[a*N+b]=1; st.push([a,b]);
   }
   for (let e=0;e<E;e++) if (!isBoundary(e) && w[e] && rng()<0.4) w[e]=0;
+  for (let e=0;e<E;e++){ if (isBoundary(e) || !w[e]) continue; const [a,b]=edgeCells(e); const za=zoneOf(a[0],a[1]), zb=zoneOf(b[0],b[1]);
+    if (za===1 && zb===1 && rng()<0.8) w[e]=0; else if (za===2 && zb===2 && rng()<0.45) w[e]=0; }
   const rooms=[];
   for (let k=0;k<6;k++){
     const rw=3+Math.floor(rng()*3), rh=3+Math.floor(rng()*2);
@@ -299,14 +345,14 @@ function slotPos(side,k){
 }
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpV = new THREE.Vector3(), tmpS = new THREE.Vector3(), UP = new THREE.Vector3(0,1,0), tmpC = new THREE.Color();
 function setEdgeMatrix(e, on){
-  const [x,z] = edgeMid(e);
+  const [x,z] = edgeMid(e), zn = level.edgeZ[e];
   tmpQ.setFromAxisAngle(UP, e < VN ? Math.PI/2 : 0);
-  tmpV.set(x, WH/2, z); tmpS.setScalar(on ? 1 : 0.0001);
-  tmpM.compose(tmpV, tmpQ, tmpS); level.wallMesh.setMatrixAt(e, tmpM);
+  tmpV.set(x, ZH[zn]/2, z); tmpS.setScalar(on ? 1 : 0.0001);
+  tmpM.compose(tmpV, tmpQ, tmpS); level.wallMeshes[zn].setMatrixAt(e, tmpM);
 }
 function applyWalls(force){
   for (let e=0;e<E;e++) if (force || level.shown[e] !== walls[e]){ setEdgeMatrix(e, walls[e]); level.shown[e] = walls[e]; }
-  level.wallMesh.instanceMatrix.needsUpdate = true;
+  for (const m of level.wallMeshes) m.instanceMatrix.needsUpdate = true;
 }
 function wallsHex(){ let s=''; for (let e=0;e<E;e+=4) s += ((walls[e]|0) | (walls[e+1]|0)<<1 | (walls[e+2]|0)<<2 | (walls[e+3]|0)<<3).toString(16); return s; }
 function hexToWalls(s){ const w = new Uint8Array(E); for (let k=0;k<s.length;k++){ const v=parseInt(s[k],16); for (let b=0;b<4;b++) if (k*4+b<E) w[k*4+b]=(v>>b)&1; } return w; }
@@ -322,38 +368,49 @@ function buildLevel(seed){
   const g = new THREE.Group(); scene.add(g);
   level = { seed, group:g, rooms:gen.rooms, base:gen.w, shown:new Uint8Array(E).fill(2), circles:[], pillarSet:new Set(), sounds:[], used:new Set(), wet:[], drips:[], tvs:[], phones:[] };
   const L = level;
-  // floor + ceiling
-  const fl = new THREE.Mesh(new THREE.PlaneGeometry(W, W), lam(0xffffff, { map: carpetTex.clone() }));
-  fl.material.map.repeat.set(W/2, W/2); fl.material.map.needsUpdate = true;
-  fl.rotation.x = -Math.PI/2; fl.position.set(W/2, 0, W/2); g.add(fl);
-  const ce = new THREE.Mesh(new THREE.PlaneGeometry(W, W), lam(0xffffff, { map: ceilTex.clone() }));
-  ce.material.map.repeat.set(W/1.2, W/1.2); ce.material.map.needsUpdate = true;
-  ce.rotation.x = Math.PI/2; ce.position.set(W/2, WH, W/2); g.add(ce);
-  // walls
-  L.wallMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(CS+0.2, WH, 0.2), wallMat, E);
-  L.wallMesh.frustumCulled = false; g.add(L.wallMesh);
+  // floors + ceilings per zone (pitfalls floor is built later around the holes)
+  const zc = [[],[],[]];
+  for (let i=0;i<N;i++) for (let j=0;j<N;j++) zc[zoneOf(i,j)].push([i,j]);
+  const instCells = (geo, mat, cells, y) => { const m = new THREE.InstancedMesh(geo, mat, cells.length); cells.forEach(([i,j],k)=>{ tmpM.makeTranslation(cc(i), y, cc(j)); m.setMatrixAt(k, tmpM); }); m.frustumCulled=false; g.add(m); return m; };
+  instCells(cellPlane(2,false), lam(0xffffff,{map:carpetTex}), zc[0], 0);
+  instCells(cellPlane(CS/1.2,true), lam(0xffffff,{map:ceilTex}), zc[0], WH);
+  instCells(cellPlane(1,false), lam(0xffffff,{map:concFloorTex}), zc[1], 0);
+  instCells(cellPlane(1,true), lam(0xffffff,{map:concCeilTex}), zc[1], WH);
+  // walls (one instanced mesh per zone, every edge slot in each; hidden ones are scaled to zero)
+  L.edgeZ = new Uint8Array(E); for (let e=0;e<E;e++) L.edgeZ[e] = edgeZoneOf(e);
+  const wmats = [wallMat, lam(0xffffff,{map:concWallTex}), lam(0xffffff,{map:pitWallTex})];
+  tmpM.makeScale(0.0001,0.0001,0.0001);
+  L.wallMeshes = [0,1,2].map(z=>{ const m = new THREE.InstancedMesh(new THREE.BoxGeometry(CS+0.2, ZH[z], 0.2), wmats[z], E); for (let e=0;e<E;e++) m.setMatrixAt(e, tmpM); m.frustumCulled=false; g.add(m); return m; });
   applyWalls(true);
-  // pillars in every other room
-  const pil = [];
-  gen.rooms.forEach((r,k)=>{ if (k%2===0) for (let i=r.i0+1;i<=r.i1;i++) for (let j=r.j0+1;j<=r.j1;j++){ pil.push([i,j]); L.pillarSet.add(i+','+j); } });
-  if (pil.length){
-    const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, WH, 0.7), wallMat, pil.length);
-    pil.forEach(([i,j],k)=>{ tmpM.makeTranslation(i*CS, WH/2, j*CS); pm.setMatrixAt(k, tmpM); });
-    g.add(pm);
-  }
-  // fluorescent panels
-  L.red = gen.rooms[1];
+  // pillars: in every other office room, and in a grid across the parking garage
+  const pil = [[],[]];
+  gen.rooms.forEach((r,k)=>{ if (k%2===0) for (let i=r.i0+1;i<=r.i1;i++) for (let j=r.j0+1;j<=r.j1;j++) if (zoneOf(i,j)===0 && zoneOf(i-1,j-1)===0){ pil[0].push([i,j]); } });
+  for (let i=14;i<N;i+=2) for (let j=1;j<=8;j+=2) if (zoneOf(i-1,j-1)===1 && zoneOf(i,j)===1) pil[1].push([i,j]);
+  pil.forEach((list,z)=>{ if (!list.length) return; const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(z?0.8:0.7, WH, z?0.8:0.7), z ? wmats[1] : wallMat, list.length);
+    list.forEach(([i,j],k)=>{ tmpM.makeTranslation(i*CS, WH/2, j*CS); pm.setMatrixAt(k, tmpM); L.pillarSet.add(i+','+j); }); g.add(pm); });
+  // lights: office panels, garage tubes, bare bulbs over the pits
+  L.red = gen.rooms.find(r=>zoneOf(r.i0,r.j0)===0 && zoneOf(r.i1,r.j1)===0) || gen.rooms[1];
   const inRed = (i,j) => i>=L.red.i0 && i<=L.red.i1 && j>=L.red.j0 && j<=L.red.j1;
   L.panels = []; L.panelAt = new Int16Array(N*N).fill(-1);
   for (let i=0;i<N;i++) for (let j=0;j<N;j++){
-    if (rng() < 0.8 || inRed(i,j)){
-      const p = { idx:L.panels.length, i, j, x:cc(i), z:cc(j), faulty: rng()<0.14, dead: rng()<0.06, red: inRed(i,j), ph: rng()*10, b:1 };
+    const t = zoneOf(i,j), chance = [0.8, 0.62, 0.42][t];
+    if (rng() < chance || inRed(i,j)){
+      const p = { idx:L.panels.length, i, j, t, x:cc(i), z:cc(j), faulty: rng() < [0.14,0.25,0.3][t], dead: rng()<0.06, red: t===0 && inRed(i,j), ph: rng()*10, b:1 };
       if (p.red) p.dead = false;
       L.panelAt[i*N+j] = p.idx; L.panels.push(p);
     }
   }
-  L.panelMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.3,0.05,0.62), new THREE.MeshBasicMaterial({ color:0xffffff }), L.panels.length);
-  L.panels.forEach(p=>{ tmpM.makeTranslation(p.x, WH-0.03, p.z); L.panelMesh.setMatrixAt(p.idx, tmpM); L.panelMesh.setColorAt(p.idx, tmpC.setRGB(1,1,1)); });
+  L.panelMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial({ color:0xffffff }), L.panels.length);
+  const cords = L.panels.filter(p=>p.t===2);
+  const cordMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.015,1,0.015), lam(0x111111), Math.max(1,cords.length));
+  L.panels.forEach(p=>{
+    if (p.t===0){ tmpV.set(p.x, WH-0.03, p.z); tmpS.set(1.3,0.05,0.62); }
+    else if (p.t===1){ tmpV.set(p.x, WH-0.06, p.z); tmpS.set(1.9,0.07,0.13); }
+    else { tmpV.set(p.x, 2.45, p.z); tmpS.set(0.13,0.17,0.13); }
+    tmpQ.identity(); tmpM.compose(tmpV, tmpQ, tmpS); L.panelMesh.setMatrixAt(p.idx, tmpM); L.panelMesh.setColorAt(p.idx, tmpC.setRGB(1,1,1));
+  });
+  cords.forEach((p,k)=>{ tmpV.set(p.x, 2.53 + (ZH[2]-2.53)/2, p.z); tmpS.set(1, ZH[2]-2.53, 1); tmpQ.identity(); tmpM.compose(tmpV,tmpQ,tmpS); cordMesh.setMatrixAt(k, tmpM); });
+  g.add(cordMesh);
   L.panelMesh.frustumCulled = false; g.add(L.panelMesh);
 
   // placement helpers
@@ -370,7 +427,7 @@ function buildLevel(seed){
   const slots=[]; for (let s=0;s<4;s++) for (let k=0;k<N;k++) slots.push([s,k]);
   for (let k=slots.length-1;k>0;k--){ const r=Math.floor(rng()*(k+1)); [slots[k],slots[r]]=[slots[r],slots[k]]; }
   const usedSlots = new Set();
-  const takeSlot = (filter) => { for (const [s,k] of slots){ const key=s+','+k; if (usedSlots.has(key)) continue; const p=slotPos(s,k); if (filter && !filter(p)) continue; usedSlots.add(key); usedSlots.add(s+','+(k-1)); usedSlots.add(s+','+(k+1)); return p; } return null; };
+  const takeSlot = (filter) => { for (const [s,k] of slots){ const key=s+','+k; if (usedSlots.has(key)) continue; const p=slotPos(s,k); if (filter && !filter(p)) continue; usedSlots.add(key); usedSlots.add(s+','+(k-1)); usedSlots.add(s+','+(k+1)); L.used.add(p.i*N+p.j); return p; } return null; };
   // exit: far boundary slot
   let ex = takeSlot(p => dist0[p.i*N+p.j] >= far*0.8) || takeSlot();
   L.exit = ex; L.exitPos = [ex.x + ex.nx*0.6, ex.z + ex.nz*0.6];
@@ -455,7 +512,59 @@ function buildLevel(seed){
   for (let k=0;k<6;k++){ const c=pick(3,far); const x=cc(c[0])+(rng()-0.5)*1.5, z=cc(c[1])+(rng()-0.5)*1.5; const n=1+Math.floor(rng()*3);
     for (let s=0;s<n;s++){ const b=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.4,0.45), lam(0x8a6a3a)); b.position.set(x+(rng()-0.5)*0.15, 0.2+s*0.4, z+(rng()-0.5)*0.15); b.rotation.y=rng()*0.6; g.add(b); }
     L.circles.push({x,z,r:0.42}); }
+  // parked cars in the garage
+  const carCols = [0x5a2a22, 0x2a3a4e, 0x6a6a60, 0x3a4a30, 0x1e1e20, 0x705a30];
+  for (let k=0;k<9;k++){
+    const free = zc[1].filter(([i,j])=>!L.used.has(i*N+j)); if (!free.length) break;
+    const [ci,cj] = free[Math.floor(rng()*free.length)]; L.used.add(ci*N+cj);
+    const x=cc(ci), z=cc(cj), rot = rng()<0.5 ? 0 : Math.PI/2;
+    const car = new THREE.Group(); car.position.set(x,0,z); car.rotation.y = rot + (rng()-0.5)*0.12; g.add(car);
+    const col = carCols[Math.floor(rng()*carCols.length)];
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.75,0.62,3.9), lam(col)); body.position.y=0.55; car.add(body);
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(1.55,0.5,1.9), lam(col)); cab.position.set(0,1.1,-0.15); car.add(cab);
+    const glass = new THREE.MeshBasicMaterial({ color:0x07090b });
+    const ws = new THREE.Mesh(new THREE.BoxGeometry(1.45,0.4,0.04), glass); ws.position.set(0,1.1,0.82); ws.rotation.x=-0.35; car.add(ws);
+    const rw = new THREE.Mesh(new THREE.BoxGeometry(1.45,0.38,0.04), glass); rw.position.set(0,1.1,-1.12); rw.rotation.x=0.3; car.add(rw);
+    for (const sx of [-0.78,0.78]){ const sw=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.36,1.6), glass); sw.position.set(sx,1.12,-0.15); car.add(sw); }
+    for (const [wx,wz] of [[-0.8,1.25],[0.8,1.25],[-0.8,-1.25],[0.8,-1.25]]){ const wh=new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.24,8), lam(0x0e0e0e)); wh.rotation.z=Math.PI/2; wh.position.set(wx,0.33,wz); car.add(wh); }
+    const tl = new THREE.MeshBasicMaterial({ color:0x3a0806 });
+    for (const sx of [-0.6,0.6]){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.1,0.03), tl); l.position.set(sx,0.7,-1.96); car.add(l); }
+    if (rng()<0.35){ const dr = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.55,1.0), lam(col)); dr.position.set(1.15,0.85,0.25); dr.rotation.y=-0.7; car.add(dr); }
+    const dx = Math.sin(rot), dz = Math.cos(rot);
+    for (const o of [-1.1, 0, 1.1]) L.circles.push({ x:x+dx*o, z:z+dz*o, r:0.92 });
+  }
+  // the pitfalls: holes in the floor that drop into nothing
+  L.holes = [];
+  const strips = [];
+  for (const [i,j] of zc[2]){
+    const x0=i*CS, z0=j*CS;
+    if (!L.used.has(i*N+j) && rng() < 0.62){
+      const hw = 1.6+rng()*1.0, hd = 1.6+rng()*1.0;
+      const mx = (CS-hw)/2-0.7, mz = (CS-hd)/2-0.7;
+      const hx0 = x0+(CS-hw)/2+(rng()*2-1)*mx, hz0 = z0+(CS-hd)/2+(rng()*2-1)*mz;
+      const h = { x0:hx0, x1:hx0+hw, z0:hz0, z1:hz0+hd }; L.holes.push(h);
+      strips.push([x0,h.x0,z0,z0+CS],[h.x1,x0+CS,z0,z0+CS],[h.x0,h.x1,z0,h.z0],[h.x0,h.x1,h.z1,z0+CS]);
+    } else strips.push([x0,x0+CS,z0,z0+CS]);
+  }
+  const unitFloor = new THREE.PlaneGeometry(1,1); unitFloor.rotateX(-Math.PI/2);
+  const sf = new THREE.InstancedMesh(unitFloor, lam(0xffffff,{map:grateTex}), strips.length);
+  strips.forEach(([a0,a1,b0,b1],k)=>{ tmpV.set((a0+a1)/2, 0, (b0+b1)/2); tmpS.set(Math.max(0.001,a1-a0),1,Math.max(0.001,b1-b0)); tmpQ.identity(); tmpM.compose(tmpV,tmpQ,tmpS); sf.setMatrixAt(k,tmpM); });
+  sf.frustumCulled=false; g.add(sf);
+  if (L.holes.length){
+    const shaft = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), lam(0xffffff,{map:pitWallTex}), L.holes.length*4);
+    const rim = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), lam(0x7a5636), L.holes.length*4);
+    L.holes.forEach((h,k)=>{
+      const w=h.x1-h.x0, d=h.z1-h.z0, cx=(h.x0+h.x1)/2, cz=(h.z0+h.z1)/2, D=14;
+      const sides = [[h.x0,cz,0.05,d],[h.x1,cz,0.05,d],[cx,h.z0,w,0.05],[cx,h.z1,w,0.05]];
+      sides.forEach(([x,z,sx,sz],q)=>{ tmpQ.identity();
+        tmpV.set(x,-D/2,z); tmpS.set(sx,D,sz); tmpM.compose(tmpV,tmpQ,tmpS); shaft.setMatrixAt(k*4+q,tmpM);
+        tmpV.set(x,0.02,z); tmpS.set(Math.max(sx,0.09),0.05,Math.max(sz,0.09)); tmpM.compose(tmpV,tmpQ,tmpS); rim.setMatrixAt(k*4+q,tmpM); });
+    });
+    g.add(shaft, rim);
+    const voidp = new THREE.Mesh(new THREE.PlaneGeometry(9*CS,9*CS), new THREE.MeshBasicMaterial({ color:0x000000 })); voidp.rotation.x=-Math.PI/2; voidp.position.set(4.5*CS,-14,17.5*CS); g.add(voidp);
+  }
 }
+function inPit(x,z){ if (!level.holes) return false; for (const h of level.holes) if (x>h.x0+0.16 && x<h.x1-0.16 && z>h.z0+0.16 && z<h.z1-0.16) return true; return false; }
 
 /* ================= collision / sight ================= */
 function edgeBox(e){ const t=0.1; if (e < VN){ const i=Math.floor(e/N), j=e%N; return [i*CS-t, i*CS+t, j*CS-t, (j+1)*CS+t]; } const k=e-VN, j=Math.floor(k/N), i=k%N; return [i*CS-t, (i+1)*CS+t, j*CS-t, j*CS+t]; }
@@ -530,12 +639,16 @@ function buildMonster(){
 const MON = buildMonster();
 const PHANTOM = buildMonster(); PHANTOM.g.visible = false;
 function animMonster(M, t, moving, speed){
-  const P = M.P, sw = moving ? Math.sin(t*(speed>3?11:6)) : 0;
-  P.legL.rotation.x = sw*0.5; P.legR.rotation.x = -sw*0.5;
-  P.armL.rotation.x = -sw*0.35 - (moving&&speed>3?0.6:0.1); P.armR.rotation.x = sw*0.35 - (moving&&speed>3?0.6:0.1);
-  P.armL.rotation.z = 0.08; P.armR.rotation.z = -0.08;
+  const P = M.P, crawl = moving && speed > 3;
+  M.crawl = lerp(M.crawl||0, crawl ? 1 : 0, 0.15);
+  const c = M.crawl, sw = moving ? Math.sin(t*(crawl?13:6)) : 0;
+  P.legL.rotation.x = sw*(0.5+c*0.2) - c*0.35; P.legR.rotation.x = -sw*(0.5+c*0.2) - c*0.35;
+  P.torso.rotation.x = lerp(0.32, 1.3, c);
+  P.armL.rotation.x = lerp(-sw*0.35 - 0.1, -1.3 - 0.75*sw, c); P.armR.rotation.x = lerp(sw*0.35 - 0.1, -1.3 + 0.75*sw, c);
+  P.armL.rotation.z = 0.08 + c*0.15; P.armR.rotation.z = -0.08 - c*0.15;
+  P.head.rotation.x = lerp(0, -1.15, c);
+  M.g.position.y = c * (0.05 + Math.abs(Math.sin(t*13))*0.06);
   if (h01(Math.floor(t*3)+M.g.id) < 0.12) P.head.rotation.z = (h01(Math.floor(t*3)*7)-0.5)*1.2;
-  P.torso.rotation.x = 0.32 + (moving&&speed>3?0.25:0);
 }
 
 /* ================= players ================= */
@@ -548,13 +661,48 @@ let role = 'none';
 const lightOn = () => role==='survivor' && me.alive && !me.esc && me.light && me.bat > 0;
 const remotes = new Map();
 const jackets = [0x4a2a20, 0x203a4a, 0x3a4a22, 0x4a4220, 0x3a2a4a];
+const SUIT = lam(0xd6b622), SUIT_D = lam(0xa88a14), RUBBER = lam(0x121212), TAPE = lam(0x8a8a80), VISOR = new THREE.MeshBasicMaterial({ color:0x0c1014 });
 function makeAvatar(pid){
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.22,0.75,6), lam(jackets[hashStr(pid)%jackets.length])); body.position.y=1.08; g.add(body);
-  const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.16,0.72,6), lam(0x1e1e22)); legs.position.y=0.36; g.add(legs);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.15,6,5), lam(0xb08a70)); head.position.y=1.62; g.add(head);
-  scene.add(g); return g;
+  const g = new THREE.Group(), P = {};
+  const add = (geo, mat, x,y,z, parent=g) => { const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); parent.add(m); return m; };
+  const legG = new THREE.CylinderGeometry(0.115,0.1,0.8,6); legG.translate(0,-0.4,0);
+  for (const sx of [-0.12,0.12]){
+    const leg = new THREE.Group(); leg.position.set(sx,0.88,0); g.add(leg);
+    add(legG, SUIT, 0,0,0, leg); add(new THREE.CylinderGeometry(0.105,0.105,0.05,6), TAPE, 0,-0.62,0, leg);
+    add(new THREE.BoxGeometry(0.17,0.16,0.3), RUBBER, 0,-0.8,0.04, leg);
+    if (sx<0) P.legL = leg; else P.legR = leg;
+  }
+  add(new THREE.CylinderGeometry(0.27,0.24,0.72,7), SUIT, 0,1.24,0);
+  add(new THREE.CylinderGeometry(0.245,0.245,0.07,7), SUIT_D, 0,0.92,0);
+  add(new THREE.BoxGeometry(0.06,0.5,0.02), SUIT_D, 0,1.3,0.255);
+  add(new THREE.BoxGeometry(0.34,0.42,0.16), SUIT_D, 0,1.3,-0.28);
+  const armG = new THREE.CylinderGeometry(0.085,0.075,0.62,6); armG.translate(0,-0.31,0);
+  const band = lam(jackets[hashStr(pid)%jackets.length]);
+  for (const sx of [-0.33,0.33]){
+    const arm = new THREE.Group(); arm.position.set(sx,1.54,0); g.add(arm);
+    add(armG, SUIT, 0,0,0, arm); add(new THREE.CylinderGeometry(0.08,0.08,0.05,6), TAPE, 0,-0.52,0, arm);
+    add(new THREE.BoxGeometry(0.12,0.16,0.1), RUBBER, 0,-0.66,0, arm);
+    if (sx<0){ add(new THREE.CylinderGeometry(0.09,0.09,0.08,6), band, 0,-0.12,0, arm); P.armL = arm; } else P.armR = arm;
+  }
+  const hood = add(new THREE.SphereGeometry(0.21,8,6), SUIT, 0,1.8,0); hood.scale.set(1,1.15,1.05);
+  add(new THREE.BoxGeometry(0.25,0.15,0.08), VISOR, 0,1.83,0.17);
+  const mask = add(new THREE.CylinderGeometry(0.06,0.07,0.1,6), RUBBER, 0,1.7,0.2); mask.rotation.x = Math.PI/2;
+  for (const sx of [-0.09,0.09]){ const f = add(new THREE.CylinderGeometry(0.045,0.045,0.07,6), lam(0x4a4a46), sx,1.68,0.21); f.rotation.z = Math.PI/2; }
+  const fl = add(new THREE.CylinderGeometry(0.035,0.045,0.22,6), lam(0x2a2a2a), 0,-0.7,0.1, P.armR); fl.rotation.x = Math.PI/2;
+  scene.add(g); return { g, P };
 }
+function animAvatar(A, t, mv){
+  const sw = mv ? Math.sin(t*(mv===2?11:7)) : 0;
+  A.P.legL.rotation.x = sw*0.55; A.P.legR.rotation.x = -sw*0.55;
+  A.P.armL.rotation.x = -sw*0.45; A.P.armR.rotation.x = -0.9 + sw*0.15;
+}
+// first-person glove + flashlight
+const VM = new THREE.Group(); camera.add(VM); VM.position.set(0.28,-0.3,-0.5); VM.scale.setScalar(0.75);
+{ const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.05,0.16,6), SUIT); sl.rotation.x = Math.PI/2 - 0.3; sl.position.set(0.01,-0.03,0.09); VM.add(sl);
+  const gl = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.09,0.12), RUBBER); gl.position.set(0,0,-0.04); VM.add(gl);
+  const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.04,0.2,8), lam(0x2a2a2a)); fl.rotation.x = Math.PI/2; fl.position.set(0,0.03,-0.12); VM.add(fl);
+  VM.userData.lens = new THREE.Mesh(new THREE.CircleGeometry(0.03,8), new THREE.MeshBasicMaterial({ color:0x333333 })); VM.userData.lens.position.set(0,0.03,-0.221); VM.add(VM.userData.lens); }
+VM.visible = false;
 
 /* ================= shared state ================= */
 function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0 }; }
@@ -614,6 +762,9 @@ function applyUse(pid, m){
   else if (m.k === 'aw'){ G.aw[m.i|0] = 1; }
   else if (m.k === 'bt'){ G.bt[m.i|0] = 1; }
   else if (m.k === 'phone'){ if (G.ring === (m.i|0)){ G.ring = -1; H.ringT = 30+Math.random()*30; } }
+  else if (m.k === 'fell'){
+    if (!isDead(pid) && !isEsc(pid)){ G.dead.push(pid); G.fz.forEach((f,i)=>{ if (f[0]===1 && f[3]===pid){ f[0]=0; f[1]=+level.fuses[i][0].toFixed(2); f[2]=+level.fuses[i][1].toFixed(2); f[3]=''; } }); }
+  }
   else if (m.k === 'esc'){ if (G.open && !isDead(pid) && !isEsc(pid)) G.esc.push(pid); }
   else if (m.k === 'ab' && pid === G.mo){
     if (m.a === 'blackout') G.bo.push([+m.x||0, +m.z||0, 18]);
@@ -745,7 +896,7 @@ function onPeers(list){
     if (!d || !d.pid || d.pid === myPid) continue;
     seen.add(d.pid);
     let r = remotes.get(d.pid);
-    if (!r){ r = { pid:d.pid, x:+d.x||0, z:+d.z||0, yaw:+d.y||0, pitch:+d.p||0, step:0, mesh:makeAvatar(d.pid), ping:0 }; remotes.set(d.pid, r); }
+    if (!r){ const av = makeAvatar(d.pid); r = { pid:d.pid, x:+d.x||0, z:+d.z||0, yaw:+d.y||0, pitch:+d.p||0, step:0, mesh:av.g, av, ping:0 }; remotes.set(d.pid, r); }
     r.n = String(d.n||'Someone').slice(0,12); r.h = !!d.h;
     r.tx = +d.x||0; r.tz = +d.z||0; r.tyaw = +d.y||0; r.tp = +d.p||0; r.l = d.l?1:0; r.a = d.a?1:0; r.m = d.m|0; r.mv = d.mv|0;
   }
@@ -880,7 +1031,7 @@ function leaveRoom(){
   remotes.clear();
 }
 function goMenu(note){
-  mode='menu'; role='none'; $('hud').style.display='none'; $('black').style.opacity=0; $('white').style.opacity=0; setTouchUI(false); showScreen('menu');
+  mode='menu'; role='none'; VM.visible = false; amb.intensity = 0.16; PHANTOM.g.visible = false; $('hud').style.display='none'; $('black').style.opacity=0; $('white').style.opacity=0; setTouchUI(false); showScreen('menu');
   canvas.style.filter=''; canvas.style.transform='';
   try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
   if (note !== undefined) $('netnote').textContent = note;
@@ -926,7 +1077,7 @@ function afterState(){
     for (const b of G.bo) if (!knownBo.has(b[0].toFixed(1)+','+b[1].toFixed(1))){ knownBo.add(b[0].toFixed(1)+','+b[1].toFixed(1)); sfx.powerDown(b[0], b[1]); }
   }
   if (G.ph === 'end' && myRound === G.r && mode !== 'end' && mode !== 'menu'){
-    if (mode === 'deadAnim' || mode === 'escAnim') pendingEnd = true; else showEnd();
+    if (mode === 'deadAnim' || mode === 'escAnim' || mode === 'fallAnim') pendingEnd = true; else showEnd();
   }
 }
 const knownBo = new Set();
@@ -945,7 +1096,7 @@ function startRoundLocal(){
   $('abil').style.display = role==='monster' && !isTouch ? 'block' : 'none';
   canvas.style.filter = role==='monster' ? 'sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.15) brightness(1.05)' : '';
   amb.intensity = role==='monster' ? 0.95 : 0.16;
-  scene.fog.density = role==='monster' ? 0.06 : 0.075;
+  seenZones.clear(); curZone = -1; VM.visible = false;
   for (const r of remotes.values()) r.ping = 0;
   level.door.material = G.open ? level.doorMatOpen : level.doorMatLocked; PHANTOM.g.visible = false; halluT = 30;
   setTouchUI(true); setButtons();
@@ -955,8 +1106,12 @@ function startRoundLocal(){
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
   } else msg('Find 3 fuses. Something else is awake.', 5);
 }
+function startFall(){
+  me.alive = false; mode = 'fallAnim'; fallT = 0; fallY = EYE; fallV = 0; PHANTOM.g.visible = false; VM.visible = false;
+  useReq({ k:'fell' }); sfx.fall(); vibrate([80,40,500]);
+}
 function triggerDeath(){
-  me.alive = false; mode = 'deadAnim'; deathT = 0;
+  me.alive = false; mode = 'deadAnim'; deathT = 0; PHANTOM.g.visible = false; VM.visible = false;
   sfx.screech(); vibrate([300,60,400]);
 }
 function powerOn(){
@@ -967,7 +1122,7 @@ function powerOn(){
   level.slotLeds.forEach(l=>l.material.color.setHex(0x30ff60));
 }
 function showEnd(){
-  mode = 'end'; setTouchUI(false);
+  mode = 'end'; setTouchUI(false); VM.visible = false; PHANTOM.g.visible = false;
   try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
   $('hud').style.display='none'; $('black').style.opacity=0; $('white').style.opacity=0; canvas.style.filter=''; canvas.style.transform='';
   const escN = G.esc.length, survN = allPlayers().filter(p=>p.pid!==G.mo).length;
@@ -1010,6 +1165,10 @@ const sfx = {
     // dread drone (rises near the Occupant)
     this.droneG=c.createGain(); this.droneG.gain.value=0; this.droneG.connect(this.master);
     for (const f of [36.7, 38.9, 55.0, 77.8]){ const o=c.createOscillator(); o.type='sawtooth'; o.frequency.value=f; const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=170; o.connect(lp).connect(this.droneG); o.start(); }
+    // wind rising out of the pits
+    this.windG=c.createGain(); this.windG.gain.value=0; this.windG.connect(this.master);
+    const wn=c.createBufferSource(); wn.buffer=this.brown; wn.loop=true; const wf=c.createBiquadFilter(); wf.type='lowpass'; wf.frequency.value=320; wn.connect(wf).connect(this.windG); wn.start();
+    const wl=c.createOscillator(); wl.frequency.value=0.07; const wlg=c.createGain(); wlg.gain.value=0.12; wl.connect(wlg).connect(this.windG.gain); wl.start();
     // monster's own breathing bed
     this.breathG=c.createGain(); this.breathG.gain.value=0; this.breathG.connect(this.master);
     const bs=c.createBufferSource(); bs.buffer=this.white; bs.loop=true; const bf=c.createBiquadFilter(); bf.type='bandpass'; bf.frequency.value=420; bf.Q.value=1.2; bs.connect(bf).connect(this.breathG); bs.start();
@@ -1069,8 +1228,12 @@ const sfx = {
     else if (kind===2){ for (let k=0;k<3;k++) this.noise(o,{dur:0.09,freq:380,gain:0.9,at:k*0.35}); }
     else if (kind===3){ [659,587,523,494].forEach((f,k)=>this.tone(o,{f:f*(1+(Math.random()-0.5)*0.03),type:'triangle',dur:0.9,gain:0.06,at:k*0.55})); }
     else if (kind===4){ for (let k=0;k<8;k++) this.noise(o,{dur:0.1,freq:450,gain:0.6,at:k*0.18}); }
-    else { this.tone(o,{f:180,to:120,type:'sawtooth',dur:1.6,gain:0.05,attack:0.3}); this.noise(o,{dur:1.6,type:'bandpass',freq:500,q:2,gain:0.15,attack:0.4}); }
+    else if (kind===5){ this.tone(o,{f:180,to:120,type:'sawtooth',dur:1.6,gain:0.05,attack:0.3}); this.noise(o,{dur:1.6,type:'bandpass',freq:500,q:2,gain:0.15,attack:0.4}); }
+    else if (kind===6){ for (let k=0;k<6;k++) this.tone(o,{f:k%2?1250:950,type:'square',dur:0.18,gain:0.05,at:k*0.22}); }
+    else if (kind===7){ this.tone(o,{f:42,dur:2.5,type:'sawtooth',gain:0.08,attack:0.4}); this.noise(o,{dur:2.5,freq:160,gain:0.35,attack:0.5}); }
+    else { for (let k=0;k<7;k++) this.noise(o,{dur:0.06,type:'bandpass',freq:1200+Math.random()*900,q:3,gain:0.35*(1-k/8),at:k*0.13+Math.random()*0.05}); }
   },
+  fall(){ if(!this.ctx) return; const f=this.noise(this.master,{dur:3.5,type:'bandpass',freq:300,q:0.8,gain:0.7,attack:0.3,buf:this.brown}); f.frequency.exponentialRampToValueAtTime(1800,this.ctx.currentTime+3); this.noise(this.master,{dur:0.3,freq:300,gain:0.6}); },
   escape(){ if(!this.ctx) return; for (const f of [261.6,329.6,392,523.3]) this.tone(this.master,{f,type:'sine',dur:3,gain:0.06,attack:0.8}); },
 };
 function playEventSound(k, x, z){
@@ -1204,7 +1367,7 @@ $('bAgain').onclick = ()=>{ sfx.init(); hostStartRound(); };
 $('bMenu').onclick = ()=>{ leaveRoom(); goMenu(''); };
 
 /* ================= per-frame ================= */
-let deathT=0, escT=0, powerFlash=0, surgeT=0, nextSurge=40, stingCD=0, lastSeen=-99, heartT=0, farT=12, whisperT=20, breathT=0, monStepT=0, halluT=30, halluLife=0, specIdx=0, specPid=null, pickT=0, lastNearB=1;
+let fallT=0, fallY=0, fallV=0, curZone=-1, seenZones=new Set(), deathT=0, escT=0, powerFlash=0, surgeT=0, nextSurge=40, stingCD=0, lastSeen=-99, heartT=0, farT=12, whisperT=20, breathT=0, monStepT=0, halluT=30, halluLife=0, specIdx=0, specPid=null, pickT=0, lastNearB=1;
 const mDisp = { x:0, z:0, ry:0, mv:0 };
 const pings = new Map();
 const pingTex = textTex('',64,64,(c,w,h)=>{ const gr=c.createRadialGradient(32,32,0,32,32,30); gr.addColorStop(0,'rgba(255,60,40,.9)'); gr.addColorStop(.5,'rgba(255,40,20,.35)'); gr.addColorStop(1,'rgba(255,0,0,0)'); c.fillStyle=gr; c.fillRect(0,0,w,h); });
@@ -1248,6 +1411,7 @@ function updateMe(dt){
     }
   }
   if (role !== 'survivor') return;
+  if (zoneAt(me.x, me.z) === 2 && inPit(me.x, me.z)){ startFall(); return; }
   if (lightOn()) me.bat = Math.max(0, me.bat - dt*0.55);
   if (me.bat <= 0 && me.light){ me.light=false; msg('Your flashlight died.', 3); }
   // fuses
@@ -1288,7 +1452,7 @@ function updateRemotes(dt){
     const isMon = r.pid === G.mo;
     const gone = isDead(r.pid) || isEsc(r.pid) || !r.a;
     r.mesh.visible = !isMon && !gone && !(mode==='spect' && r.pid===specPid) && myRound===G.r;
-    r.mesh.position.set(r.x,0,r.z); r.mesh.rotation.y = r.yaw;
+    r.mesh.position.set(r.x,0,r.z); r.mesh.rotation.y = r.yaw + Math.PI; animAvatar(r.av, nowS()+hashStr(r.pid)%7, r.mv);
     if (!gone && r.mv && !isMon){ r.step += dt*(r.mv===2?2.6:1.7); if (r.step>=1){ r.step-=1; sfx.step(r.m===0?0.05:0.14, onWet(r.x,r.z), {x:r.x,y:0.1,z:r.z}); } }
   }
 }
@@ -1323,6 +1487,8 @@ function updatePanels(t){
   for (const p of L.panels){
     p.b = panelBright(p, t, mx, mz);
     if (p.red) tmpC.setRGB(1*p.b+0.05, 0.12*p.b+0.02, 0.06*p.b+0.02);
+    else if (p.t===1) tmpC.setRGB(0.06+0.8*p.b, 0.07+0.93*p.b, 0.07+0.86*p.b);
+    else if (p.t===2) tmpC.setRGB(0.08+0.92*p.b, 0.04+0.55*p.b, 0.02+0.25*p.b);
     else tmpC.setRGB(0.07+0.93*p.b, 0.07+0.9*p.b, 0.05+0.78*p.b);
     L.panelMesh.setColorAt(p.idx, tmpC);
   }
@@ -1337,9 +1503,9 @@ function updatePanels(t){
     const l = PL[k], e = near[k];
     if (!e){ l.intensity = 0; continue; }
     const p = e[1];
-    l.position.set(p.x, WH-0.25, p.z);
-    l.intensity = LI * Math.min(1.3, p.b);
-    l.color.setHex(p.red ? 0xff3018 : 0xfff0c0);
+    l.position.set(p.x, p.t===2 ? 2.3 : WH-0.25, p.z);
+    l.intensity = LI * Math.min(1.3, p.b) * (p.t===2 ? 0.8 : 1);
+    l.color.setHex(p.red ? 0xff3018 : p.t===1 ? 0xd8ffe6 : p.t===2 ? 0xff8a48 : 0xfff0c0);
     localLight = Math.max(localLight, p.b * clamp(1 - e[0]/6.5, 0, 1));
   }
   if (near[0]){ const nb = near[0][1].b; if (Math.abs(nb-lastNearB) > 0.5 && near[0][0] < 6) sfx.click({x:near[0][1].x, y:WH, z:near[0][1].z}); lastNearB = nb; }
@@ -1372,6 +1538,16 @@ function updateLights(dt){
   if (level){ level.slotLeds.forEach((l,k)=>l.material.color.setHex(k < G.pl ? 0x30ff60 : (Math.sin(nowS()*4)>0 ? 0xff2010 : 0x400800))); }
 }
 
+const _fogT = new THREE.Color(), _skyT = new THREE.Color(), _gndT = new THREE.Color();
+function updateZoneEnv(dt){
+  const z = zoneAt(camera.position.x, camera.position.z);
+  if (z !== curZone){ curZone = z; if (mode==='play' && role==='survivor' && z && !seenZones.has(z)){ seenZones.add(z); msg('— ' + ZNAME[z] + ' —', 3); } }
+  const k = 1 - Math.exp(-2.5*dt);
+  _fogT.copy(ZFOG[z]); if (role==='monster') _fogT.multiplyScalar(1.4);
+  scene.fog.color.lerp(_fogT, k); scene.background.copy(scene.fog.color);
+  scene.fog.density = lerp(scene.fog.density, role==='monster' ? 0.06 : ZDENS[z], k);
+  amb.color.lerp(ZSKY[z], k); amb.groundColor.lerp(ZGND[z], k);
+}
 function survivorSeesMonster(){
   if (G.mo === myPid || role!=='survivor' || !me.alive) return false;
   const dx=mDisp.x-me.x, dz=mDisp.z-me.z, d=Math.hypot(dx,dz);
@@ -1388,7 +1564,8 @@ function updateAmbience(dt){
   sfx.listen(camera);
   const md = (mode==='spect' && specPid) ? (()=>{ const r=remotes.get(specPid); return r ? Math.hypot(mDisp.x-r.x, mDisp.z-r.z) : 99; })() : Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
   const monSelf = role==='monster';
-  const humTarget = 0.085 * Math.min(1.2, localLight) * (monSelf ? 1 : clamp((md-3)/10, 0, 1));
+  const humTarget = 0.085 * Math.min(1.2, localLight) * (monSelf ? 1 : clamp((md-3)/10, 0, 1)) * [1, 0.7, 0.25][Math.max(0,curZone)];
+  sfx.windG.gain.value = lerp(sfx.windG.gain.value, curZone===2 ? 0.22 : 0, 0.03);
   sfx.humG.gain.value = lerp(sfx.humG.gain.value, humTarget, 0.15);
   sfx.droneG.gain.value = lerp(sfx.droneG.gain.value, monSelf ? 0.05 : 0.2*clamp(1-md/18,0,1), 0.05);
   sfx.breathG.gain.value = monSelf ? 0.03*(0.5+0.5*Math.sin(t*1.7)) : 0;
@@ -1399,7 +1576,9 @@ function updateAmbience(dt){
   if (G.ph !== 'play') return;
   // distant events
   farT -= dt;
-  if (farT <= 0){ farT = 14+Math.random()*28; const a=Math.random()*6, d=14+Math.random()*16; sfx.far(Math.floor(Math.random()*6), {x:camera.position.x+Math.cos(a)*d, y:1.2, z:camera.position.z+Math.sin(a)*d}); }
+  if (farT <= 0){ farT = 14+Math.random()*28; const a=Math.random()*6, d=14+Math.random()*16;
+    const kinds = curZone===1 ? [0,0,6,7,2,1] : curZone===2 ? [8,8,1,5,7,2] : [0,1,2,3,4,5];
+    sfx.far(kinds[Math.floor(Math.random()*kinds.length)], {x:camera.position.x+Math.cos(a)*d, y:curZone===2?-3:1.2, z:camera.position.z+Math.sin(a)*d}); }
   // drips + phones
   for (const dp of level.drips){ dp.t -= dt; if (dp.t <= 0){ dp.t = 1.2+Math.random()*2.5; if (Math.hypot(dp.x-camera.position.x, dp.z-camera.position.z) < 18) sfx.drip(dp.x, dp.z); } }
   if (G.ring >= 0){ ringT -= dt; if (ringT <= 0){ ringT = 3; const ph=level.phones[G.ring]; if (ph) sfx.ring(ph.x, ph.z); } } else ringT = 0;
@@ -1460,6 +1639,7 @@ function updateHUD(dt){
   const obj = $('obj');
   if (role === 'monster'){
     const left = allPlayers().filter(p=>p.pid!==G.mo && !isDead(p.pid) && !isEsc(p.pid)).length;
+    if (G.grace > 0 && mode==='play') $('blacksub').textContent = `They wake up in the halls. Running gives them away. Don't let them reach the exit.  —  ${Math.ceil(G.grace)}`;
     obj.textContent = G.grace > 0 ? `They wake up in ${Math.ceil(G.grace)}…` : (G.open ? `The exit is open. ${left} left.` : `Hunt them. ${left} left. Fuses placed: ${G.pl}/${FUSES}`);
     if (G.grace <= 0 && $('black').style.opacity === '1' && mode==='play') $('black').style.opacity = 0;
   } else if (role === 'survivor'){
@@ -1481,6 +1661,9 @@ function placeCamera(dt){
   if (mode==='play'){
     const eye = role==='monster' ? 2.05 : me.crouch ? 1.0 : EYE;
     camera.position.set(me.x, eye + Math.sin(me.bob)*(role==='monster'?0.07:0.045), me.z);
+    VM.visible = role==='survivor';
+    VM.position.set(0.28 + Math.sin(me.bob*0.5)*0.012, -0.3 + Math.abs(Math.cos(me.bob*0.5))*0.012 - (me.running?0.03:0), -0.5);
+    VM.userData.lens.material.color.setHex(lightOn() ? 0xfff6d8 : 0x333333);
     camera.rotation.set(me.pitch, me.yaw, Math.sin(me.bob*0.5)*(role==='monster'?0.02:0.006));
   } else if (mode==='deadAnim'){
     deathT += dt;
@@ -1496,6 +1679,12 @@ function placeCamera(dt){
     $('flash').style.opacity = deathT < 1.3 ? (Math.random()<0.3 ? 0.45 : 0.08) : 0;
     if (deathT > 1.3){ $('blacktext').textContent = 'YOU WERE FOUND'; $('blacksub').textContent = ''; $('black').style.opacity = 1; }
     if (deathT > 4) toSpectate();
+  } else if (mode==='fallAnim'){
+    fallT += dt; fallV += 13*dt; fallY -= fallV*dt;
+    camera.position.set(me.x, fallY, me.z);
+    camera.rotation.set(Math.min(1.2, 0.2 + fallT*0.9), me.yaw + Math.sin(fallT*3)*0.2, Math.sin(fallT*5)*0.15);
+    if (fallT > 1.3){ $('blacktext').textContent = 'YOU FELL'; $('blacksub').textContent = 'There is no bottom.'; $('black').style.opacity = 1; }
+    if (fallT > 4.2) toSpectate();
   } else if (mode==='escAnim'){
     escT += dt;
     camera.position.set(me.x, EYE, me.z);
@@ -1511,7 +1700,7 @@ function placeCamera(dt){
   }
 }
 function toSpectate(){
-  $('flash').style.opacity = 0; canvas.style.filter=''; canvas.style.transform='';
+  VM.visible = false; $('flash').style.opacity = 0; canvas.style.filter=''; canvas.style.transform='';
   if (pendingEnd || G.ph === 'end'){ showEnd(); return; }
   mode = 'spect'; $('black').style.opacity = 0; $('spec').style.display = 'block'; $('bat').style.display='none'; setTouchUI(isTouch);
   $('btns').style.display = 'none';
@@ -1549,7 +1738,8 @@ function frame(now){
     const path = 0.12*menuT;
     camera.position.set(cc(1) + Math.sin(path)*2, EYE, cc(1) + Math.cos(path*0.7)*2);
     camera.rotation.set(0, menuT*0.04, 0);
-    MON.g.visible = false; PHANTOM.g.visible = false;
+    MON.g.visible = false; PHANTOM.g.visible = false; VM.visible = false;
+    updateZoneEnv(dt);
     for (const s of spots) s.intensity = 0;
     exitLight.intensity = 0;
     for (const p of pings.values()) p.visible = false;
@@ -1561,6 +1751,7 @@ function frame(now){
     updateRemotes(dt);
     updateMonsterDisplay(dt);
     placeCamera(dt);
+    updateZoneEnv(dt);
     updatePanels(t);
     updateLights(dt);
     const sees = survivorSeesMonster();
@@ -1577,7 +1768,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { me, H, net, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos };
+window.__hp = { me, H, net, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos };
 </script>
 </body>
 </html>
