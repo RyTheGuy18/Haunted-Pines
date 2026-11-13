@@ -10,3 +10,4 @@ On iPhone: open in Safari, Share, Add to Home Screen. Headphones on.
 v0.10.0: Occupant can't sprint, disguise ability, vents, new ambience.
 v0.11.0: more stamina, scarier lure, big Occupant countdown, back to lobby.
 v0.12.0: Level 1 parking garage with generators, Occupant dash.
+v0.13.0: the Snatcher 3D model Occupant, low-res camera when it's in view.
