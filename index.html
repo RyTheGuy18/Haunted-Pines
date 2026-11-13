@@ -99,6 +99,11 @@
   #objBox{position:absolute;left:max(14px,env(safe-area-inset-left));top:10px;max-width:min(58vw,460px);padding:6px 14px 8px 10px;border-left:3px solid var(--hot);background:linear-gradient(90deg,rgba(0,0,0,.55),rgba(0,0,0,0))}
   #objBox .lbl{font-size:14px}
   #obj{font-size:22px;line-height:1.05}
+  #micbox{display:none;align-items:center;gap:8px;margin-top:6px;font-size:17px;color:#d8cea6}
+  #micbar{position:relative;width:110px;height:10px;border:1.5px solid #cfc59c;padding:1px}
+  #micfill{display:block;height:100%;width:0;background:#9fd88a;transition:width .06s}
+  #micbar b{position:absolute;top:-3px;bottom:-3px;width:2px;background:#f1e6b4;opacity:.75}
+  #mics{font-size:15px;letter-spacing:.12em;min-width:58px}
   #kit{display:flex;align-items:center;gap:14px;margin-top:6px;font-size:19px;color:#d8cea6}
   #bat{position:relative;width:62px;height:14px;border:2px solid #cfc59c;padding:2px}
   #bat:after{content:'';position:absolute;right:-6px;top:3px;width:3px;height:4px;background:#cfc59c}
@@ -156,11 +161,12 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.16.0</div>
+<div class="osd" id="ver">v0.17.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
-    <div id="kit"><div id="bat"><div id="batfill"></div></div><span id="cans"></span></div></div>
+    <div id="kit"><div id="bat"><div id="batfill"></div></div><span id="cans"></span></div>
+    <div id="micbox"><span id="micl">MIC</span><div id="micbar"><i id="micfill"></i><b id="mict1"></b><b id="mict2"></b></div><span id="mics"></span></div></div>
   <div id="plist"></div>
   <div id="spec"></div>
   <div id="cross"></div>
@@ -186,6 +192,7 @@
     <button class="btn primary" id="bSolo">PLAY SOLO</button>
     <button class="btn" id="bHost">HOST ONLINE GAME</button>
     <div class="row code"><input id="joincode" maxlength="4" placeholder="CODE" autocomplete="off"><button class="btn" id="bJoin">JOIN</button></div>
+    <button class="btn" id="bVoice">VOICE CHAT: OFF</button>
     <div id="netnote"></div>
   </div>
   <div class="card">
@@ -217,6 +224,7 @@
   <div class="card">
     <div class="lbl">IN THE ROOM</div>
     <div id="lplayers"></div>
+    <button class="btn" id="bVoice2">VOICE CHAT: OFF</button>
     <button class="btn monb" id="bMon">THE OCCUPANT: RANDOM</button>
     <div id="monText"></div>
     <div class="picker"><button id="bSkin2L">◀</button><div class="pv" id="bSkin2"></div><button id="bSkin2R">▶</button></div>
@@ -254,7 +262,7 @@ const isTouch = ('ontouchstart' in window) || matchMedia('(pointer:coarse)').mat
 document.body.classList.toggle('touch', isTouch);
 $('controls').textContent = isTouch
   ? 'Left thumb moves, right thumb looks. USE pops up next to lockers.'
-  : 'Click to look · WASD move · Shift run · C crouch · Left click / F flashlight · E hide · Right click / G throw can · Occupant: Shift sprint, E vent, 1 blackout, 2 shift walls, 3 lure, 4 disguise, 5 dash.';
+  : 'Click to look · WASD move · Shift run · C crouch · Left click / F flashlight · E hide · Right click / G throw can · V mute mic · Occupant: Shift sprint, E vent, 1 blackout, 2 shift walls, 3 lure, 4 disguise, 5 dash.';
 function vibrate(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
 
 /* ================= constants ================= */
@@ -1172,7 +1180,8 @@ function allPlayers(){
   for (const r of remotes.values()) out.push({ pid:r.pid, n:r.n, x:r.tx, z:r.tz, yaw:r.tyaw, pitch:r.tp, l:r.l, a:r.a, m:r.m, hd:r.hd|0, c:r.c|0, vt:r.vt|0, ds:r.ds|0 });
   return out;
 }
-function noiseLevel(){
+function noiseLevel(){ return Math.max(noiseMove(), voiceNoise()); }
+function noiseMove(){
   if (role !== 'survivor' || !me.alive || me.esc) return 0;
   if (me.loudT > 0) return 3;
   if (crankK >= 0) return 2;   // pulling a generator cord is loud
@@ -1387,7 +1396,7 @@ function safe(fn){ try { const r = fn(); if (r && r.catch) r.catch(e=>console.wa
 function broadcastState(){ if (net.solo || !net.room || !net.hostFlag) return; safe(()=>net.room.emit('state', G)); }
 function sendPresence(){
   if (net.solo || !net.room) return;
-  safe(()=>net.room.presence({ pid:myPid, n:myName, h:net.hostFlag?1:0, x:+me.x.toFixed(2), z:+me.z.toFixed(2), y:+me.yaw.toFixed(3), p:+me.pitch.toFixed(3), l:lightOn()?1:0, a:me.alive?1:0, m:noiseLevel(), mv:me.moving?(me.running?2:1):0, sk:mySkin, hd:me.hidden+1, c:me.crouch?1:0, vt:ventT>0?1:0, ds:dashT>0?1:0 }));
+  safe(()=>net.room.presence({ pid:myPid, n:myName, h:net.hostFlag?1:0, x:+me.x.toFixed(2), z:+me.z.toFixed(2), y:+me.yaw.toFixed(3), p:+me.pitch.toFixed(3), l:lightOn()?1:0, a:me.alive?1:0, m:noiseLevel(), mv:me.moving?(me.running?2:1):0, sk:mySkin, hd:me.hidden+1, c:me.crouch?1:0, vt:ventT>0?1:0, ds:dashT>0?1:0, vid:(net.room && net.room.peer && net.room.peer.id) || '', vo:voice.stream ? 1 : 0 }));
 }
 function useReq(m){ if (amHost()) applyUse(myPid, m); else safe(()=>net.room.emit('use', { ...m, pid:myPid })); }
 function onPeers(list){
@@ -1400,9 +1409,10 @@ function onPeers(list){
     let r = remotes.get(d.pid);
     if (!r){ const av = makeAvatar(d.pid); r = { pid:d.pid, x:+d.x||0, z:+d.z||0, yaw:+d.y||0, pitch:+d.p||0, step:0, mesh:av.g, av, ping:0 }; remotes.set(d.pid, r); }
     r.n = String(d.n||'Someone').slice(0,12); r.h = !!d.h;
-    r.tx = +d.x||0; r.tz = +d.z||0; r.tyaw = +d.y||0; r.tp = +d.p||0; r.l = d.l?1:0; r.a = d.a?1:0; r.m = d.m|0; r.mv = d.mv|0; r.sk = (d.sk|0)%SKN; r.hd = d.hd|0; r.c = d.c|0; r.vt = d.vt|0; r.ds = d.ds|0;
+    r.tx = +d.x||0; r.tz = +d.z||0; r.tyaw = +d.y||0; r.tp = +d.p||0; r.l = d.l?1:0; r.a = d.a?1:0; r.m = d.m|0; r.mv = d.mv|0; r.sk = (d.sk|0)%SKN; r.hd = d.hd|0; r.c = d.c|0; r.vt = d.vt|0; r.ds = d.ds|0; r.vid = String(d.vid||''); r.vo = d.vo|0;
   }
   for (const [pid,r] of remotes) if (!seen.has(pid)){ scene.remove(r.mesh); remotes.delete(pid); }
+  voiceSync();
   renderLobby();
 }
 function onState(m){
@@ -1514,6 +1524,7 @@ async function connect(code, host){
   leaveRoom();
   net.room = room; net.solo = false; net.code = code; net.hostFlag = host;
   room.on('state', onState); room.on('use', onUse); room.on('snd', onSnd);
+  if (room.peer && room.peer.on) room.peer.on('call', onVoiceCall);
   room.on('_hostgone', ()=>{ if (net.room !== room) return; leaveRoom(); goMenu('The host left the game.'); });
   room.on('_full', ()=>{ if (net.room !== room) return; leaveRoom(); goMenu('That game is full (4 players max).'); });
   room.onPeers(onPeers);
@@ -1526,7 +1537,90 @@ async function connect(code, host){
   renderLobby();
   return true;
 }
+/* ================= proximity voice chat (PeerJS audio calls, one per pair) =================
+   lobby / end screen: everyone hears everyone. In a round: survivors hear each other by distance (~20 m),
+   the Occupant hears survivors near it, nobody hears the Occupant's mic, and the dead only talk to the dead. */
+const voice = { want:false, stream:null, calls:new Map(), muted:false, an:null, buf:null, level:0, talkT:0, loudT:0 };
+const VT1 = 0.025, VT2 = 0.1;   // mic loudness: above VT1 you can be heard nearby, above VT2 you're shouting
+try { voice.want = localStorage.getItem('lvl0_voice') === '1'; } catch(e){}
+function showVoice(){ const t = 'VOICE CHAT: ' + (!voice.want ? 'OFF' : !voice.stream ? 'TAP TO ALLOW MIC' : voice.muted ? 'MUTED' : 'ON'); for (const id of ['bVoice','bVoice2']) if ($(id).textContent !== t) $(id).textContent = t; }
+async function voiceEnable(on){
+  if (on && !voice.stream){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ $('netnote').textContent = "This browser can't use a microphone here."; voice.want = false; showVoice(); return false; }
+    try { voice.stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true }, video:false }); }
+    catch(e){ $('netnote').textContent = 'Microphone blocked. Allow mic access in your browser to use voice chat.'; voice.want = false; try { localStorage.setItem('lvl0_voice','0'); } catch(_){} showVoice(); return false; }
+    sfx.init();
+    if (sfx.ctx){ const src = sfx.ctx.createMediaStreamSource(voice.stream); voice.an = sfx.ctx.createAnalyser(); voice.an.fftSize = 512; src.connect(voice.an); voice.buf = new Float32Array(voice.an.fftSize); }
+  }
+  voice.want = on; try { localStorage.setItem('lvl0_voice', on ? '1' : '0'); } catch(e){}
+  if (!on){ for (const id of [...voice.calls.keys()]) closeCall(id); if (voice.stream) voice.stream.getTracks().forEach(t=>t.stop()); voice.stream = null; voice.an = null; voice.level = 0; }
+  else voice.stream.getAudioTracks().forEach(t=>t.enabled = !voice.muted);
+  showVoice(); sendPresence(); voiceSync();
+  return true;
+}
+function toggleMute(){ if (!voice.stream) return; voice.muted = !voice.muted; voice.stream.getAudioTracks().forEach(t=>t.enabled = !voice.muted); showVoice(); msg(voice.muted ? 'Mic muted.' : 'Mic on.', 1.5); }
+function voiceSync(){
+  const peer = net.room && net.room.peer; if (!peer || typeof peer.call !== 'function' || net.solo) return;
+  const want = new Set();
+  if (voice.stream) for (const r of remotes.values()){ if (!r.vid || !r.vo) continue; want.add(r.vid);
+    if (!voice.calls.has(r.vid) && peer.id < r.vid){ try { const call = peer.call(r.vid, voice.stream); if (call) attachCall(call); } catch(e){ console.warn(e); } } }   // the lower id calls, so each pair connects once
+  for (const id of [...voice.calls.keys()]) if (!want.has(id)) closeCall(id);
+}
+function onVoiceCall(call){
+  if (!voice.stream){ try { call.close(); } catch(e){} return; }
+  call.answer(voice.stream); attachCall(call);
+}
+function attachCall(call){
+  const id = call.peer; if (voice.calls.has(id)) closeCall(id);
+  const c = { call, el:null, src:null, g:null, pan:null }; voice.calls.set(id, c);
+  call.on('stream', s=>{ if (c.g || !sfx.ctx) return; const ctx = sfx.ctx;
+    c.el = new Audio(); c.el.srcObject = s; c.el.muted = true; c.el.play().catch(()=>{});   // Chrome only feeds WebAudio while an element plays the stream
+    c.src = ctx.createMediaStreamSource(s); c.g = ctx.createGain(); c.g.gain.value = 0;
+    c.pan = ctx.createPanner(); c.pan.panningModel = 'HRTF'; c.pan.distanceModel = 'linear'; c.pan.refDistance = 1; c.pan.maxDistance = 1000; c.pan.rolloffFactor = 0;   // volume is set by hand in updateVoice
+    c.src.connect(c.g).connect(c.pan).connect(sfx.master); });
+  const end = ()=>{ if (voice.calls.get(id) === c) closeCall(id); };
+  call.on('close', end); call.on('error', end);
+}
+function closeCall(id){
+  const c = voice.calls.get(id); if (!c) return; voice.calls.delete(id);
+  try { c.call.close(); } catch(e){} try { c.src && c.src.disconnect(); c.g && c.g.disconnect(); c.pan && c.pan.disconnect(); } catch(e){}
+  if (c.el){ c.el.pause(); c.el.srcObject = null; }
+}
+function voiceNoise(){
+  if (role !== 'survivor' || !me.alive || me.esc || !voice.stream || voice.muted) return 0;
+  return voice.loudT > 0 ? 2 : voice.talkT > 0 ? 1 : 0;
+}
+function updateVoice(dt){
+  if (voice.an && !voice.muted){ voice.an.getFloatTimeDomainData(voice.buf); let sum = 0; for (let i=0;i<voice.buf.length;i++) sum += voice.buf[i]*voice.buf[i]; const rms = Math.sqrt(sum/voice.buf.length); voice.level = rms > voice.level ? rms : lerp(voice.level, rms, 1-Math.exp(-8*dt)); }
+  else voice.level = lerp(voice.level, 0, 0.3);
+  voice.talkT = voice.level > VT1 ? 0.5 : Math.max(0, voice.talkT - dt); voice.loudT = voice.level > VT2 ? 0.5 : Math.max(0, voice.loudT - dt);
+  const box = $('micbox'), show = !!voice.stream && $('hud').style.display === 'block';
+  if (box.style.display !== (show ? 'flex' : 'none')) box.style.display = show ? 'flex' : 'none';
+  if (show){ const span = 0.16, f = Math.min(1, voice.level/span);
+    $('micfill').style.width = (f*100).toFixed(1) + '%'; $('micfill').style.background = voice.muted ? '#6d6550' : voice.level > VT2 ? '#e25a44' : voice.level > VT1 ? '#e9d27c' : '#9fd88a';
+    $('mict1').style.left = (VT1/span*100) + '%'; $('mict2').style.left = (VT2/span*100) + '%';
+    const lbl = voice.muted ? 'MUTED' : voice.level > VT2 ? 'LOUD' : voice.level > VT1 ? 'HEARD' : 'quiet'; if ($('mics').textContent !== lbl) $('mics').textContent = lbl; }
+  const playing = G.ph === 'play' && myRound === G.r && mode !== 'lobby' && mode !== 'end' && mode !== 'menu';
+  const iAmDead = role === 'survivor' && (isDead(myPid) || isEsc(myPid) || !me.alive || mode === 'spect');
+  const cx = camera.position.x, cz = camera.position.z, k = 1 - Math.exp(-12*dt);
+  for (const [id, c] of voice.calls){ if (!c.g) continue;
+    let r = null; for (const q of remotes.values()) if (q.vid === id){ r = q; break; }
+    let g = r ? 1 : 0, px = cx, pz = cz;
+    if (r && playing){
+      const rMon = r.pid === G.mo, rGone = isDead(r.pid) || isEsc(r.pid) || !r.a;
+      if (rMon) g = 0;
+      else if (rGone) g = iAmDead ? 1 : 0;
+      else { const d = Math.hypot(r.x-cx, r.z-cz); g = clamp(1 - (d-2)/18, 0, 1); if (g > 0 && !losClear(cx, cz, r.x, r.z)) g *= 0.55; px = r.x; pz = r.z; }
+    }
+    c.g.gain.value = lerp(c.g.gain.value, g*1.5, k);
+    if (c.pan.positionX){ c.pan.positionX.value = px; c.pan.positionY.value = 1.6; c.pan.positionZ.value = pz; } else c.pan.setPosition(px, 1.6, pz);
+  }
+}
+$('bVoice').onclick = $('bVoice2').onclick = ()=>{ sfx.init(); voiceEnable(!(voice.want && voice.stream)); };
+showVoice();
+
 function leaveRoom(){
+  for (const id of [...voice.calls.keys()]) closeCall(id);
   if (net.room){ try { net.room.leave(); } catch(e){} }
   net.room = null; net.solo = true; net.hostFlag = false;
   for (const r of remotes.values()) scene.remove(r.mesh);
@@ -1887,6 +1981,9 @@ addEventListener('keydown', e=>{
     if (e.code==='KeyC' || e.code==='ControlLeft'){ me.crouch=!me.crouch; }
     if (e.code==='KeyG' || e.code==='KeyQ') throwCan();
   }
+  if (mode==='play' && e.code==='KeyV'){ toggleMute(); }
+  if (mode==='play' && role==='survivor'){
+  }
   if (mode==='play' && role==='monster'){
     if (e.code==='Digit1') ability('blackout');
     if (e.code==='Digit2') ability('shift');
@@ -2016,8 +2113,8 @@ $('bSolo').onclick = ()=>{
   G = freshState(G.r); myRound = -1;
   hostStartRound();
 };
-$('bHost').onclick = async ()=>{ readName(); sfx.init(); if (isTouch) goFull(); if (await connect(genCode(), true)) sfx.bindLevel(); };
-$('bJoin').onclick = async ()=>{
+$('bHost').onclick = async ()=>{ if (voice.want && !voice.stream) voiceEnable(true); readName(); sfx.init(); if (isTouch) goFull(); if (await connect(genCode(), true)) sfx.bindLevel(); };
+$('bJoin').onclick = async ()=>{ if (voice.want && !voice.stream) voiceEnable(true);
   const c = $('joincode').value.trim().toUpperCase();
   if (!/^[A-Z]{4}$/.test(c)){ $('netnote').textContent = 'Enter the 4-letter room code.'; return; }
   readName(); sfx.init(); if (isTouch) goFull(); if (await connect(c, false)) sfx.bindLevel();
@@ -2634,12 +2731,13 @@ function frame(now){
     updateHUD(dt);
     updateItems();
   }
+  updateVoice(dt);
   renderer.render(scene, camera);
   grain();
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
+window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
 </script>
 </body>
 </html>
