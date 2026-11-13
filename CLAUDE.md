@@ -6,7 +6,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 - Live: https://rytheguy18.github.io/Haunted-Pines/ (GitHub Pages, `main` branch, repo root)
 - Owner: Ryan (GitHub `rytheguy18` / `RyTheGuy18`). Plays it with friends and younger brothers, mostly on phones.
-- Current version: **v0.26.0** (shown bottom-right of the menu, `#ver`)
+- Current version: **v0.26.1** (shown bottom-right of the menu, `#ver`)
 
 ## Files
 
@@ -20,7 +20,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 | `models/survivor.glb` | **Survivor avatar** (v0.24): Ryan's low-poly PS1 hazmat suit, Mixamo-rigged, clips `Idle`, `Walk`, `Run`, `Crouch` (crouch-walk; frozen = crouch idle). Built from his Mixamo FBX files with FBXLoader → GLTFExporter (hips X/Z root motion stripped, idle resampled to 10 fps). 2.5 units tall → scaled to 1.78 m |
 | `models/flashlight.glb` | v0.26: "Pro Flashlight" by Chancleto870 (Sketchfab, **CC BY 4.0** — credit in the menu footer, keep it), simplified to ~3.4k verts, 128 px texture, glass dropped. Points along +x, button +y, 0.2 m. Used in the first-person view (`VM`, scale 1.3) and in every survivor avatar's right hand (`attachFL`, aimed hand→index knuckle; not on the Occupant's disguise fakes) |
 | `models/crawler.glb` | Crawler skin: "Goose" by nodoxi (Sketchfab, **CC BY 4.0** — credit is in the menu footer, keep it), static mesh, rigged in code |
-| `sfx/*.mp3` | crawler-steps (spider walking loop), heavy-steps (loop), spider-attack-1/2/4 (kill sounds, boosted +14 dB with a limiter in v0.20), monster-roar (computer catch), monster-growl (one-shots while the computer chases), monster-groans (20 s loop while the computer chases), water-walk / water-run (v0.24: Ryan's wading recording, 0.39–8.06 s = walk loop, 48.25–52.25 s = the quicker run section), breathing (v0.24: out-of-breath loop), gen-start / gen-run (v0.26: Ryan's diesel generator recording: 0.9–4.6 s start-up = loops while someone is starting a generator, 20–32 s = running loop, normalised). Mono. Pixabay-style sources Ryan uploaded |
+| `sfx/*.mp3` | crawler-steps (spider walking loop), heavy-steps (loop), spider-attack-1/2/4 (kill sounds, boosted +14 dB with a limiter in v0.20), monster-roar (computer catch), monster-growl (one-shots while the computer chases), monster-groans (20 s loop while the computer chases), water-walk / water-run (v0.24: Ryan's wading recording, 0.39–8.06 s = walk loop, 48.25–52.25 s = the quicker run section), breathing (v0.24: out-of-breath loop), gen-start / gen-run (v0.26: Ryan's diesel generator recording: 0.9–1.9 s start-up (v0.26.1, Ryan trimmed it to the first second) = loops while someone is starting a generator, 20–32 s = running loop, normalised). Mono. Pixabay-style sources Ryan uploaded |
 | `sw.js` | Service worker. **Bump `const V='level0-vX-Y'` every release** or phones keep the old version. CORE list must include every new asset |
 | `manifest.webmanifest`, icons | PWA |
 | `README.md` | Short description + one line per version (see Publishing) |
