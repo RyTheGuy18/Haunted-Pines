@@ -30,3 +30,5 @@ v0.25.0: hazmat first-person arm, quieter panting, exits never blocked, bigger q
 v0.26.0: real flashlight model, diesel generator sounds, generator lamps stay lit, Occupant hears voices further, kill fix for player Occupants.
 v0.26.1: generator start-up sound trimmed to a 1-second loop.
 v0.26.2: generator start-up clicks while cranking, then catches and keeps running.
+v0.26.3: removed the parked cars from Level 1.
+v0.26.4: removed throwable cans from every level.
