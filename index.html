@@ -176,7 +176,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.27.0</div>
+<div class="osd" id="ver">v0.27.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -1806,6 +1806,10 @@ function gen188(rng){
   }
   return { K, floors };
 }
+let vendSrc = null; const vendSlots = [];
+function fillVend(g){ const m = vendSrc.clone(true); m.scale.setScalar(0.92); m.position.y = 0.92; m.rotation.y = Math.PI; g.add(m); }   // model: 2 units tall, centred, front toward -z
+new GLTFLoader().load('models/vending.glb', gl=>{
+  vendSrc = gl.scene; for (const v of vendSlots) fillVend(v); vendSlots.length = 0; }, undefined, e=>console.warn('vending machine failed', e));
 function buildLevel188(seed){
   const rng = rngFrom(seed), gen = gen188(rng), K = gen.K; elPrev.length = 0;
   const S = (i,j) => inGrid(i,j) && K[i*N+j] > 0;
@@ -1989,12 +1993,12 @@ function buildLevel188(seed){
       const tex = textTex(txt,512,96,(c,w,h,tt)=>{ c.clearRect(0,0,w,h); c.save(); c.translate(w/2,h/2); c.rotate((rng()-0.5)*0.08); c.font='bold 34px "Special Elite", "Courier New", monospace'; c.textAlign='center'; c.fillStyle='rgba(70,18,8,.85)'; c.fillText(tt,0,10); c.restore(); });
       const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.5), new THREE.MeshLambertMaterial({ map:tex, transparent:true, depthWrite:false })); m.position.set(x + s.nx*0.012, y+1.3+rng()*0.4, z + s.nz*0.012); m.rotation.y = Math.atan2(s.nx, s.nz); g.add(m); }
   }
-  // ice machines in the little alcoves
+  // soda vending machines in the little alcoves (models/vending.glb: Ryan's model at full detail, optimised 18 MB -> 5 MB, looks the same)
   for (let f=0; f<3; f++) for (const [i,j] of L.hcells[f]){ const li = i-HO[f][0], lj = j-HO[f][1]; if (!(li===0 || lj===0 || li===17 || lj===17)) continue;
-    const nx = li===0 ? 1 : li===17 ? -1 : 0, nz = lj===0 ? 1 : lj===17 ? -1 : 0, wx = cc(i) - nx*(CS/2-HT-0.4), wz = cc(j) - nz*(CS/2-HT-0.4), [x,z,y] = hv(wx, wz);
-    const im = new THREE.Group(); im.position.set(x, y, z); im.rotation.y = Math.atan2(nx, nz); g.add(im);
-    bx(im, 0.9, 1.7, 0.75, 0, 0.85, 0, lam(0xbcbab2)); bx(im, 0.5, 0.25, 0.01, 0, 1.25, 0.38, new THREE.MeshBasicMaterial({ color:0x6ab0d8 })); bx(im, 0.4, 0.3, 0.05, 0, 0.6, 0.38, lam(0x30302c));
-    L.circles.push({ x:wx, z:wz, r:0.55 }); L.drips.push({ x:wx, z:wz, t:rng()*3 }); }
+    const nx = li===0 ? 1 : li===17 ? -1 : 0, nz = lj===0 ? 1 : lj===17 ? -1 : 0, wx = cc(i) - nx*(CS/2-HT-0.42), wz = cc(j) - nz*(CS/2-HT-0.42), [x,z,y] = hv(wx, wz);
+    const vm = new THREE.Group(); vm.position.set(x, y, z); vm.rotation.y = Math.atan2(nx, nz); g.add(vm);
+    if (vendSrc) fillVend(vm); else vendSlots.push(vm);
+    L.circles.push({ x:wx, z:wz, r:0.52 }); }
   // the keycard
   { const kg = new THREE.Group(); bx(kg, 0.085, 0.006, 0.054, 0, 0, 0, new THREE.MeshBasicMaterial({ color:0xf4f2ea })); bx(kg, 0.085, 0.007, 0.012, 0, 0, 0.012, new THREE.MeshBasicMaterial({ color:0x2050c0 })); kg.scale.setScalar(1.6); g.add(kg); L.kcMesh = kg; }
   L.kind = new Uint8Array(N*N);
@@ -2205,11 +2209,11 @@ function losClear(ax,az,bx,bz){
   return true;
 }
 // which recorded footstep plays where (v0.26.6): carpet on Level 0, concrete on Level 1, tile on the dry Poolrooms floor (water uses the wading loops)
-const STEP_SLOT = 0.42, STEP_GAIN = { stepC:0.5, stepK:0.8, stepT:0.5 };
+const STEP_SLOT = 0.42, STEP_GAIN = { stepC:0.5, stepK:0.8, stepT:0.5, stepW:0.5 };
 function stepSurf(x, z){
   if (LK === 0) return 'stepC';
   if (LK === 1) return 'stepK';
-  if (LK === 3) return 'stepC';
+  if (LK === 3) return 'stepW';   // Level 188: Ryan's wood-floor recording
   if (LK === 2 && M37){ const k = k37(x, z); return (k === K37.WATER || k === K37.DEEP) ? null : 'stepT'; }
   return null; }
 function onWet(x,z){ for (const w of level.wet) if ((x-w.x)**2+(z-w.z)**2 < w.r*w.r) return true; return false; }
@@ -3403,7 +3407,7 @@ const sfx = {
   },
   samples:{},
   loadSamples(){
-    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', genStart:'sfx/gen-start.mp3', genRun:'sfx/gen-run.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3', stepC:'sfx/steps-carpet.mp3', stepK:'sfx/steps-concrete.mp3', stepT:'sfx/steps-tile.mp3' };
+    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', genStart:'sfx/gen-start.mp3', genRun:'sfx/gen-run.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3', stepC:'sfx/steps-carpet.mp3', stepK:'sfx/steps-concrete.mp3', stepT:'sfx/steps-tile.mp3', stepW:'sfx/steps-wood.mp3' };
     for (const [k, url] of Object.entries(files)) fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(buf=>{ this.samples[k] = buf; if (k==='crawl' || k==='heavy' || k==='groan') this.startLoop(k); }).catch(e=>console.warn('sound failed', url, e));
   },
   loops:{},
@@ -3412,7 +3416,7 @@ const sfx = {
     src.loopStart = Math.min(0.04, buf.duration/4); src.loopEnd = buf.duration - 0.04;   // skip the mp3 padding so it loops cleanly
     const g = c.createGain(); g.gain.value = 0; let pan = null;
     if (k === 'near') src.connect(g).connect(this.master);
-    else { pan = c.createPanner(); pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 5; pan.maxDistance = 70; pan.rolloffFactor = 1.0; src.connect(g).connect(pan).connect(this.master); }
+    else { pan = c.createPanner(); pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = k === 'crawl' ? 3 : 5; pan.maxDistance = 70; pan.rolloffFactor = k === 'crawl' ? 1.5 : 1.0; src.connect(g).connect(pan).connect(this.master); }
     src.start(); this.loops[k] = { src, g, pan };
   },
   sample(k, pos, gain=1, ref=3){
@@ -3567,8 +3571,9 @@ function updateOccLoops(dt, monSelf, md, fooled){
   const k = 1 - Math.exp(-10*dt);
   for (const [name, lp] of [['crawl', L.crawl], ['heavy', L.heavy]]){
     const on = live && moving && (name === 'crawl') === crawl && LK !== 2;
-    lp.g.gain.value = lerp(lp.g.gain.value, on ? vol : 0, k);
-    lp.src.playbackRate.value = fast ? 1.18 : 1;
+    const near = name === 'crawl' && !monSelf ? 0.85 * clamp(1 - (md - 9)/11, 0, 1) : 1;   // v0.27.1: the Crawler is only heard when it's close-ish (gone by ~20 m)
+    lp.g.gain.value = lerp(lp.g.gain.value, on ? vol*near : 0, k);
+    lp.src.playbackRate.value = name === 'crawl' ? (fast ? 1.0 : 0.82) : (fast ? 1.18 : 1);
     if (lp.pan.positionX){ lp.pan.positionX.value = x; lp.pan.positionY.value = 0.2; lp.pan.positionZ.value = z; } else lp.pan.setPosition(x, 0.2, z);
   }
   if (L.groan){ const on = live && !monSelf && G.mo === 'AI' && G.ach && G.stun <= 0 && !G.avt && md < 55;
