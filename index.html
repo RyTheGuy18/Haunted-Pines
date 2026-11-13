@@ -156,7 +156,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.12.0</div>
+<div class="osd" id="ver">v0.13.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -237,6 +237,8 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from './jsm/utils/SkeletonUtils.js';
 
 /* ================= utils ================= */
 const $ = id => document.getElementById(id);
@@ -288,9 +290,10 @@ const camera = new THREE.PerspectiveCamera(74, innerWidth/innerHeight, 0.05, 90)
 camera.rotation.order = 'YXZ';
 scene.add(camera);
 const RH = isTouch ? 270 : 320;
+let curRH = RH;
 function resize(){
   const w = innerWidth, h = innerHeight;
-  renderer.setSize(Math.max(1, Math.round(RH*w/h)), RH, false);
+  renderer.setSize(Math.max(1, Math.round(curRH*w/h)), curRH, false);
   camera.aspect = w/h; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
@@ -891,6 +894,7 @@ function buildMonster(){
 }
 let MON = null, PHANTOM = null;
 function animMonster(M, t, moving, speed, stunned, dash){
+  if (M.gltf){ animSnatcher(M, t, moving, speed, stunned, dash); return; }
   const P = M.P;
   if (dash && !stunned){ M.crawl = 0; P.armL.rotation.set(-1.62, 0, 0.18); P.armR.rotation.set(-1.62, 0, -0.18); P.torso.rotation.x = 0.7; P.head.rotation.set(-0.55, 0, 0);
     const sw = Math.sin(t*24); P.legL.rotation.x = sw*0.9 - 0.2; P.legR.rotation.x = -sw*0.9 - 0.2; M.g.position.y = 0.04; return; }
@@ -1004,7 +1008,8 @@ const VM = new THREE.Group(); camera.add(VM); VM.position.set(0.28,-0.3,-0.5); V
 VM.visible = false;
 
 /* ================= Occupant skins (all original designs) ================= */
-const SKIN_NAMES = ['THE OCCUPANT', 'THE MANNEQUIN', 'THE WALLPAPER MAN'];
+const SKIN_NAMES = ['THE OCCUPANT', 'THE MANNEQUIN', 'THE WALLPAPER MAN', 'THE SNATCHER'];
+const SKN = SKIN_NAMES.length, SNATCHER = 3;
 const ST = {
   occBody: px(16,16,(p,r,w,h)=>{ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y, prnd()<.2?'#1e1c1a':prnd()<.1?'#060606':'#0f0e0d'); }),
   man: px(16,16,(p,r,w,h)=>{ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y, prnd()<.12?'#c8b89c':prnd()<.06?'#e6d8c0':'#d8c8ae'); let x=3,y=0; for(let k=0;k<10;k++){ p(x,y,'#5a4a3a'); x+=prnd()<.5?1:0; y++; } r(10,9,2,1,'#8a7a64'); }),
@@ -1056,10 +1061,40 @@ function buildPaperMan(){
 const MONS = [buildMonster(), buildMannequin(), buildPaperMan()];
 const PHANS = [buildMonster(), buildMannequin(), buildPaperMan()];
 for (const m of [...MONS, ...PHANS]) m.g.visible = false;
+for (const m of [...MONS, ...PHANS]) m.headH = 2.55;
 MON = MONS[0]; PHANTOM = PHANS[0];
-let mySkin = 0; try { mySkin = (+localStorage.getItem('lvl0_skin') || 0) % 3; } catch(e){}
+// everyone starts on the Snatcher once (new storage key), then their own choice sticks
+let mySkin = SNATCHER; try { const v = localStorage.getItem('lvl0_skin2'); if (v !== null) mySkin = ((+v|0)%SKN+SKN)%SKN; } catch(e){}
+/* ---- the Snatcher: a rigged glTF model, idle clip from the file + code-driven walk/lunge on top ---- */
+let snatcherSrc = null;
+function makeSnatcher(){
+  const root = cloneSkinned(snatcherSrc.scene), g = new THREE.Group(); root.scale.setScalar(2.5); g.add(root);
+  root.traverse(o=>{ if (o.isMesh){ const old = o.material; o.material = lam(0xffffff, { map: old.map || null }); if (o.material.map){ o.material.map.magFilter = THREE.NearestFilter; o.material.map.minFilter = THREE.NearestFilter; o.material.map.colorSpace = THREE.SRGBColorSpace; } o.frustumCulled = false; } });
+  const B = {}; root.traverse(o=>{ if (o.isBone) B[o.name.replace('mixamorig','').replace(':','')] = o; });
+  const mixer = new THREE.AnimationMixer(root); if (snatcherSrc.animations[0]) mixer.clipAction(snatcherSrc.animations[0]).play();
+  const dummy = () => new THREE.Object3D();
+  const P = { legL:dummy(), legR:dummy(), torso:dummy(), armL:dummy(), armR:dummy(), head:dummy() };
+  g.visible = false; scene.add(g);
+  return { g, P, gltf:{ mixer, B, saved:new Map(), last:nowS() }, headH: 2.15 };
+}
+const _q = new THREE.Quaternion(), _ax = { x:new THREE.Vector3(1,0,0), y:new THREE.Vector3(0,1,0), z:new THREE.Vector3(0,0,1) };
+function animSnatcher(M, t, moving, speed, stunned, dash){
+  const S = M.gltf, B = S.B, dt = Math.min(0.1, Math.max(0, t - S.last)); S.last = t;
+  for (const [b,q] of S.saved) b.quaternion.copy(q);           // undo last frame's offsets before the clip runs
+  S.mixer.update(dt);
+  S.saved.clear();
+  const off = (name, axis, a) => { const b = B[name]; if (!b || !a) return; if (!S.saved.has(b)) S.saved.set(b, b.quaternion.clone()); _q.setFromAxisAngle(_ax[axis], a); b.quaternion.multiply(_q); };
+  if (stunned){ off('LeftArm','x',-2.3); off('RightArm','x',-2.3); off('LeftForeArm','x',-0.9); off('RightForeArm','x',-0.9); off('Head','y',Math.sin(t*25)*0.35); off('Spine','x',-0.25); return; }
+  if (dash){ const sw = Math.sin(t*24); off('LeftArm','x',-1.3); off('RightArm','x',-1.3); off('Spine','x',0.35); off('LeftUpLeg','x',sw*0.9); off('RightUpLeg','x',-sw*0.9); off('LeftLeg','x',-Math.max(0,sw)*0.9); off('RightLeg','x',-Math.max(0,-sw)*0.9); return; }
+  if (moving){ const sw = Math.sin(t*(speed>3?11:7)); off('LeftUpLeg','x',sw*0.55); off('RightUpLeg','x',-sw*0.55); off('LeftLeg','x',-Math.max(0,-sw)*0.7); off('RightLeg','x',-Math.max(0,sw)*0.7);
+    off('LeftArm','x',-sw*0.3); off('RightArm','x',sw*0.3); off('Hips','y',sw*0.08); }
+  if (h01(Math.floor(t*3)+M.g.id) < 0.1) off('Head','z',(h01(Math.floor(t*3)*7)-0.5)*1.1);   // the same twitch the other skins have
+}
+new GLTFLoader().load('models/snatcher.glb', gl=>{
+  snatcherSrc = gl; MONS[SNATCHER] = makeSnatcher(); PHANS[SNATCHER] = makeSnatcher();
+}, undefined, e=>console.warn('snatcher model failed to load', e));
 function useSkin(k){
-  k = ((k|0)%3+3)%3;
+  k = ((k|0)%SKN+SKN)%SKN; if (!MONS[k]) k = 0;   // the Snatcher falls back to the Occupant until its model has loaded
   if (MON !== MONS[k]){ const v = MON.g.visible; MON.g.visible = false; MON = MONS[k]; MON.g.visible = v; }
   if (PHANTOM !== PHANS[k]){ const v = PHANTOM.g.visible; PHANTOM.g.visible = false; PHANTOM.g.position.copy(PHANTOM.g.position); const old = PHANTOM; PHANTOM = PHANS[k]; PHANTOM.g.position.copy(old.g.position); PHANTOM.g.rotation.y = old.g.rotation.y; PHANTOM.g.visible = v; }
 }
@@ -1308,7 +1343,7 @@ function onPeers(list){
     let r = remotes.get(d.pid);
     if (!r){ const av = makeAvatar(d.pid); r = { pid:d.pid, x:+d.x||0, z:+d.z||0, yaw:+d.y||0, pitch:+d.p||0, step:0, mesh:av.g, av, ping:0 }; remotes.set(d.pid, r); }
     r.n = String(d.n||'Someone').slice(0,12); r.h = !!d.h;
-    r.tx = +d.x||0; r.tz = +d.z||0; r.tyaw = +d.y||0; r.tp = +d.p||0; r.l = d.l?1:0; r.a = d.a?1:0; r.m = d.m|0; r.mv = d.mv|0; r.sk = (d.sk|0)%3; r.hd = d.hd|0; r.c = d.c|0; r.vt = d.vt|0; r.ds = d.ds|0;
+    r.tx = +d.x||0; r.tz = +d.z||0; r.tyaw = +d.y||0; r.tp = +d.p||0; r.l = d.l?1:0; r.a = d.a?1:0; r.m = d.m|0; r.mv = d.mv|0; r.sk = (d.sk|0)%SKN; r.hd = d.hd|0; r.c = d.c|0; r.vt = d.vt|0; r.ds = d.ds|0;
   }
   for (const [pid,r] of remotes) if (!seen.has(pid)){ scene.remove(r.mesh); remotes.delete(pid); }
   renderLobby();
@@ -1876,7 +1911,7 @@ $('bMon').onclick = ()=>{
   monChoice = opts[(opts.indexOf(monChoice)+1) % opts.length]; renderLobby();
 };
 function showSkin(){ for (const id of ['bSkin','bSkin2']) $(id).innerHTML = SKIN_NAMES[mySkin] + '<small>OCCUPANT SKIN</small>'; }
-function cycleSkin(d){ mySkin = (mySkin+d+3)%3; try { localStorage.setItem('lvl0_skin', mySkin); } catch(e){} showSkin(); sendPresence(); }
+function cycleSkin(d){ mySkin = (mySkin+d+SKN)%SKN; try { localStorage.setItem('lvl0_skin2', mySkin); } catch(e){} showSkin(); sendPresence(); }
 $('bSkinL').onclick = ()=>cycleSkin(-1); $('bSkinR').onclick = ()=>cycleSkin(1); $('bSkin2L').onclick = ()=>cycleSkin(-1); $('bSkin2R').onclick = ()=>cycleSkin(1);
 showSkin();
 $('bStart').onclick = ()=>{ sfx.init(); hostStartRound(); };
@@ -2273,7 +2308,18 @@ function updateExtras(dt){
   else if (me.alive && !me.esc){ silNext -= dt; if (silNext <= 0){ silNext = 80 + Math.random()*70; silT = 8; } }
 }
 
-let vhsK = 0;
+let vhsK = 0, lowK = 0, lastSeenK = -99;
+function updateLowRes(dt, sees){
+  const t = nowS(); if (sees) lastSeenK = t;
+  let target = 0;
+  if (role==='survivor' && G.ph==='play' && (mode==='play' || mode==='deadAnim')){
+    const d = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
+    target = mode==='deadAnim' ? 1 : Math.max(t - lastSeenK < 0.6 ? 1 : 0, disguisedFrom(me.x, me.z) ? 0 : clamp(1 - (d-1.5)/5, 0, 1)*0.6);
+  }
+  lowK = lerp(lowK, target, 1-Math.exp(-(target > lowK ? 9 : 2.5)*dt));
+  const h = lowK < 0.02 ? RH : Math.max(96, Math.round(RH * (1 - 0.62*lowK) / 12) * 12);   // stepped so it snaps like a camera dropping quality
+  if (h !== curRH){ curRH = h; resize(); }
+}
 function updateVHS(dt){
   let target = 0;
   if (role==='survivor' && G.ph==='play' && (mode==='play' || mode==='deadAnim')){
@@ -2361,7 +2407,8 @@ function placeCamera(dt){
   } else if (mode==='deadAnim'){
     deathT += dt;
     const [lx,,lz] = lookDir(me.yaw, 0);
-    MON.g.position.set(me.x + lx*0.75, EYE - 2.55 + Math.sin(deathT*40)*0.02, me.z + lz*0.75);
+    MON.g.position.set(me.x + lx*0.75, EYE - (MON.headH||2.55) + Math.sin(deathT*40)*0.02, me.z + lz*0.75);
+    if (MON.gltf) animSnatcher(MON, nowS(), false, 0, false, true);
     MON.g.rotation.y = Math.atan2(-lx, -lz);
     MON.P.head.rotation.z = Math.sin(deathT*30)*0.2;
     MON.P.torso.rotation.x = 0.1;
@@ -2435,6 +2482,7 @@ function frame(now){
     camera.position.set(cc(1) + Math.sin(path)*2, EYE, cc(1) + Math.cos(path*0.7)*2);
     camera.rotation.set(0, menuT*0.04, 0);
     MON.g.visible = false; PHANTOM.g.visible = false; VM.visible = false;
+    if (curRH !== RH){ curRH = RH; lowK = 0; resize(); }
     updateZoneEnv(dt);
     for (const s of spots) s.intensity = 0;
     exitLight.intensity = 0;
@@ -2455,6 +2503,7 @@ function frame(now){
     stingCD -= dt;
     if (sees){ if (t - lastSeen > 7 && stingCD <= 0 && Math.hypot(mDisp.x-me.x, mDisp.z-me.z) < 12){ sfx.stinger(); stingCD = 9; vibrate(120); } lastSeen = t; }
     updateVHS(dt);
+    updateLowRes(dt, sees);
     updateCans(dt); updateVent(dt);
     updateSanity(dt, sees);
     updateMonsterSenses(dt);
@@ -2468,7 +2517,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
+window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
 </script>
 </body>
 </html>
