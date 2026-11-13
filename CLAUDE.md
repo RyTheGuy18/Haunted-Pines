@@ -6,7 +6,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 - Live: https://rytheguy18.github.io/Haunted-Pines/ (GitHub Pages, `main` branch, repo root)
 - Owner: Ryan (GitHub `rytheguy18` / `RyTheGuy18`). Plays it with friends and younger brothers, mostly on phones.
-- Current version: **v0.28.4** (shown bottom-right of the menu, `#ver`)
+- Current version: **v0.28.5** (shown bottom-right of the menu, `#ver`)
 
 ## Files
 
@@ -121,7 +121,7 @@ PeerJS, host's browser is the hub (star). Room code = 4 letters, peer id `level0
 
 ## Settings
 
-Esc (desktop), ⚙ button (phones), or SETTINGS in menu/lobby. Volume, voice volume, voice on/off, mic mute, look sensitivity, FOV (60–100), resume, leave. Saved in `localStorage['lvl0_set']`. Solo pauses; online keeps running.
+Esc (desktop), ⚙ button (phones), or SETTINGS in menu/lobby. Volume, voice volume, voice on/off, mic mute, look sensitivity, FOV (60–100), **UPDATE GAME** (v0.28.5, for the iPhone home-screen app that holds on to old versions: opening settings fetches `index.html?u=…` no-store and shows "you're on X / Y is out"; the button unregisters the service worker, deletes its caches (not fonts), leaves the room (asks first if online) and reloads `?v=<time>`), resume, leave. Saved in `localStorage['lvl0_set']`. Solo pauses; online keeps running.
 
 Other localStorage keys: `lvl0_name`, `lvl0_skin2` (skin), `lvl0_voice`, `lvl0_monvoice`, `lvl0_diff`, `lvl0_start`.
 

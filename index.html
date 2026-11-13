@@ -187,7 +187,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.28.4</div>
+<div class="osd" id="ver">v0.28.5</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -287,6 +287,10 @@
   <div class="card">
     <div class="srow"><span class="lbl">LOOK SENSITIVITY</span><span id="vSens"></span></div><input type="range" id="sSens" min="30" max="250">
     <div class="srow"><span class="lbl">FIELD OF VIEW</span><span id="vFov"></span></div><input type="range" id="sFov" min="60" max="100">
+  </div>
+  <div class="card">
+    <button class="btn" id="bUpdate">UPDATE GAME</button>
+    <div class="devnote" id="updNote"></div>
   </div>
   <button class="btn primary" id="bResume">RESUME</button>
   <button class="btn ghost" id="bQuit">LEAVE GAME</button>
@@ -3231,7 +3235,7 @@ function openSettings(){
   $('bResume').textContent = inGame ? 'RESUME' : 'BACK';
   $('bQuit').style.display = inGame || mode === 'lobby' ? '' : 'none'; $('bQuit').textContent = inGame ? 'LEAVE GAME' : 'LEAVE ROOM';
   keys.clear(); runHeld = false; stickV = [0,0]; stickRun = false;
-  $('settings').classList.add('show'); showVoice(); applySet(); fillDevices();
+  $('settings').classList.add('show'); showVoice(); applySet(); fillDevices(); checkUpdate();
   try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
 }
 function closeSettings(){
@@ -3241,6 +3245,22 @@ function closeSettings(){
 $('bSet1').onclick = $('bSet2').onclick = openSettings;
 $('bGear').addEventListener('touchstart', e=>{ e.preventDefault(); e.stopPropagation(); openSettings(); }, { passive:false }); $('bGear').onclick = openSettings;
 $('bResume').onclick = closeSettings;
+/* v0.28.5 (Ryan): UPDATE GAME — mostly for the iPhone home-screen app, which hangs on to old versions.
+   Asks the live site which version is newest, then drops the service worker + its caches and reloads fresh. */
+const myVer = ($('ver').textContent || '').trim();
+async function latestVer(){ try { const t = await (await fetch('index.html?u=' + Date.now(), { cache:'no-store' })).text(); return ((t.match(/id="ver">([^<]+)</) || [])[1] || '').trim(); } catch(e){ return ''; } }
+async function checkUpdate(){ $('updNote').textContent = `You're on ${myVer}. Checking…`; const v = await latestVer();
+  $('updNote').textContent = !v ? `You're on ${myVer}. Couldn't reach the site (offline?).` : v === myVer ? `You're on ${myVer}, the newest version.` : `You're on ${myVer}. ${v} is out: tap UPDATE GAME.`;
+  $('bUpdate').textContent = v && v !== myVer ? 'UPDATE GAME → ' + v : 'UPDATE GAME'; }
+async function forceUpdate(){
+  const b = $('bUpdate'); if (b.disabled) return; b.disabled = true; b.textContent = 'UPDATING…';
+  if (!net.solo && (mode === 'play' || mode === 'spect' || mode === 'lobby') && !confirm('Updating reloads the game and leaves this room. Update now?')){ b.disabled = false; b.textContent = 'UPDATE GAME'; return; }
+  try { if (navigator.serviceWorker){ const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); } } catch(e){}
+  try { if (window.caches){ const ks = await caches.keys(); await Promise.all(ks.filter(k=>k !== 'level0-fonts').map(k=>caches.delete(k))); } } catch(e){}
+  try { leaveRoom(); } catch(e){}
+  location.replace(location.pathname + '?v=' + Date.now() + location.hash);
+}
+$('bUpdate').onclick = forceUpdate;
 $('bQuit').onclick = ()=>{ closeSettings(); leaveRoom(); goMenu(''); };
 $('bVoice3').onclick = ()=>{ sfx.init(); voiceEnable(!(voice.want && voice.stream)); };
 $('bMute').onclick = ()=>toggleMute();
