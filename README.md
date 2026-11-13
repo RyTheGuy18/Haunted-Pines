@@ -20,3 +20,4 @@ v0.18.1: louder Occupant steps, shorter voice range, height fixes.
 v0.19.0: optional monster voice for the Occupant.
 v0.19.1: jumpscare when caught, quieter ambience, louder monster voice.
 v0.20.0: Level 37 Poolrooms, computer difficulty, VHS look, new monster sounds.
+v0.20.1: level selector (start at Level 0, 1 or 37).
