@@ -25,5 +25,5 @@ v0.20.2: removed the always-on VHS overlay.
 v0.21.0: new free-form Level 37 with the eel, day/night and a staircase exit; no moving walls on Level 1.
 v0.22.0: exact round pool railings, much bigger Level 37, pool sounds instead of Backrooms ones.
 v0.23.0: grand poolrooms with terraces, steps and dark arches; bigger rooms; wading wakes; tunnel arches fixed; lockers never block doorways.
-
 v0.24.0: hazmat player model with animations, wading + breathing sounds, round sunroofs, pool decks, cleaner poolrooms, Shift Walls ability removed.
+v0.25.0: hazmat first-person arm, quieter panting, exits never blocked, bigger quiet garage with 5 loud generators.
