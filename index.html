@@ -189,7 +189,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.29.0</div>
+<div class="osd" id="ver">v0.29.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -2595,7 +2595,7 @@ function skinLabel(){ return 'OCCUPANT SKIN: ' + SKIN_NAMES[mySkin].replace('THE
    Model: "A Terrifying Creature (Monster)" by Dester (Sketchfab, CC BY 4.0), textures shrunk to 256 px, no clips (animated in code).
    Host AI in H.lr; everyone draws G.lr = [x, z, yaw, state, moving]. States: 0 gone, 1 lurking in the dark near someone,
    2 charging (someone stared at it for 2 s, or walked right into it), 3 running from a flashlight, 4 creeping in during a blackout. */
-const LR_RUN = 6.3, LR_CREEP = 3.4, LR_FLEE = 7.2, LR_GAZE = 2.0, LR_SCALE = 2.2/2.6;
+const LR_RUN = 6.3, LR_CREEP = 4.0, LR_FLEE = 7.2, LR_GAZE = 2.0, LR_SCALE = 2.2/2.6;
 let lurkSrc = null, LRK = null;
 function makeLurker(){
   const root = cloneSkinned(lurkSrc.scene), g = new THREE.Group(); root.scale.setScalar(LR_SCALE); root.position.y = 1.299*LR_SCALE; g.add(root);
