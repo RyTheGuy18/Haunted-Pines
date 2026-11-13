@@ -119,6 +119,8 @@
   #batfill{height:100%;width:100%;background:#e8de9e;-webkit-mask:repeating-linear-gradient(90deg,#000 0 9px,transparent 9px 11px);mask:repeating-linear-gradient(90deg,#000 0 9px,transparent 9px 11px)}
   #plist{position:absolute;right:max(14px,env(safe-area-inset-right));top:10px;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
   #plist .chip{font-size:18px;padding:2px 9px}
+  #guide{position:absolute;left:50%;top:11%;transform:translateX(-50%);text-align:center;display:none;pointer-events:none;color:var(--hot)}
+  #garr{font-size:30px;line-height:1;display:inline-block;opacity:.85} #glbl{font-size:17px;letter-spacing:.12em;opacity:.75;margin-top:2px}
   #prompt{position:absolute;left:50%;bottom:24%;transform:translateX(-50%);font-size:24px;letter-spacing:.12em;padding:4px 14px;border:1px solid var(--ink);background:rgba(0,0,0,.55);display:none}
   #prompt kbd{font-family:inherit;background:var(--ink);color:#111;padding:0 6px;margin-right:8px}
   #stam{position:absolute;left:50%;bottom:14px;width:170px;height:4px;margin-left:-85px;background:rgba(255,255,255,.12);opacity:0;transition:opacity .4s}
@@ -189,7 +191,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.29.1</div>
+<div class="osd" id="ver">v0.30.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -201,6 +203,7 @@
   <div id="cross"></div>
   <div id="stun"></div><div id="stunTxt">BLINDING…</div>
   <div id="prompt"></div>
+  <div id="guide"><div id="garr">▲</div><div id="glbl"></div></div>
   <div id="msg"></div>
   <div id="stam"><i id="stamf"></i></div>
   <div id="abil"></div>
@@ -254,7 +257,7 @@
   </details>
   <div id="iosHint">iPhone: tap Share → <b>Add to Home Screen</b> and play from there. It runs fullscreen with no browser bars and the controls work much better.</div>
   <div class="foot">Headphones on. Listen to the hum.</div>
-  <div class="foot" style="font-size:15px;opacity:.7">The Crawler: <a href="https://sketchfab.com/3d-models/goose-c0cf164370124d81b2737e864bf38205" target="_blank" rel="noopener" style="color:inherit">"Goose" by nodoxi</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (re-textured smaller, rigged in code) · The Lurker: <a href="https://sketchfab.com/3d-models/a-terrifying-creature-monster-8d509a2a7e4d4fb7972fd7016c53a234" target="_blank" rel="noopener" style="color:inherit">"A Terrifying Creature (Monster)" by Dester</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (textures shrunk) · Flashlight: <a href="https://sketchfab.com/3d-models/pro-flashlight-4c421693ab9d4d24af19cf151f4569a0" target="_blank" rel="noopener" style="color:inherit">"Pro Flashlight" by Chancleto870</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (simplified, smaller texture)</div>
+  <div class="foot" style="font-size:15px;opacity:.7">The Crawler: <a href="https://sketchfab.com/3d-models/goose-c0cf164370124d81b2737e864bf38205" target="_blank" rel="noopener" style="color:inherit">"Goose" by nodoxi</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (re-textured smaller, rigged in code) · Phones: <a href="https://sketchfab.com/3d-models/telephone-be6af2677cea49f5bc2f65968df50460" target="_blank" rel="noopener" style="color:inherit">"Telephone" by sui</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> · The Lurker: <a href="https://sketchfab.com/3d-models/a-terrifying-creature-monster-8d509a2a7e4d4fb7972fd7016c53a234" target="_blank" rel="noopener" style="color:inherit">"A Terrifying Creature (Monster)" by Dester</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (textures shrunk, re-rigged for its run) · Flashlight: <a href="https://sketchfab.com/3d-models/pro-flashlight-4c421693ab9d4d24af19cf151f4569a0" target="_blank" rel="noopener" style="color:inherit">"Pro Flashlight" by Chancleto870</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (simplified, smaller texture)</div>
 </div></div>
 
 <div class="screen" id="lobby"><div class="col">
@@ -828,7 +831,7 @@ function buildLevel(seed, kind=0){
     const base = new THREE.Mesh(new THREE.BoxGeometry(0.26,0.38,0.1), lam(0xb8ac88)); ph.add(base);
     const hs = new THREE.Mesh(new THREE.BoxGeometry(0.07,0.32,0.07), lam(0x2a2a2a)); hs.position.set(-0.16,0,0.06); ph.add(hs);
     const pad = new THREE.Mesh(new THREE.PlaneGeometry(0.12,0.14), lam(0x777766)); pad.position.set(0.03,-0.05,0.051); ph.add(pad);
-    L.phones.push({ x:p.x+p.nx*0.7, z:p.z+p.nz*0.7, mesh:ph, hs }); }
+    const pr = { x:p.x+p.nx*0.7, z:p.z+p.nz*0.7, mesh:ph, hs, zoff:-0.03 }; L.phones.push(pr); phoneModel(pr); }
   // exit signs (they lie)
   L.high = [];
   for (let k=0;k<5;k++){ const p = takeSlot(); if (!p) break; L.high.push({ ...p, sign:1 }); const arrow = ['←','→','↑'][Math.floor(rng()*3)];
@@ -1844,6 +1847,17 @@ function gen188(rng){
   }
   return { K, floors };
 }
+/* v0.30: wall phones use "Telephone" by sui (Sketchfab, CC BY 4.0), textures shrunk, cable simplified. In the file the phone
+   stands up only once the Sketchfab_model node's −90° x-turn is undone; then it's 2.4 units tall, back at z=0, front +z.
+   Phones are built with the old box phone and get the model as soon as it's loaded (fillPhone); its receiver is the ringing handset. */
+const TEL_S = 0.16; let telSrc = null; const telSlots = [];
+function fillPhone(ph){ if (!ph.mesh || ph.filled) return; ph.filled = true;
+  const m = telSrc.clone(true); m.scale.setScalar(TEL_S); m.position.z = ph.zoff || 0; for (const c of ph.mesh.children) c.visible = false; ph.mesh.add(m);
+  let rc = null; m.traverse(n=>{ if (n.name === 'receiver') rc = n; }); if (rc){ rc.userData.y0 = rc.position.y; rc.userData.j = 0.015/TEL_S; ph.hs = rc; } }
+function phoneModel(ph){ if (telSrc) fillPhone(ph); else telSlots.push(ph); }
+new GLTFLoader().load('models/telephone.glb', gl=>{ const sm = gl.scene.getObjectByName('Sketchfab_model'); if (sm) sm.rotation.set(0,0,0);
+  gl.scene.traverse(o=>{ if (o.isMesh){ const map = o.material.map || null; if (map){ map.magFilter = THREE.NearestFilter; map.minFilter = THREE.NearestFilter; map.colorSpace = THREE.SRGBColorSpace; } o.material = lam(0xffffff, { map }); } });
+  telSrc = gl.scene; for (const p of telSlots) fillPhone(p); telSlots.length = 0; }, undefined, e=>console.warn('telephone model failed', e));
 let vendSrc = null; const vendSlots = [];
 function fillVend(g){ const m = vendSrc.clone(true); m.scale.setScalar(0.92); m.position.y = 0.92; m.rotation.y = Math.PI; g.add(m); }   // model: 2 units tall, centred, front toward -z
 new GLTFLoader().load('models/vending.glb', gl=>{
@@ -2000,7 +2014,7 @@ function buildLevel188(seed){
       L.lockers.push({ x:lx, z:lz, ry, fx:lx + s.nx*0.75, fz:lz + s.nz*0.75 }); L.circles.push({ x:lx, z:lz, r:0.42 }); }
     for (let t=0;t<2;t++){ const s = takeSpot(f); if (!s) break; const [x,z,y] = hv(s.x, s.z), ph = new THREE.Group(); ph.position.set(x + s.nx*0.06, y+1.35, z + s.nz*0.06); ph.rotation.y = Math.atan2(s.nx, s.nz); g.add(ph);
       bx(ph, 0.24,0.32,0.09, 0,0,0, lam(0xe2dccb)); const hs = bx(ph, 0.06,0.28,0.07, -0.15,0,0.05, lam(0xd8d0bc)); bx(ph, 0.11,0.12,0.005, 0.03,-0.04,0.047, lam(0x8a8478));
-      L.phones.push({ x:s.x + s.nx*0.7, z:s.z + s.nz*0.7, mesh:ph, hs }); }
+      const pr = { x:s.x + s.nx*0.7, z:s.z + s.nz*0.7, mesh:ph, hs, zoff:-0.045 }; L.phones.push(pr); phoneModel(pr); }
     for (let t=0;t<4;t++){ const c = freeCell(f); if (!c) break; const p = [cc(c[0]) + (rng()-0.5)*1.2, cc(c[1]) + (rng()-0.5)*1.2]; L.bt.push(p);
       const [x,z,y] = hv(p[0], p[1]), m = new THREE.Group(); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.3,8), lam(0xb8a640)); b.rotation.z = Math.PI/2; b.position.y = 0.08; m.add(b);
       const cp = new THREE.Mesh(new THREE.CylinderGeometry(0.081,0.081,0.1,8), lam(0x222222)); cp.rotation.z = Math.PI/2; cp.position.set(0.1,0.08,0); m.add(cp); m.position.set(x, y, z); m.rotation.y = rng()*6; g.add(m); L.btM.push(m); }
@@ -2199,7 +2213,7 @@ function visPass188(){
   visSaved.length = 0;
   const add = o => { if (!o) return; visSaved.push(o, o.position.x, o.position.y, o.position.z); vis188(o.position.x, o.position.y, o.position.z, o.position); };
   add(camera); for (const s of spots){ add(s); add(s.target); } for (const l of PL) add(l); add(exitLight);
-  for (const r of remotes.values()) add(r.mesh); add(MON.g); for (const f of fakes.values()) add(f.g); if (LRK) add(LRK.g);
+  for (const r of remotes.values()) add(r.mesh); add(MON.g); for (const f of fakes.values()) add(f.g); if (LRK){ add(LRK.g); if (LRK.run) add(LRK.run.g); }
 }
 function visRestore188(){ for (let i=0;i<visSaved.length;i+=4) visSaved[i].position.set(visSaved[i+1], visSaved[i+2], visSaved[i+3]); visSaved.length = 0; }
 
@@ -2595,7 +2609,7 @@ function skinLabel(){ return 'OCCUPANT SKIN: ' + SKIN_NAMES[mySkin].replace('THE
    Model: "A Terrifying Creature (Monster)" by Dester (Sketchfab, CC BY 4.0), textures shrunk to 256 px, no clips (animated in code).
    Host AI in H.lr; everyone draws G.lr = [x, z, yaw, state, moving]. States: 0 gone, 1 lurking in the dark near someone,
    2 charging (someone stared at it for 2 s, or walked right into it), 3 running from a flashlight, 4 creeping in during a blackout. */
-const LR_RUN = 6.3, LR_CREEP = 4.0, LR_FLEE = 7.2, LR_GAZE = 2.0, LR_SCALE = 2.2/2.6;
+const LR_RUN = 7.8, LR_CREEP = 4.0, LR_FLEE = 8.5, LR_GAZE = 2.0, LR_SCALE = 2.2/2.6;
 let lurkSrc = null, LRK = null;
 function makeLurker(){
   const root = cloneSkinned(lurkSrc.scene), g = new THREE.Group(); root.scale.setScalar(LR_SCALE); root.position.y = 1.299*LR_SCALE; g.add(root);
@@ -2605,7 +2619,20 @@ function makeLurker(){
   g.visible = false; scene.add(g);
   return { g, B, saved:new Map(), ph:0, x:0, z:0, sp:0, st:0, tapT:0 };
 }
-new GLTFLoader().load('models/lurker.glb', gl=>{ lurkSrc = gl; LRK = makeLurker(); }, undefined, e=>console.warn('lurker model failed to load', e));
+new GLTFLoader().load('models/lurker.glb', gl=>{ lurkSrc = gl; LRK = makeLurker(); if (lurkRunSrc) attachLurkRun(LRK); }, undefined, e=>console.warn('lurker model failed to load', e));
+/* v0.30: running uses models/lurker-run.glb = the same mesh re-rigged by Mixamo with Ryan's "Fast Run" clip (0.53 s loop,
+   hips X/Z root motion stripped, the original texture put back on). ~1 unit tall in the file → ×2.2. Standing/lurking and the
+   jumpscare still use the old model + code pose; updateLurker swaps between the two by speed. */
+const LR_RUN_S = 2.2, LR_RUN_CYCLE = 0.5333;
+let lurkRunSrc = null;
+function attachLurkRun(L){
+  const root = cloneSkinned(lurkRunSrc.scene), g = new THREE.Group(); root.scale.setScalar(LR_RUN_S); g.add(root);
+  root.traverse(o=>{ if (o.isMesh){ const map = o.material.map || null; if (map){ map.magFilter = THREE.NearestFilter; map.minFilter = THREE.NearestFilter; map.colorSpace = THREE.SRGBColorSpace; }
+    o.material = lam(0x8a8682, { map, side: THREE.DoubleSide }); o.frustumCulled = false; } });
+  const mixer = new THREE.AnimationMixer(root), act = mixer.clipAction(lurkRunSrc.animations[0]); act.play();
+  g.visible = false; scene.add(g); L.run = { g, mixer };
+}
+new GLTFLoader().load('models/lurker-run.glb', gl=>{ lurkRunSrc = gl; if (LRK) attachLurkRun(LRK); }, undefined, e=>console.warn('lurker run model failed to load', e));
 // bone axes (from the model): thigh +x swings the leg forward, calf -x bends the knee, spine/waist -x bends forward,
 // upper arm forward = L (+x, -z) / R (+x, +z), forearm bend = L (+x, +z) / R (+x, -z)
 function animLurker(L, t, dt, st, spd){
@@ -2723,17 +2750,19 @@ function updateLurker(dt){
   if (!LRK) return;
   const L = LRK, lr = G.lr || [0,0,0,0,0], on = lr[3] > 0 && (LK === 0 || LK === 3) && G.ph === 'play';
   if (mode === 'deadAnim' && scareLurk) return;   // the jumpscare owns it
-  if (!on){ L.g.visible = false; L.st = 0; return; }
+  if (!on){ L.g.visible = false; if (L.run) L.run.g.visible = false; L.st = 0; return; }
   const jump = !L.st || Math.hypot(lr[0]-L.x, lr[1]-L.z) > 4;
   const ox = L.x, oz = L.z, k = jump ? 1 : 1 - Math.exp(-12*dt);
   L.x = lerp(L.x, lr[0], k); L.z = lerp(L.z, lr[1], k);
   const v = jump ? 0 : Math.hypot(L.x-ox, L.z-oz)/Math.max(dt, 1e-3); L.sp = lerp(L.sp, lr[4] ? v : 0, 1 - Math.exp(-10*dt)); L.st = lr[3];
   L.g.position.set(L.x, 0, L.z);
   let dy = lr[2] - L.g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); L.g.rotation.y += jump ? dy : dy*(1 - Math.exp(-10*dt));
-  L.g.visible = true;
-  animLurker(L, nowS(), dt, L.st, L.sp);
-  // nearly silent: only light, quick footsteps when it moves
-  if (lr[4] && sfx.ctx){ L.tapT -= dt; if (L.tapT <= 0){ L.tapT = lr[4] === 2 ? 0.15 : 0.24; if (Math.hypot(L.x-camera.position.x, L.z-camera.position.z) < 22) sfx.lurkTap(L.x, L.z, lr[4] === 2); } }
+  const running = !!L.run && L.sp > 0.6, ts = clamp(L.sp/7, 0.55, 1.4);
+  L.g.visible = !running;
+  if (L.run){ L.run.g.visible = running; if (running){ L.run.g.position.copy(L.g.position); L.run.g.rotation.y = L.g.rotation.y; L.run.mixer.update(dt*ts); } }
+  if (!running) animLurker(L, nowS(), dt, L.st, L.sp);
+  // nearly silent: only light, quick footsteps (Ryan's recording, sped up) in time with its stride
+  if (lr[4] && sfx.ctx){ L.tapT -= dt; if (L.tapT <= 0){ L.tapT = running ? LR_RUN_CYCLE/2/ts : lr[4] === 2 ? 0.15 : 0.24; if (Math.hypot(L.x-camera.position.x, L.z-camera.position.z) < 22) sfx.lurkStep(L.x, L.z, lr[4] === 2); } }
 }
 let scareLurk = false, seenLkd = 0;
 
@@ -3755,7 +3784,7 @@ const sfx = {
   },
   samples:{},
   loadSamples(){
-    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', genStart:'sfx/gen-start.mp3', genRun:'sfx/gen-run.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3', stepC:'sfx/steps-carpet.mp3', stepK:'sfx/steps-concrete.mp3', stepT:'sfx/steps-tile.mp3', stepW:'sfx/steps-wood.mp3' };
+    const c = this.ctx, files = { lstep:'sfx/lurker-steps.mp3', phRing:'sfx/phone-ring.mp3', phPick:'sfx/phone-pickup.mp3', crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', genStart:'sfx/gen-start.mp3', genRun:'sfx/gen-run.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3', stepC:'sfx/steps-carpet.mp3', stepK:'sfx/steps-concrete.mp3', stepT:'sfx/steps-tile.mp3', stepW:'sfx/steps-wood.mp3' };
     for (const [k, url] of Object.entries(files)) fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(buf=>{ this.samples[k] = buf; if (k==='crawl' || k==='heavy' || k==='groan') this.startLoop(k); }).catch(e=>console.warn('sound failed', url, e));
   },
   loops:{},
@@ -3827,6 +3856,10 @@ const sfx = {
   click(pos){ if(!this.ctx) return; const o=this.out(pos); this.noise(o,{dur:0.025,type:'highpass',freq:2500,gain:0.4}); this.tone(o,{f:120,type:'square',dur:0.06,gain:0.05}); },
   heart(vol){ if(!this.ctx) return; this.tone(this.master,{f:55,dur:0.16,gain:vol}); this.tone(this.master,{f:50,dur:0.2,gain:vol*0.7,at:0.2}); },
   stinger(){ if(!this.ctx) return; for (const f of [130.8,138.6,196,207.7,277.2]) this.tone(this.master,{f,type:'sawtooth',dur:2.4,gain:0.05,attack:0.015}); this.noise(this.master,{dur:1.5,type:'bandpass',freq:1400,q:0.6,gain:0.3,attack:0.01}); this.tone(this.master,{f:90,to:30,dur:1.2,gain:0.6}); },
+  lurkStep(x, z, fast){ const b = this.samples.lstep; if (!b){ this.lurkTap(x, z, fast); return; }
+    const c = this.ctx, n = Math.max(1, Math.floor(b.duration/0.25 + 0.01)); let k = Math.floor(Math.random()*n); if (n > 1 && k === this.lastLS) k = (k+1)%n; this.lastLS = k;
+    const src = c.createBufferSource(); src.buffer = b; src.playbackRate.value = (fast ? 1.4 : 1.2) + Math.random()*0.1;
+    const g = c.createGain(); g.gain.value = fast ? 0.55 : 0.4; src.connect(g).connect(this.panner(x, 0.05, z, 1.3)); src.start(c.currentTime, k*0.25, 0.22); },
   lurkTap(x, z, fast){ if(!this.ctx) return; const o=this.panner(x,0.05,z,1.1); this.noise(o,{dur:0.03,type:'highpass',freq:1700+Math.random()*900,q:0.8,gain:fast?0.2:0.13}); this.noise(o,{dur:0.045,type:'bandpass',freq:380+Math.random()*80,q:1.2,gain:fast?0.12:0.08,at:0.008}); },
   screech(){ if(!this.ctx) return; const f=this.noise(this.master,{dur:1.6,type:'bandpass',freq:600,q:1.2,gain:1.0}); f.frequency.exponentialRampToValueAtTime(4000,this.ctx.currentTime+1.2); for (const fr of [392,415,554,587,831]) this.tone(this.master,{f:fr,to:fr*0.6,type:'sawtooth',dur:1.5,gain:0.09}); this.tone(this.master,{f:70,to:25,dur:1.5,gain:0.9}); },
   shift(){ if(!this.ctx) return; const f=this.noise(this.master,{dur:2.2,type:'lowpass',freq:90,gain:0.55,attack:0.4,buf:this.brown}); const c=this.noise(this.master,{dur:1.4,type:'bandpass',freq:300,q:8,gain:0.12,attack:0.2,at:0.3}); c.frequency.exponentialRampToValueAtTime(140,this.ctx.currentTime+1.6); },
@@ -4218,7 +4251,7 @@ $('bMenu').onclick = ()=>{ leaveRoom(); goMenu(''); };
 
 /* ================= per-frame ================= */
 const biteT = {};
-let fallT=0, fallY=0, fallV=0, curZone=-1, seenZones=new Set(), deathT=0, escT=0, powerFlash=0, surgeT=0, nextSurge=40, stingCD=0, lastSeen=-99, heartT=0, farT=12, whisperT=20, breathT=0, monStepT=0, halluT=30, halluLife=0, specIdx=0, specPid=null, pickT=0, lastNearB=1;
+let ringAt = -9, guide = null, fallT=0, fallY=0, fallV=0, curZone=-1, seenZones=new Set(), deathT=0, escT=0, powerFlash=0, surgeT=0, nextSurge=40, stingCD=0, lastSeen=-99, heartT=0, farT=12, whisperT=20, breathT=0, monStepT=0, halluT=30, halluLife=0, specIdx=0, specPid=null, pickT=0, lastNearB=1;
 const mDisp = { x:0, z:0, ry:0, mv:0 };
 const pings = new Map();
 const pingTex = textTex('',64,64,(c,w,h)=>{ const gr=c.createRadialGradient(32,32,0,32,32,30); gr.addColorStop(0,'rgba(255,60,40,.9)'); gr.addColorStop(.5,'rgba(255,40,20,.35)'); gr.addColorStop(1,'rgba(255,0,0,0)'); c.fillStyle=gr; c.fillRect(0,0,w,h); });
@@ -4391,17 +4424,33 @@ function updateCans(dt){
     return true;
   });
 }
+/* v0.30 (Ryan: "east/west" means nothing when you don't know which way you face): directions are said relative to where
+   you're looking when the voice speaks, and a faint arrow (#guide) points the way for 14 s, turning as you turn. */
+function relDir(dx, dz){
+  const [fx,,fz] = lookDir(me.yaw, 0), f = dx*fx + dz*fz, r = -dx*fz + dz*fx, a = Math.atan2(r, f)*180/Math.PI, side = a > 0 ? 'right' : 'left', b = Math.abs(a);
+  return b < 25 ? 'straight ahead of you' : b < 65 ? `ahead of you, off to your ${side}` : b < 115 ? `to your ${side}` : b < 155 ? `behind you, to your ${side}` : 'right behind you'; }
+function setGuide(x, z, what, fl){ guide = { x, z, what, fl, until: nowS() + 14 }; }
+function updateGuide(){
+  const el = $('guide'); if (!guide || nowS() > guide.until || mode !== 'play' || role !== 'survivor' || !me.alive){ if (el.style.display !== 'none') el.style.display = 'none'; if (guide && nowS() > guide.until) guide = null; return; }
+  let tx = guide.x, tz = guide.z, lbl = guide.what;
+  if (LK === 3 && guide.fl >= 0){ const mf = floorAt188(me.x, me.z);
+    if (mf !== guide.fl && level.lands){ let best = null, bd = 1e9; for (const ls of level.lands){ const l = ls[mf]; if (!l) continue; const d = Math.hypot(l.ex-me.x, l.ez-me.z); if (d < bd){ bd = d; best = l; } }
+      if (best){ tx = best.ex; tz = best.ez; lbl = `elevator → floor ${guide.fl+2}`; } } }
+  const dx = tx-me.x, dz = tz-me.z, [fx,,fz] = lookDir(me.yaw, 0), a = Math.atan2(-dx*fz + dz*fx, dx*fx + dz*fz), d = Math.hypot(dx, dz);
+  el.style.display = 'block'; el.style.opacity = Math.min(1, (guide.until - nowS())/2).toFixed(2);
+  $('garr').style.transform = `rotate(${a.toFixed(3)}rad)`; const t = `${lbl} · ${Math.round(d)} m`; if ($('glbl').textContent !== t) $('glbl').textContent = t;
+}
 function compass(dx,dz){ const a=Math.atan2(dx,-dz); const dirs=['north','north-east','east','south-east','south','south-west','west','north-west']; return dirs[((Math.round(a/(Math.PI/4))%8)+8)%8]; }
 function answerPhone(i){
   if (amHost()) applyUse(myPid,{k:'phone',i}); else { G.ring = -1; useReq({k:'phone',i}); }
-  sfx.phoneStatic();
+  { const ph = level.phones[i]; if (!(ph && sfx.sample('phPick', { x:ph.x, y:1.4, z:ph.z }, 0.9, 2))) sfx.phoneStatic(); else setTimeout(()=>sfx.phoneStatic(), 500); }
   if (Math.random() < 0.25){ me.loudT = 3; setTimeout(()=>msg(LK === 2 ? 'The speaker crackles. Slow breathing, then, very close to the mic: "found you."' : 'Breathing on the line. Then, right behind the receiver: "found you."', 5), 900); return; }
   let tx, tz, what;
   const ground = G.fz.map((f,k)=>[f,k]).filter(([f])=>f[0]===0);
   const carrying = G.fz.some(f=>f[0]===1 && f[3]===myPid);
   if (G.lv === 3){ const kc = G.kc || [0,0,0]; if (G.open || kc[0] >= 1){ [tx,tz] = level.exitPos; what = `room ${level.roomNo}`; } else { tx = kc[1]; tz = kc[2]; what = 'the keycard'; }
     const fl = floorAt188(tx, tz), mf = floorAt188(me.x, me.z), who = ['A front desk clerk, very calm:','A child, whispering:','Your own voice:','Static, then a man:'][Math.floor(Math.random()*4)];
-    setTimeout(()=>msg(fl === mf ? `${who} "…${what}… this floor… go ${compass(tx-me.x, tz-me.z)}…"` : `${who} "…${what}… floor ${fl+2}… take the elevator…"`, 6), 900); return; }
+    setTimeout(()=>{ msg(fl === mf ? `${who} "…${what}… this floor… it's ${relDir(tx-me.x, tz-me.z)}…"` : `${who} "…${what}… floor ${fl+2}… take the elevator…"`, 6); setGuide(tx, tz, what, fl); }, 900); return; }
   if (G.lv === 2){ [tx,tz]=level.stairBase || level.exitPos; what = 'the stairs'; }
   else if (G.open){ [tx,tz]=level.exitPos; what = 'the door'; }
   else if (G.lv >= 1){ const off = level.gens.filter((gn,i)=>!G.gen[i]).sort((a,b)=>Math.hypot(a.x-me.x,a.z-me.z)-Math.hypot(b.x-me.x,b.z-me.z))[0] || level.gens[0]; tx = off.x; tz = off.z; what = G.lv === 2 ? 'a valve' : 'a generator'; }
@@ -4409,7 +4458,7 @@ function answerPhone(i){
   else { ground.sort((a,b)=>Math.hypot(a[0][1]-me.x,a[0][2]-me.z)-Math.hypot(b[0][1]-me.x,b[0][2]-me.z)); tx=ground[0][0][1]; tz=ground[0][0][2]; what='a fuse'; }
   const d = Math.hypot(tx-me.x, tz-me.z);
   const who = ['A woman, very calm:','A child, whispering:','Your own voice:','Static, then a man:'][Math.floor(Math.random()*4)];
-  setTimeout(()=>msg(`${LK === 2 ? 'The intercom crackles. ' : ''}${who} "…${what}… go ${compass(tx-me.x, tz-me.z)}… ${d<18?'it\'s close':'it\'s far'}…"`, 6), 900);
+  setTimeout(()=>{ msg(`${LK === 2 ? 'The intercom crackles. ' : ''}${who} "…${what}… it's ${relDir(tx-me.x, tz-me.z)}… ${d<18?'close':'far'}…"`, 6); setGuide(tx, tz, what, -1); }, 900);
 }
 
 function updateRemotes(dt){
@@ -4587,7 +4636,8 @@ function updateAmbience(dt){
     sfx.far(kinds[Math.floor(Math.random()*kinds.length)], {x:camera.position.x+Math.cos(a)*d, y:curZone===2?-3:1.2, z:camera.position.z+Math.sin(a)*d}); }
   // drips + phones
   for (const dp of level.drips){ dp.t -= dt; if (dp.t <= 0 && !silenced()){ dp.t = 1.2+Math.random()*2.5; if (Math.hypot(dp.x-camera.position.x, dp.z-camera.position.z) < 18) sfx.drip(dp.x, dp.z); } }
-  if (G.ring >= 0){ ringT -= dt; if (ringT <= 0){ ringT = 3; const ph=level.phones[G.ring]; if (ph){ if (LK === 2){ ringT = 5; sfx.chime(ph.x, ph.z); } else sfx.ring(ph.x, ph.z); } } } else ringT = 0;
+  if (G.ring >= 0){ ringT -= dt; if (ringT <= 0){ ringT = 3; const ph=level.phones[G.ring]; if (ph){ if (LK === 2){ ringT = 5; sfx.chime(ph.x, ph.z); }
+    else { ringT = 4; ringAt = nowS(); if (!sfx.sample('phRing', { x:ph.x, y:1.4, z:ph.z }, 0.42, 2)) sfx.ring(ph.x, ph.z); } } } } else ringT = 0;   // v0.30: Ryan's ring recording, quieter
   // the Occupant's footsteps
   updateOccLoops(dt, monSelf, md, fooled);
   const looped = sfx.loops.crawl && sfx.loops.heavy;
@@ -4728,7 +4778,7 @@ function placeCamera(dt){
     const face = deathT < 1.35, lunge = Math.max(0, 1.4 - deathT*14);
     $('msg').style.opacity = 0;
     const fy = floorY(me.x, me.z);
-    if (scareLurk){ MON.g.visible = false; const L = LRK; L.g.visible = face; L.g.position.set(me.x, fy, me.z); L.g.rotation.y = Math.atan2(-lx, -lz) + R()*0.08;
+    if (scareLurk){ MON.g.visible = false; const L = LRK; L.g.visible = face; if (L.run) L.run.g.visible = false; L.g.position.set(me.x, fy, me.z); L.g.rotation.y = Math.atan2(-lx, -lz) + R()*0.08;
       animLurker(L, nowS(), dt, 1, 0); _q.setFromAxisAngle(_ax.z, Math.sin(deathT*38)*0.25); L.B.Head.quaternion.multiply(_q); _q.setFromAxisAngle(_ax.x, -0.25); L.B.Head.quaternion.multiply(_q);
       L.g.updateMatrixWorld(true); const hp = L.B.Head.getWorldPosition(_jv);
       L.g.position.x += me.x + lx*(0.62+lunge) - hp.x; L.g.position.y += fy + EYE + 0.03 + R()*0.04 - hp.y; L.g.position.z += me.z + lz*(0.62+lunge) - hp.z; }
@@ -4789,7 +4839,7 @@ function updateItems(){
   level.awM.forEach((m,i)=>{ m.visible = !G.aw[i]; });
   level.btM.forEach((m,i)=>{ m.visible = !G.bt[i]; });
   level.cnM.forEach((m,i)=>{ m.visible = !G.cn[i]; });
-  level.phones.forEach((ph,k)=>{ ph.hs.position.y = (G.ring===k && Math.sin(t*40)>0 && (t%3)<0.9) ? 0.015 : 0; });
+  level.phones.forEach((ph,k)=>{ const h = ph.hs, y0 = h.userData.y0 || 0, j = h.userData.j || 0.015; h.position.y = y0 + ((G.ring===k && Math.sin(t*40)>0 && (LK === 2 ? (t%3)<0.9 : nowS()-ringAt < 1.95)) ? j : 0); });
 }
 
 // film grain (subtle)
@@ -4818,7 +4868,7 @@ function frame(now){
     const path = 0.12*menuT;
     camera.position.set(cc(1) + Math.sin(path)*2, EYE, cc(1) + Math.cos(path*0.7)*2);
     camera.rotation.set(0, menuT*0.04, 0);
-    MON.g.visible = false; PHANTOM.g.visible = false; VM.visible = false; if (LRK) LRK.g.visible = false;
+    MON.g.visible = false; PHANTOM.g.visible = false; VM.visible = false; if (LRK){ LRK.g.visible = false; if (LRK.run) LRK.run.g.visible = false; }
     if (curRH !== RH){ curRH = RH; lowK = 0; resize(); }
     updateZoneEnv(dt);
     for (const s of spots) s.intensity = 0;
@@ -4847,7 +4897,7 @@ function frame(now){
     updateMonsterSenses(dt);
     updateAmbience(dt);
     updateExtras(dt);
-    updateHUD(dt);
+    updateHUD(dt); updateGuide();
     updateItems();
   }
   updateVoice(dt);
@@ -4858,7 +4908,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
+window.__hp = { get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
 </script>
 </body>
 </html>
