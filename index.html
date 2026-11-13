@@ -171,7 +171,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.22.0</div>
+<div class="osd" id="ver">v0.23.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -956,10 +956,20 @@ function bil37(A, x, z){
 }
 const d37 = (x,z) => M37 ? bil37(M37.D, x, z) : 9;
 const k37 = (x,z) => M37 ? M37.K[i37(x,z)] : K37.WATER;
-function h37(x,z){ if (!M37) return 0; const k = k37(x,z); if (k === K37.SOLID) return M37.H[i37(x,z)]; return bil37(M37.H, x, z); }
+// exact height on a terrace or its steps (-1 if not on one)
+function terrH37(x,z){ const M = M37, ts = M.bk[clamp(Math.floor(x/M.B),0,M.NB-1) + clamp(Math.floor(z/M.B),0,M.NB-1)*M.NB].t; let best = -1;
+  for (const t of ts){ if (M.sdT(x,z,t) >= 0) continue;
+    if (t.stair){ const a = (x-t.x)*t.ux + (z-t.z)*t.uz; best = Math.max(best, t.th*clamp((a + t.hl)/(2*t.hl - 0.35), 0, 1)); } else best = Math.max(best, t.th); }
+  return best; }
+function h37(x,z){ if (!M37) return 0; const th = terrH37(x,z); if (th >= 0) return th; const k = k37(x,z); if (k === K37.SOLID) return M37.H[i37(x,z)]; return bil37(M37.H, x, z); }
 function dayK(t){ const c = ((t%CYC)+CYC)%CYC; if (c < DAY_LEN-DUSK) return 1; if (c < DAY_LEN) return (DAY_LEN-c)/DUSK; if (c < CYC-DUSK) return 0; return (c-(CYC-DUSK))/DUSK; }
 const isNight = () => LK === 2 && dayK(G.tod||0) < 0.5;
-const ceilAt37 = (x,z) => Math.hypot(x-ATR.x, z-ATR.z) < ATR.r+0.7 ? ATR.ceil : (M37 && Math.hypot(x-M37.stair.x, z-M37.stair.z) < M37.stair.r+0.7) ? 12.5 : CEIL37;
+function ceilAt37(x,z){
+  if (Math.hypot(x-ATR.x, z-ATR.z) < ATR.r+0.7) return ATR.ceil;
+  if (!M37) return CEIL37;
+  if (Math.hypot(x-M37.stair.x, z-M37.stair.z) < M37.stair.r+0.7) return 12.5;
+  for (const r of M37.grand) if (sdShape(x,z,r) < 0.7) return r.tall;
+  return CEIL37; }
 const isEelGround = k => k === K37.WATER;
 
 // signed distance helpers (negative inside)
@@ -982,17 +992,27 @@ function gen37(seed){
     let r;
     if (corner) r = { kind:'locker', shape:'rrect', x, z, w:10, h:7, cr:1.6, dry:true, spawn:true };
     else { const t = rng(), turn = rng() < 0.5;
-      if (t < 0.3) r = { kind:'hall', shape:'rrect', x, z, w:16+rng()*10, h:11+rng()*7, cr:3+rng()*2.5 };
-      else if (t < 0.5) r = { kind:'round', shape:'circle', x, z, r:6+rng()*5 };
+      if (t < 0.3) r = { kind:'hall', shape:'rrect', x, z, w:19+rng()*10, h:13+rng()*8, cr:3+rng()*3 };
+      else if (t < 0.5) r = { kind:'round', shape:'circle', x, z, r:7.5+rng()*5 };
       else if (t < 0.67) r = { kind:'locker', shape:'rrect', x, z, w:9+rng()*4, h:6+rng()*2, cr:1.4, dry:true };
       else if (t < 0.85){ const a = 9+rng()*4, b = 18+rng()*8; r = { kind:'hall', shape:'rrect', x, z, w: turn ? b : a, h: turn ? a : b, cr:4 }; }
-      else r = { kind:'round', shape:'circle', x, z, r:10+rng()*3, big:true };
+      else r = { kind:'round', shape:'circle', x, z, r:12+rng()*3, big:true };
       if (r.w && turn && r.kind === 'hall' && t < 0.3){ const q = r.w; r.w = r.h; r.h = q; } }
     rooms.push(r);
   }
   const spawn = rooms.find(r=>r.spawn);
+  // grand poolrooms: a few huge, tall halls (terraces, stairs, dark arches). They swallow the slots next to them.
+  const rad = r => r.shape === 'circle' ? r.r : Math.max(r.w, r.h)/2;
+  const cand = rooms.filter(r=>r.kind !== 'atrium' && !r.spawn && Math.hypot(r.x-ATR.x, r.z-ATR.z) > 50 && Math.hypot(r.x-spawn.x, r.z-spawn.z) > 45 && r.x > 30 && r.x < S37-30 && r.z > 30 && r.z < S37-30);
+  for (let k=cand.length-1;k>0;k--){ const j = Math.floor(rng()*(k+1)); const q = cand[k]; cand[k] = cand[j]; cand[j] = q; }
+  const grand = [];
+  for (const c of cand){ if (grand.length >= 4) break; if (grand.some(g=>Math.hypot(g.x-c.x, g.z-c.z) < 70)) continue;
+    const a = 30+rng()*8, b = 23+rng()*5, turn = rng() < 0.5, G = { kind:'grand', shape:'rrect', x:c.x, z:c.z, w: turn ? b : a, h: turn ? a : b, cr:5+rng()*2, tall:7.6 };
+    if (Math.hypot(G.x-ATR.x, G.z-ATR.z) < ATR.r + rad(G) + 8 || sdShape(spawn.x, spawn.z, G) < rad(spawn) + 8) continue;
+    grand.push(G); for (const k in c) delete c[k]; Object.assign(c, G); }
+  for (let k=rooms.length-1;k>=0;k--){ const r = rooms[k]; if (r.kind === 'grand' || r.kind === 'atrium' || r.spawn) continue; if (grand.some(g=>sdShape(r.x, r.z, g) < rad(r) + 6)) rooms.splice(k, 1); }
   // the staircase: the room farthest from where you wake up becomes a tall round stairwell
-  let far = null, fd = -1; for (const r of rooms){ if (r.kind==='atrium' || r.spawn) continue; const d = Math.hypot(r.x-spawn.x, r.z-spawn.z); if (d > fd){ fd = d; far = r; } }
+  let far = null, fd = -1; for (const r of rooms){ if (r.kind==='atrium' || r.kind==='grand' || r.spawn) continue; const d = Math.hypot(r.x-spawn.x, r.z-spawn.z); if (d > fd){ fd = d; far = r; } }
   Object.assign(far, { kind:'stair', shape:'circle', r:5.5, dry:true, w:undefined, h:undefined });
   // corridors: a spanning tree over the flooded rooms (so the water is all one network), plus loops.
   // Dry rooms (locker rooms, the stairwell) hang off it as dead ends, so they never cut the water in two.
@@ -1027,8 +1047,45 @@ function gen37(seed){
     if (r.kind === 'round' && (r.big || rng() < 0.5)) deeps.push({ shape:'circle', x:r.x, z:r.z, r:Math.max(2, r.r-3.4) });
   }
   deeps.push({ shape:'circle', x:ATR.x, z:ATR.z, r:ATR.pool, atrium:true });
+  // grand rooms: a railed lane pool in the middle, raised terraces against the walls (curvy rounded slabs,
+  // 1.5 m up, reached by a flight of steps), sometimes an island. Nothing may sit on a corridor's line.
+  const terr = [], TH = 1.5;
+  const sdBox = (x,z,t) => { const px = x-t.x, pz = z-t.z, a = px*t.ux + pz*t.uz, b = -px*t.uz + pz*t.ux, qa = Math.abs(a)-t.hl, qb = Math.abs(b)-t.hw; return Math.hypot(Math.max(qa,0), Math.max(qb,0)) + Math.min(Math.max(qa,qb),0); };
+  const sdT = (x,z,t) => t.stair ? sdBox(x,z,t) : sdShape(x,z,t);
+  const corPts = [];
+  for (const c of cors){ const l = Math.hypot(c.b[0]-c.a[0], c.b[1]-c.a[1]); for (let s=0; s<=l; s+=0.7){ const u = s/(l||1); corPts.push([lerp(c.a[0],c.b[0],u), lerp(c.a[1],c.b[1],u), c.r]); } }
+  const sdSample = (t, pts) => { let m = 9; for (const p of pts) m = Math.min(m, sdT(p[0], p[1], t) - p[2]); return m; };
+  const clearOf = (t, room, gap) => {
+    const near = corPts.filter(p=>sdShape(p[0], p[1], room) < 3); if (sdSample(t, near) < gap) return false;
+    for (const d of deeps){ if (sdShape(d.x, d.z, room) > 0) continue; const pts = perim37(d, 0, 1).map(p=>[p[0], p[1], 0]); if (sdSample(t, pts) < 2.2) return false; }
+    for (const o of terr){ if (o.room !== room) continue; const pts = o.stair ? [[o.x,o.z,o.hl]] : perim37(o, 0, 1).map(p=>[p[0], p[1], 0]); if (sdSample(t, pts) < 2.4) return false; }
+    return true; };
+  for (const R of grand){
+    deeps.push({ shape:'rrect', x:R.x, z:R.z, w:R.w*0.42, h:R.h*0.3, cr:2.4 });
+    const sides = [[1,0],[-1,0],[0,1],[0,-1]]; for (let k=3;k>0;k--){ const j = Math.floor(rng()*(k+1)); const q = sides[k]; sides[k] = sides[j]; sides[j] = q; }
+    let made = 0;
+    for (const [sx, sz] of sides){ if (made >= 3) break;
+      for (let tr=0; tr<6; tr++){
+        const along = sx ? R.h : R.w, dep = 4.6 + rng()*1.6, len = Math.min(along - 8, 10 + rng()*8), off = (rng()-0.5)*(along - len - 6);
+        const wallC = sx ? [R.x + sx*R.w/2, R.z + off] : [R.x + off, R.z + sz*R.h/2];
+        const T = { shape:'rrect', x: wallC[0] - sx*(dep/2 - 1), z: wallC[1] - sz*(dep/2 - 1), w: sx ? dep + 2 : len, h: sx ? len : dep + 2, cr: Math.min(2.6, dep/2), th:TH, room:R };
+        if (!clearOf(T, R, 3.0)) continue;
+        // the steps come down off the room-facing edge near one end
+        const end = (rng() < 0.5 ? -1 : 1) * (len/2 - 1.6), slen = 3.6, inner = dep;
+        const S = { stair:true, room:R, th:TH, ux: sx, uz: sz, hl: slen/2, hw: 0.85,
+          x: (sx ? wallC[0] - sx*(inner + slen/2 - 0.35) : wallC[0] + end), z: (sx ? wallC[1] + end : wallC[1] - sz*(inner + slen/2 - 0.35)) };
+        if (!clearOf(S, R, 1.4)) continue;
+        terr.push(T, S); made++; break; } }
+    // an island in the shallows, sometimes
+    if (rng() < 0.7) for (let tr=0; tr<20; tr++){
+      const r = 2.4 + rng()*1, x = R.x + (rng()-0.5)*(R.w-10), z = R.z + (rng()-0.5)*(R.h-10), T = { shape:'circle', x, z, r, th:TH, room:R };
+      if (sdShape(x, z, R) > -(r + 3.5) || !clearOf(T, R, 3.0)) continue;
+      const a = rng()*Math.PI*2, ux = -Math.cos(a), uz = -Math.sin(a), S = { stair:true, room:R, th:TH, ux, uz, hl:1.8, hw:0.8, x: x - ux*(r + 1.8 - 0.35), z: z - uz*(r + 1.8 - 0.35) };
+      if (sdShape(S.x, S.z, R) > -2.5 || !clearOf(S, R, 1.4)) continue;
+      terr.push(T, S); break; }
+  }
   const stair = { x:far.x, z:far.z, r:5.5, a0: rng()*Math.PI*2, sweep: Math.PI*2*300/360, rIn:0.8, rOut:3.1, top:7.2 };
-  return { rooms, cors, pillars, deeps, balA, balLen, stair, spawn };
+  return { rooms, cors, pillars, deeps, balA, balLen, stair, spawn, grand, terr, sdT };
 }
 // points around a pool's edge, pushed out by `off`, counter-clockwise, roughly every `step` metres
 function perim37(d, off, step){
@@ -1048,13 +1105,14 @@ function build37(seed){
   const st = L.stair;
   L.rooms.forEach((r,i)=>{ r.i = i; });
   // spatial buckets so every grid point only looks at the shapes near it
-  const B = 8, NB = Math.ceil(S37/B)+1, bk = Array.from({ length:NB*NB }, ()=>({ r:[], c:[], p:[], d:[] }));
+  const B = 8, NB = Math.ceil(S37/B)+1, bk = Array.from({ length:NB*NB }, ()=>({ r:[], c:[], p:[], d:[], t:[] }));
   const put = (key, o, x0, z0, x1, z1) => { for (let bi=Math.max(0,Math.floor((x0-2)/B)); bi<=Math.min(NB-1,Math.floor((x1+2)/B)); bi++) for (let bj=Math.max(0,Math.floor((z0-2)/B)); bj<=Math.min(NB-1,Math.floor((z1+2)/B)); bj++) bk[bi+bj*NB][key].push(o); };
   const ext = s => s.shape === 'circle' ? [s.x-s.r, s.z-s.r, s.x+s.r, s.z+s.r] : [s.x-s.w/2, s.z-s.h/2, s.x+s.w/2, s.z+s.h/2];
   for (const r of L.rooms) put('r', r, ...ext(r));
   for (const c of L.cors) put('c', c, Math.min(c.a[0],c.b[0])-c.r, Math.min(c.a[1],c.b[1])-c.r, Math.max(c.a[0],c.b[0])+c.r, Math.max(c.a[1],c.b[1])+c.r);
   for (const p of L.pillars) put('p', p, p.x-p.r, p.z-p.r, p.x+p.r, p.z+p.r);
   for (const d of L.deeps) put('d', d, ...ext(d));
+  for (const t of L.terr){ const e = t.stair ? t.hl + t.hw : 0; put('t', t, ...(t.stair ? [t.x-e, t.z-e, t.x+e, t.z+e] : ext(t))); }
   for (let iz=0; iz<G37; iz++) for (let ix=0; ix<G37; ix++){
     const x = ix*R37, z = iz*R37, k = ix + iz*G37, b = bk[Math.min(NB-1, Math.floor(x/B)) + Math.min(NB-1, Math.floor(z/B))*NB];
     let w = 3;
@@ -1079,6 +1137,7 @@ function build37(seed){
     if (ds < st.r){ kind = K37.DRY; h = 0.3;
       const rel = wrapA(Math.atan2(z-st.z, x-st.x) - st.a0);
       if (ds >= st.rIn && ds <= st.rOut && rel < st.sweep){ kind = K37.SPIRAL; h = 0.3 + rel/st.sweep*(st.top-0.3); } }
+    for (const t of b.t) if (L.sdT(x,z,t) < 0){ kind = K37.DRY; h = 0; }   // terraces and their steps: exact heights come from terrH37
     K[k] = kind; H[k] = h;
   }
   // under walls, borrow the height of the open ground next to them (keeps floors flat up to the wall)
@@ -1086,7 +1145,7 @@ function build37(seed){
   // a 1 m water-only grid for the monster's pathfinding
   const NN = S37+1, nav = new Uint8Array(NN*NN);
   for (let z=0; z<NN; z++) for (let x=0; x<NN; x++){ const k = i37(x,z); nav[x+z*NN] = (K[k] === K37.WATER && bil37(D, x, z) > 0.55) ? 1 : 0; }
-  M37 = { D, H, K, nav, NN, stair:st, L, bk, B, NB };
+  M37 = { D, H, K, nav, NN, stair:st, L, bk, B, NB, grand:L.grand, sdT:L.sdT };
   return L;
 }
 const deepsNear37 = (x,z) => { const M = M37; return M.bk[clamp(Math.floor(x/M.B),0,M.NB-1) + clamp(Math.floor(z/M.B),0,M.NB-1)*M.NB].d; };
@@ -1191,7 +1250,7 @@ function buildLevel37(seed){
       const dx = c.b[0]-c.a[0], dz = c.b[1]-c.a[1], len = Math.hypot(dx,dz), ang = Math.atan2(dx,dz);
       for (let s = 0.5; s < len; s += 1){ const x = c.a[0]+dx/len*s, z = c.a[1]+dz/len*s; if (L37.rooms.some(r=>sdShape(x,z,r) < 0.8)) continue; at.push([x, z, ang]); } }
     if (at.length){ const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.4, 1.4, 1.04, 12, 1, true, -Math.PI/2, Math.PI), T.well, at.length), e = new THREE.Euler(0,0,0,'YXZ');
-      at.forEach(([x,z,ang],k)=>{ e.set(Math.PI/2, ang, 0); tmpQ.setFromEuler(e); tmpV.set(x, 2.5, z); tmpS.set(1,1,1); tmpM.compose(tmpV, tmpQ, tmpS); im.setMatrixAt(k, tmpM); }); im.frustumCulled = false; g.add(im); } }
+      at.forEach(([x,z,ang],k)=>{ e.set(-Math.PI/2, ang, 0); tmpQ.setFromEuler(e); tmpV.set(x, 2.5, z); tmpS.set(1,1,1); tmpM.compose(tmpV, tmpQ, tmpS); im.setMatrixAt(k, tmpM); }); im.frustumCulled = false; g.add(im); } }
   // ---- deep pools: exact tiled basins with a coping ring around the edge
   for (const d of L37.deeps){
     const P0 = perim37(d, 0, 0.5), m = P0.length, wp = [], wn = [];
@@ -1204,20 +1263,65 @@ function buildLevel37(seed){
     const cg = new THREE.ShapeGeometry(cope).rotateX(-Math.PI/2); cg.translate(0, 0.03, 0); g.add(new THREE.Mesh(cg, T.floor));
     for (const lp of perim37(d, -0.45, d.atrium ? 7 : 9)){ const gl = new THREE.Mesh(new THREE.SphereGeometry(0.16,8,6), poolLampMat); gl.position.set(lp[0], -2.2, lp[1]); g.add(gl); L.lamps.push({ x:lp[0], z:lp[1] }); }
   }
-  // ---- ceiling with sunroofs (+ the tall atrium and the stairwell shaft)
+  // ---- terraces (raised tiled slabs, 1.5 m up), their steps, and dark arches in their faces and in the big rooms' walls
+  { const tw = [], tn = [], tops = [], lips = [], arches = [], stepsAt = [];
+    const gradN = (f, x, z) => { const e = 0.05, gx = f(x+e,z) - f(x-e,z), gz = f(x,z+e) - f(x,z-e), gl = Math.hypot(gx,gz) || 1; return [gx/gl, gz/gl]; };
+    const archGeo = (w, h) => { const sh = new THREE.Shape(), r = w/2; sh.moveTo(-r, 0); sh.lineTo(r, 0); sh.lineTo(r, h-r); sh.absarc(0, h-r, r, 0, Math.PI, false); sh.lineTo(-r, 0); return new THREE.ShapeGeometry(sh, 10); };
+    const addArch = (x, y, z, nx, nz, w, h) => { const ag = archGeo(w, h); ag.rotateY(Math.atan2(nx, nz)); ag.translate(x, y, z); arches.push(ag); };
+    for (const t of L37.terr){
+      if (t.stair){ stepsAt.push(t); continue; }
+      const P0 = perim37(t, 0, 0.4), m = P0.length;
+      for (let k=0;k<m;k++){ const p = P0[k], q = P0[(k+1)%m]; if (d37((p[0]+q[0])/2, (p[1]+q[1])/2) < -0.4) continue;
+        const [nx, nz] = gradN((x,z)=>sdShape(x,z,t), (p[0]+q[0])/2, (p[1]+q[1])/2);
+        tw.push(p[0],-0.05,p[1], q[0],-0.05,q[1], q[0],t.th,q[1],  p[0],-0.05,p[1], q[0],t.th,q[1], p[0],t.th,p[1]); for (let j=0;j<6;j++) tn.push(nx,0,nz); }
+      const sh = new THREE.Shape(); P0.forEach((p,k)=> k ? sh.lineTo(p[0], -p[1]) : sh.moveTo(p[0], -p[1])); sh.closePath();
+      const tg = new THREE.ShapeGeometry(sh).rotateX(-Math.PI/2); tg.translate(0, t.th, 0); tops.push(tg);
+      const lp = perim37(t, 0.03, 0.4).map(p=>new THREE.Vector3(p[0], t.th, p[1])); lips.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(lp, true), lp.length*2, 0.06, 4, true));
+      // little dark culverts along the face, where it looks into the room
+      for (const p of perim37(t, 0.02, 2.6)){ const [nx, nz] = gradN((x,z)=>sdShape(x,z,t), p[0], p[1]), [mx, mz] = gradN((x,z)=>sdShape(x,z,t), p[0]-nz*0.5, p[1]+nx*0.5);
+        if (nx*mx + nz*mz < 0.97 || d37(p[0]+nx*1.2, p[1]+nz*1.2) < 0.8 || terrH37(p[0]+nx*0.9, p[1]+nz*0.9) >= 0 || terrH37(p[0]+nx*0.9-nz*0.8, p[1]+nz*0.9+nx*0.8) >= 0 || terrH37(p[0]+nx*0.9+nz*0.8, p[1]+nz*0.9-nx*0.8) >= 0) continue;
+        if (rng() < 0.75) addArch(p[0], 0, p[1], nx, nz, 0.9, 1.1); }
+    }
+    if (tw.length){ const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(tw,3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(tn,3)); g.add(new THREE.Mesh(geo, T.well));
+      g.add(new THREE.Mesh(mergeGeometries(tops), T.floor)); g.add(new THREE.Mesh(mergeGeometries(lips), lam(0xf0ece0))); }
+    // the steps: solid tiled blocks
+    if (stepsAt.length){ const NS = 12, im = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), T.wall, stepsAt.length*NS); let n = 0;
+      for (const t of stepsAt){ const run = 2*t.hl - 0.35, ry = Math.atan2(t.ux, t.uz); tmpQ.setFromAxisAngle(UP, ry);
+        for (let k=0;k<NS;k++){ const a0 = -t.hl + k*run/NS, top = t.th*(k+1)/NS, ac = a0 + run/NS/2 + (k === NS-1 ? 0.18 : 0), dep = run/NS + (k === NS-1 ? 0.36 : 0);
+          tmpV.set(t.x + t.ux*ac, top/2 - 0.02, t.z + t.uz*ac); tmpS.set(t.hw*2, top + 0.02, dep); tmpM.compose(tmpV, tmpQ, tmpS); im.setMatrixAt(n++, tmpM); } }
+      im.frustumCulled = false; g.add(im); }
+    // tall dark arches in the walls of the big rooms (like doorways that go nowhere)
+    for (const R of L37.rooms){ if (R.kind !== 'grand' && R.kind !== 'hall') continue;
+      const big = R.kind === 'grand', w = big ? 2.3 : 1.6, h = big ? 3.6 : 2.5;
+      for (const p of perim37(R, 0, big ? 5.2 : 6.5)){ const [nx, nz] = gradN((x,z)=>sdShape(x,z,R), p[0], p[1]), tx = -nz, tz = nx;
+        let ok = true; for (const o of [-w/2-0.4, 0, w/2+0.4]){ const qx = p[0]+tx*o, qz = p[1]+tz*o;
+          if (d37(qx+nx*0.35, qz+nz*0.35) > -0.1 || d37(qx-nx*0.7, qz-nz*0.7) < 0.4 || terrH37(qx-nx*1.2, qz-nz*1.2) >= 0 || Math.abs(sdShape(qx, qz, R)) > 0.15) { ok = false; break; } }
+        if (!ok || (!big && rng() < 0.45)) continue;
+        addArch(p[0]-nx*0.025, -0.05, p[1]-nz*0.025, -nx, -nz, w, h); } }
+    if (arches.length) g.add(new THREE.Mesh(mergeGeometries(arches.map(a=>{ const o = a.toNonIndexed(); o.deleteAttribute('uv'); return o; })), archMat));
+  }
+  // ---- ceiling with sunroofs (+ the tall atrium, the grand rooms and the stairwell shaft)
   const holes = [{ x:ATR.x, z:ATR.z, r:6, sq:0, h:ATR.ceil }, { x:st.x, z:st.z, r:st.r-0.05, sq:0, h:12.5, open:true }];
+  for (const R of L37.grand) for (const [ox, oz] of [[-0.25,-0.22],[0.25,-0.22],[-0.25,0.22],[0.25,0.22],[0,0]]){ const sq = rng() < 0.4 ? 1 : 0; holes.push({ x:R.x + ox*R.w, z:R.z + oz*R.h, r: (ox||oz) ? (sq ? 1.1 : 1.25) : 2.2, sq: (ox||oz) ? sq : 0, h:R.tall }); }
   for (let t=0; t<4000 && holes.length < 100; t++){ const x = 4+rng()*(S37-8), z = 4+rng()*(S37-8), k = K[i37(x,z)];
     if (d37(x,z) < 2.2 || (k !== K37.WATER && k !== K37.DRY)) continue; if (ceilAt37(x,z) > CEIL37+0.1) continue;
     if (holes.some(h=>Math.hypot(h.x-x, h.z-z) < h.r + 9)) continue; const sq = rng() < 0.4 ? 1 : 0; holes.push({ x, z, r: sq ? 0.9 : 0.95 + rng()*0.3, sq, h:CEIL37 }); }
   { const s = new THREE.Shape(); s.moveTo(0,0); s.lineTo(S37,0); s.lineTo(S37,S37); s.lineTo(0,S37); s.closePath();
     const cut = (x,z,r,sq) => { const p = new THREE.Path(); if (sq){ p.moveTo(x-r,z-r); p.lineTo(x-r,z+r); p.lineTo(x+r,z+r); p.lineTo(x+r,z-r); p.closePath(); } else p.absarc(x,z,r,0,Math.PI*2,true); s.holes.push(p); };
-    cut(ATR.x, ATR.z, ATR.r-0.02, 0); cut(st.x, st.z, st.r-0.02, 0); for (const h of holes.slice(2)) cut(h.x, h.z, h.r, h.sq);
+    cut(ATR.x, ATR.z, ATR.r-0.02, 0); cut(st.x, st.z, st.r-0.02, 0); for (const h of holes.slice(2)) if (h.h === CEIL37) cut(h.x, h.z, h.r, h.sq);
+    for (const R of L37.grand){ const p = new THREE.Path(); perim37(R, -0.02, 0.5).forEach((q,k)=> k ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1])); p.closePath(); s.holes.push(p); }
     const geo = new THREE.ShapeGeometry(s, 24).rotateX(Math.PI/2); geo.translate(0, CEIL37, 0);
     g.add(new THREE.Mesh(geo, T.ceil));
     const a = new THREE.Shape(); a.absarc(0,0,ATR.r+0.3,0,Math.PI*2,false); const ah = new THREE.Path(); ah.absarc(0,0,6,0,Math.PI*2,true); a.holes.push(ah);
     const ag = new THREE.ShapeGeometry(a, 40).rotateX(Math.PI/2); ag.translate(ATR.x, ATR.ceil, ATR.z); g.add(new THREE.Mesh(ag, T.ceil));
     const ring = new THREE.Mesh(new THREE.CylinderGeometry(ATR.r, ATR.r, ATR.ceil-CEIL37+0.1, 64, 1, true), T.well); ring.position.set(ATR.x, (ATR.ceil+CEIL37)/2, ATR.z); g.add(ring);
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(st.r, st.r, 12.5-CEIL37+0.1, 40, 1, true), T.well); shaft.position.set(st.x, (12.5+CEIL37)/2, st.z); g.add(shaft); }
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(st.r, st.r, 12.5-CEIL37+0.1, 40, 1, true), T.well); shaft.position.set(st.x, (12.5+CEIL37)/2, st.z); g.add(shaft);
+    // the grand rooms' high ceilings (with their own sunroofs) and the band of wall above the doorways
+    for (const R of L37.grand){ const gs = new THREE.Shape(); perim37(R, 0.3, 0.5).forEach((q,k)=> k ? gs.lineTo(q[0], q[1]) : gs.moveTo(q[0], q[1])); gs.closePath();
+      for (const h of holes) if (h.h === R.tall && sdShape(h.x, h.z, R) < 0){ const p = new THREE.Path(); if (h.sq){ p.moveTo(h.x-h.r,h.z-h.r); p.lineTo(h.x-h.r,h.z+h.r); p.lineTo(h.x+h.r,h.z+h.r); p.lineTo(h.x+h.r,h.z-h.r); p.closePath(); } else p.absarc(h.x,h.z,h.r,0,Math.PI*2,true); gs.holes.push(p); }
+      const gg = new THREE.ShapeGeometry(gs, 16).rotateX(Math.PI/2); gg.translate(0, R.tall, 0); g.add(new THREE.Mesh(gg, T.ceil));
+      const bp = perim37(R, 0, 0.5), bw = []; for (let k=0;k<bp.length;k++){ const p = bp[k], q = bp[(k+1)%bp.length]; bw.push(p[0],CEIL37-0.05,p[1], q[0],CEIL37-0.05,q[1], q[0],R.tall+0.05,q[1],  p[0],CEIL37-0.05,p[1], q[0],R.tall+0.05,q[1], p[0],R.tall+0.05,p[1]); }
+      const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bw,3)); bg.computeVertexNormals(); g.add(new THREE.Mesh(bg, T.well)); } }
   // wells, sky lids and sun shafts: merged into three meshes
   { const wells = [], lids = [], shafts = [];
     for (const h of holes){
@@ -1266,6 +1370,7 @@ function buildLevel37(seed){
     const per = Math.min(9, Math.floor((r.w-3)/0.7));
     for (const side of [-1, 1]) for (let k=0;k<per;k++){ const x = r.x - (per-1)*0.35 + k*0.7, z = r.z + side*(r.h/2-0.33);
       if (d37(x, z - side*0.6) < 0.3) continue;
+      if ([-0.36, 0, 0.36].some(o=>d37(x+o, z + side*0.6) > -0.05) || L37.cors.some(c=>sdCap(x, z, c.a, c.b, c.r) < 0.7)) continue;   // never stand in front of a doorway
       const lk = new THREE.Group(); lk.position.set(x, 0.3, z); lk.rotation.y = side > 0 ? Math.PI : 0; g.add(lk); bx(lk, 0.62,1.95,0.5, 0,0.975,0, lockM); bx(lk, 0.64,0.05,0.52, 0,1.97,0, lam(0x3c4436));
       L.lockers.push({ x, z, ry: lk.rotation.y, fx: x, fz: z - side*0.75 }); L.circles.push({ x, z, r:0.32 }); }
     const bw = Math.max(2, r.w-5); bx(g, bw, 0.42, 0.42, r.x, 0.51, r.z, lam(0x8a6a44)); L.slabs.push([r.x-bw/2, r.x+bw/2, r.z-0.21, r.z+0.21]);
@@ -1297,6 +1402,7 @@ function upload37Holes(cx, cz){
 
 /* ---- day / night ---- */
 const poolLampMat = new THREE.MeshBasicMaterial({ color:new THREE.Color(0.3,0.9,1.0) });
+const archMat = new THREE.MeshBasicMaterial({ color:0x040706, side:THREE.DoubleSide });
 const DAYC = { fog:new THREE.Color(0x9cb3aa), sky:new THREE.Color(0xe4efe2), gnd:new THREE.Color(0x9fbdae) };
 const NIGHTC = { fog:new THREE.Color(0x070b0e), sky:new THREE.Color(0x24324a), gnd:new THREE.Color(0x0a1210) };
 let wasNight = false, upd37Sub = false;
@@ -1347,6 +1453,42 @@ function updateWake(dt, on){
     const a = Math.max(0, w.life/2.4), sc = 0.35 + (1-a)*1.2;
     tmpQ.identity(); tmpV.set(w.x, 0.19, w.z); tmpS.set(sc, 1, sc*1.4); tmpM.compose(tmpV, tmpQ, tmpS); wakeMesh.setMatrixAt(k, tmpM); wakeMesh.setColorAt(k, tmpC.setRGB(a*0.55*fk, a*0.6*fk, a*0.58*fk)); }
   wakeMesh.instanceMatrix.needsUpdate = true; if (wakeMesh.instanceColor) wakeMesh.instanceColor.needsUpdate = true;
+}
+
+/* ---- ripples and a little V-wake behind survivors wading through the water (softer than the eel's foam) ---- */
+const RIP_N = 90;
+const ripTex = textTex('', 64, 64, (c,w,h)=>{ c.clearRect(0,0,w,h); const gr = c.createRadialGradient(32,32,18,32,32,31); gr.addColorStop(0,'rgba(255,255,255,0)'); gr.addColorStop(0.55,'rgba(255,255,255,0.75)'); gr.addColorStop(0.75,'rgba(255,255,255,0.25)'); gr.addColorStop(1,'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0,0,w,h); });
+const ripMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2), new THREE.MeshBasicMaterial({ map:ripTex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:true }), RIP_N);
+ripMesh.frustumCulled = false; ripMesh.renderOrder = 4; ripMesh.visible = false; scene.add(ripMesh);
+const ripP = Array.from({ length:RIP_N }, ()=>({ x:0, z:0, vx:0, vz:0, life:0, max:1, ring:1, s0:0.3, s1:1.5, ry:0 }));
+const ripWho = new Map(); let ripI = 0;
+for (let k=0;k<RIP_N;k++){ tmpM.makeScale(0.0001,0.0001,0.0001); ripMesh.setMatrixAt(k, tmpM); ripMesh.setColorAt(k, tmpC.setRGB(0,0,0)); }
+function ripSpawn(o){ const w = ripP[ripI = (ripI+1) % RIP_N]; Object.assign(w, o); w.max = w.life; }
+function updateRipples(dt){
+  ripMesh.visible = LK === 2; if (LK !== 2) return;
+  const wading = [];
+  if (role === 'survivor' && me.alive && me.hidden < 0 && mode === 'play') wading.push(['me', me.x, me.z, me.moving ? (me.running ? 2 : 1) : 0]);
+  for (const r of remotes.values()){ if (r.pid === G.mo || isDead(r.pid) || isEsc(r.pid) || !r.a || r.hd) continue; wading.push([r.pid, r.x, r.z, r.mv|0]); }
+  for (const [id, x, z, mv] of wading){
+    let st = ripWho.get(id); if (!st){ st = { x, z, t:0, hx:0, hz:1 }; ripWho.set(id, st); }
+    const dx = x - st.x, dz = z - st.z, dl = Math.hypot(dx, dz); st.x = x; st.z = z;
+    if (dl > 0.005 && dl < 3){ st.hx = lerp(st.hx, dx/dl, 0.35); st.hz = lerp(st.hz, dz/dl, 0.35); }
+    if (k37(x, z) !== K37.WATER || h37(x, z) > 0.12){ st.t = 0; continue; }
+    st.t -= dt; if (!mv || st.t > 0) continue;
+    const fast = mv === 2, hl = Math.hypot(st.hx, st.hz) || 1, fx = st.hx/hl, fz = st.hz/hl;
+    st.t = fast ? 0.16 : 0.3;
+    // a ring where the legs push through, and two arms of the V peeling off behind
+    ripSpawn({ x: x + fx*0.15, z: z + fz*0.15, vx: fx*0.25, vz: fz*0.25, life: fast ? 1.5 : 1.8, ring:1, s0:0.35, s1: fast ? 2.0 : 1.6, ry:0 });
+    for (const side of [-1, 1]) ripSpawn({ x: x - fx*0.35 - fz*side*0.2, z: z - fz*0.35 + fx*side*0.2, vx: -fz*side*(fast ? 0.7 : 0.45) - fx*0.15, vz: fx*side*(fast ? 0.7 : 0.45) - fz*0.15, life: 1.3, ring:0, s0:0.25, s1:0.7, ry:Math.atan2(fx, fz) + side*0.6 });
+  }
+  const fk = 1 - 0.45*(1 - dayK(G.tod||0));
+  for (let k=0;k<RIP_N;k++){ const w = ripP[k];
+    if (w.life <= 0){ tmpM.makeScale(0.0001,0.0001,0.0001); ripMesh.setMatrixAt(k, tmpM); continue; }
+    w.life -= dt; w.x += w.vx*dt; w.z += w.vz*dt; w.vx *= 0.96; w.vz *= 0.96;
+    const a = Math.max(0, w.life/w.max), sc = lerp(w.s1, w.s0, a), al = w.ring ? a*a*0.55 : a*0.34;
+    tmpQ.setFromAxisAngle(UP, w.ry); tmpV.set(w.x, 0.195, w.z); tmpS.set(sc, 1, w.ring ? sc : sc*1.8); tmpM.compose(tmpV, tmpQ, tmpS); ripMesh.setMatrixAt(k, tmpM);
+    ripMesh.setColorAt(k, tmpC.setRGB(al*0.8*fk, al*0.92*fk, al*0.9*fk)); }
+  ripMesh.instanceMatrix.needsUpdate = true; if (ripMesh.instanceColor) ripMesh.instanceColor.needsUpdate = true;
 }
 
 /* ---- the computer eel ---- */
@@ -1455,6 +1597,7 @@ function update37(dt){
   upd37Sub = G.asub > 0;
   const vis = MON.g.visible && !(G.asub > 0);
   updateWake(dt, vis);
+  updateRipples(dt);
   swishT -= dt;
   if (vis && mDisp.mv && swishT <= 0 && sfx.ctx){ const d = Math.hypot(mDisp.x-camera.position.x, mDisp.z-camera.position.z); swishT = mDisp.mv === 2 ? 0.45 : 0.8; if (d < 26){ const o = sfx.panner(mDisp.x, 0.2, mDisp.z, 2.5); sfx.noise(o,{ dur:0.5, type:'bandpass', freq:700+Math.random()*400, q:0.7, gain: n ? 0.55 : 0.3, attack:0.12 }); } }
 }
@@ -3644,7 +3787,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape };
+window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape };
 </script>
 </body>
 </html>
