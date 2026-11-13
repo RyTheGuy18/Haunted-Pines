@@ -36,4 +36,3 @@ v0.26.5: the exit door can never be walled in, and there's always a path to it.
 v0.26.6: new footsteps: carpet on Level 0, concrete on Level 1, echoing tile on dry floor in the Poolrooms.
 v0.27.0: Level 188, the Hotel. 5 floors around a courtyard you can see across, working elevators, find the keycard and the room it opens. The Occupant rides the elevators too.
 v0.27.1: soda vending machines in the hotel, wood footsteps on Level 188, the Crawler's steps are quieter and only heard up close.
-v0.27.1: soda vending machines in the hotel, wood footsteps on Level 188, the Crawler's steps are quieter and only heard up close.
