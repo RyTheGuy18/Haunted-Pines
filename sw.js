@@ -1,5 +1,5 @@
-const V='level0-v19-1';
-const CORE=['./','./index.html','./manifest.webmanifest','./peerjs.min.js','./three.module.min.js','./jsm/loaders/GLTFLoader.js','./jsm/utils/BufferGeometryUtils.js','./jsm/utils/SkeletonUtils.js','./models/snatcher.glb','./models/crawler.glb','./sfx/crawler-steps.mp3','./sfx/heavy-steps.mp3','./sfx/spider-attack-1.mp3','./sfx/spider-attack-2.mp3','./sfx/spider-attack-4.mp3','./icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png'];
+const V='level0-v20-0';
+const CORE=['./','./index.html','./manifest.webmanifest','./peerjs.min.js','./three.module.min.js','./jsm/loaders/GLTFLoader.js','./jsm/utils/BufferGeometryUtils.js','./jsm/utils/SkeletonUtils.js','./models/snatcher.glb','./models/crawler.glb','./sfx/crawler-steps.mp3','./sfx/heavy-steps.mp3','./sfx/spider-attack-1.mp3','./sfx/spider-attack-2.mp3','./sfx/spider-attack-4.mp3','./sfx/monster-roar.mp3','./sfx/monster-growl.mp3','./sfx/monster-groans.mp3','./jsm/objects/Reflector.js','./icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V&&k!=='level0-fonts').map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;const u=new URL(r.url);
