@@ -189,7 +189,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.28.6</div>
+<div class="osd" id="ver">v0.28.7</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -3342,7 +3342,7 @@ function plugMic(raw){
   for (const t of raw.getAudioTracks()) t.onended = ()=>{ if (voice.raw === raw && voice.want) micLost(); };
   applyMute(); setAudioSession();
 }
-async function micLost(){ voice.lost = true; try { const raw = await getMic(); voice.lost = false; plugMic(raw); msg('Mic reconnected.', 1.5); } catch(e){ showVoice(); } }
+async function micLost(){ voice.lost = true; if (bgOff || isAway()) return; try { const raw = await getMic(); voice.lost = false; plugMic(raw); msg('Mic reconnected.', 1.5); } catch(e){ showVoice(); } }
 async function switchMic(){ if (!voice.raw) return; try { plugMic(await getMic()); msg('Microphone changed.', 1.5); } catch(e){ msg("Couldn't open that microphone.", 2.5); } fillDevices(); }
 function applyMute(){ for (const st of [voice.raw, voice.stream]) if (st) st.getAudioTracks().forEach(t=>t.enabled = !voice.muted); }
 async function voiceEnable(on){
@@ -3361,11 +3361,33 @@ async function voiceEnable(on){
   return true;
 }
 function toggleMute(){ if (!voice.stream) return; voice.muted = !voice.muted; applyMute(); showVoice(); msg(voice.muted ? 'Mic muted.' : 'Mic on.', 1.5); }
-// keep the audio engine running: iOS suspends it when you switch apps, lock the phone or get a call
-function wakeAudio(){ const c = sfx.ctx; if (c && c.state !== 'running' && c.state !== 'closed'){ try { c.resume(); } catch(e){} }
+/* v0.28.7 (Ryan): no sound at all unless the game is on screen. When the app is closed/switched away or the phone
+   sleeps: the audio engine is suspended (all game sound + everyone's voice stops), call audio elements pause, and the
+   mic is released (the iPhone mic indicator goes away). Coming back resumes it all and re-opens the mic if voice was on. */
+let bgOff = false;
+function audioOff(){
+  if (bgOff) return; bgOff = true;
+  try { if (sfx.ctx && sfx.ctx.state === 'running') sfx.ctx.suspend(); } catch(e){}
+  for (const c of voice.calls.values()) if (c.el){ try { c.el.pause(); } catch(e){} }
+  if (voice.raw){
+    if (voice.chain){ const r = voice.raw; voice.raw = null; if (voice.srcNode){ try { voice.srcNode.disconnect(); } catch(e){} voice.srcNode = null; } r.getTracks().forEach(t=>t.stop()); if (voice.want) voice.lost = true; }
+    else voice.raw.getAudioTracks().forEach(t=>t.enabled = false);
+  }
+}
+function audioOn(){
+  if (!bgOff) return; bgOff = false;
+  for (const c of voice.calls.values()) if (c.el){ try { c.el.play().catch(()=>{}); } catch(e){} }
+  if (voice.raw && !voice.chain) applyMute();
+  wakeAudio();
+}
+const isAway = () => document.hidden || document.visibilityState === 'hidden';
+// keep the audio engine running while you're in the game: iOS suspends it when you switch apps, lock the phone or get a call
+function wakeAudio(){ if (bgOff || isAway()) return; const c = sfx.ctx; if (c && c.state !== 'running' && c.state !== 'closed'){ try { c.resume(); } catch(e){} }
   if (voice.want && voice.lost) micLost(); }
 for (const ev of ['touchend','click','keydown']) addEventListener(ev, wakeAudio, { passive:true, capture:true });
-document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) setTimeout(wakeAudio, 200); });
+document.addEventListener('visibilitychange', ()=>{ if (isAway()) audioOff(); else setTimeout(audioOn, 150); });
+addEventListener('pagehide', audioOff); addEventListener('freeze', audioOff);
+addEventListener('pageshow', ()=>{ if (!isAway()) setTimeout(audioOn, 150); }); addEventListener('resume', ()=>{ if (!isAway()) setTimeout(audioOn, 150); });
 // Opus: in-band FEC (survives packet loss), a bit more bitrate, mono
 const opusTweak = sdp => { try {
   const m = sdp.match(/a=rtpmap:(\d+) opus\/48000/i); if (!m) return sdp; const pt = m[1];
