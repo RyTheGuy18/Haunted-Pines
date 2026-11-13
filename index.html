@@ -155,6 +155,11 @@
   #bA{grid-area:a} #bB{grid-area:b;font-size:19px} #bC{grid-area:c} #bD{grid-area:d} #bE{grid-area:e} #bF{grid-area:f}
   #bUse{grid-area:u;width:66px;justify-self:center;font-size:17px;border-color:var(--ink)!important;background:rgba(241,230,180,.18)!important;display:none}
   body.touch #cross{display:none}
+  #elev{position:fixed;left:50%;top:13%;transform:translateX(-50%);display:none;flex-direction:column;align-items:center;gap:6px;z-index:8;padding:8px 14px;background:rgba(20,18,14,.72);border:1px solid rgba(241,230,180,.3)}
+  #elev .et{font-size:16px;letter-spacing:.3em;opacity:.8} #elev .eb{display:flex;gap:9px} #elev .eh{font-size:14px;letter-spacing:.2em;opacity:.7}
+  #elev button{width:46px;height:46px;border-radius:50%;border:2px solid rgba(241,230,180,.4);background:rgba(40,36,28,.85);color:var(--ink);font-size:22px;padding:0}
+  #elev button.lit{border-color:#ffb040;color:#ffb040;box-shadow:0 0 10px rgba(255,176,64,.55)} #elev button.here{background:rgba(255,176,64,.28)}
+  body.touch #elev .eh{display:none}
 </style>
 <script type="importmap">{"imports":{"three":"./three.module.min.js"}}</script>
 </head>
@@ -171,7 +176,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.26.6</div>
+<div class="osd" id="ver">v0.27.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -194,6 +199,7 @@
 <div id="btns">
   <button id="bA"></button><button id="bB"></button><button id="bC"></button><button id="bD"></button><button id="bE"></button><button id="bF"></button><button id="bUse">USE</button>
 </div>
+<div id="elev"><div class="et">ELEVATOR</div><div class="eb"><button data-f="1">1</button><button data-f="2">2</button><button data-f="3">3</button><button data-f="4">4</button><button data-f="5">5</button></div><div class="eh">PRESS 2 · 3 · 4</div></div>
 
 <div class="screen show" id="menu"><div class="col">
   <div class="title"><h1>LEVEL 0</h1><div class="sub">THE BACKROOMS</div><div class="tag">You noclipped out of reality. Something else lives here.</div></div>
@@ -306,7 +312,7 @@ function vibrate(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){}
 const CS = 4, WH = 2.8, EYE = 1.6;
 // the grid size changes per level (Level 0: 16x16 cells, Level 1: the big garage, 28x28)
 let N = 16, W = N*CS, VN = (N+1)*N, E = 2*VN;
-const GRID_N = k => k === 1 ? 28 : 16;
+const GRID_N = k => k === 1 ? 28 : k === 3 ? HN : 16;
 function setGrid(n){ N = n; W = N*CS; VN = (N+1)*N; E = 2*VN; }
 const FUSES = 3;
 const MON_SPEED = 4.0;   // the Occupant never runs: ~1.5x a survivor's walk (2.6), still under their sprint (5.0)
@@ -491,9 +497,9 @@ function nextStep(fi,fj,ti,tj,blk){
 }
 /* ---- zones: 0 office (Level 0), 1 parking garage, 2 the pitfalls ---- */
 const ZS = 6;
-let LK = 0, baseSeed = 0;   // LK: 0 = Level 0 (the office), 1 = Level 1 (the parking garage), 2 = Level 37 (the poolrooms)
-const lvSeed = k => k === 1 ? (Math.imul(baseSeed ^ 0x51ed, 2654435761) >>> 0) : k === 2 ? (Math.imul(baseSeed ^ 0x37b00, 2246822519) >>> 0) : baseSeed;
-function zoneOf(i,j){ if (LK === 1) return 1; if (LK === 2) return 3; if (i>=N-ZS && j<ZS) return 1; if (i<ZS && j>=N-ZS) return 2; return 0; }
+let LK = 0, baseSeed = 0;   // LK: 0 = Level 0 (the office), 1 = Level 1 (the parking garage), 2 = Level 37 (the poolrooms), 3 = Level 188 (the hotel)
+const lvSeed = k => k === 1 ? (Math.imul(baseSeed ^ 0x51ed, 2654435761) >>> 0) : k === 2 ? (Math.imul(baseSeed ^ 0x37b00, 2246822519) >>> 0) : k === 3 ? (Math.imul(baseSeed ^ 0x188f00d, 3266489917) >>> 0) : baseSeed;
+function zoneOf(i,j){ if (LK === 3) return 0; if (LK === 1) return 1; if (LK === 2) return 3; if (i>=N-ZS && j<ZS) return 1; if (i<ZS && j>=N-ZS) return 2; return 0; }
 const zoneAt = (x,z) => zoneOf(cellOf(x), cellOf(z));
 function floorY(x,z){ return LK === 2 ? h37(x,z) : 0; }
 const poolBlock = () => null;
@@ -604,7 +610,7 @@ function setEdgeMatrix(e, on){
   tmpM.compose(tmpV, tmpQ, tmpS); level.wallMeshes[zn].setMatrixAt(e, tmpM);
 }
 function applyWalls(force){
-  if (LK === 2) return;
+  if (LK === 2 || LK === 3) return;
   for (let e=0;e<E;e++) if (force || level.shown[e] !== walls[e]){ setEdgeMatrix(e, walls[e]); level.shown[e] = walls[e]; }
   for (const m of level.wallMeshes) m.instanceMatrix.needsUpdate = true;
 }
@@ -618,6 +624,8 @@ function buildLevel(seed, kind=0){
   LK = kind; if (kind === 0) baseSeed = seed;
   if (level){ scene.remove(level.group); level.group.traverse(o=>{ o.geometry && o.geometry.dispose(); }); for (const s of level.sounds) try{ s.stop(); }catch(e){} }
   setGrid(GRID_N(kind));
+  { const far = kind === 3 ? 170 : 90; if (camera.far !== far){ camera.far = far; camera.updateProjectionMatrix(); } }
+  if (kind === 3){ M37 = null; setPoolVisible(false); buildLevel188(seed); return; }
   if (kind === 2){ walls = new Uint8Array(E); setPoolVisible(true); buildLevel37(seed); return; }
   M37 = null;
   const rng = rngFrom(seed);
@@ -1702,6 +1710,456 @@ function buildExtras(L, g, rng, takeSlot, dist0, far){
 }
 function inPit(x,z){ if (!level.holes) return false; for (const h of level.holes) if (x>h.x0+0.22 && x<h.x1-0.22 && z>h.z0+0.22 && z<h.z1-0.22) return true; return false; }
 
+/* ================= Level 188: the Hotel (5 floors around a courtyard; floors 2-4 walkable; working elevators) =================
+   The three walkable floors live side by side in one grid, far apart, so nothing is heard, seen or caught across floors.
+   Everything is DRAWN stacked around the courtyard: vis188() maps a logical (x,y,z) to the drawn position each frame. */
+const HF = 18, HG = 17, HN = 2*HF + HG;            // cells per floor side, gap between floors in the grid, grid size
+const HFH = 3.4, HCH = 2.6, HT = 0.9;              // floor-to-floor height, ceiling height, wall thickness (halls ~2.2 m wide)
+const HO = [[0,0],[HF+HG,0],[0,HF+HG]];            // grid origin (cells) of logical floors 0,1,2 = floors 2,3,4
+const HCY0 = 6, HCY1 = 11;                         // courtyard cells (local), never walkable
+const ELV = [ { ci:8, cj:4, li:8, lj:5 }, { ci:13, cj:9, li:12, lj:9 }, { ci:4, cj:10, li:5, lj:10 } ];   // car cell + landing cell (local)
+const ELV_SPD = 1/2.6, ELV_DOOR = 1.1;
+const HBAD = { n:[7,8,9], e:[8,9,10], w:[9,10,11], s:[] };    // no spokes next to an elevator
+const hTh = (HF + HG/2) * CS;
+function floorAt188(x, z){ return x >= hTh ? 1 : z >= hTh ? 2 : 0; }
+const hBaseY = L => (L+1)*HFH;                     // L = -1..3 (floor 1..5)
+const hShift = (x, z, a, b) => [x + (HO[b][0]-HO[a][0])*CS, z + (HO[b][1]-HO[a][1])*CS];
+function elevCarAt(x, z){ const L = floorAt188(x,z), i = Math.floor(x/CS) - HO[L][0], j = Math.floor(z/CS) - HO[L][1]; for (let k=0;k<ELV.length;k++) if (ELV[k].ci===i && ELV[k].cj===j) return k; return -1; }
+const elDisp = [0,0,0];
+function vis188(x, y, z, out){
+  const L = floorAt188(x,z); let by = hBaseY(L);
+  const k = elevCarAt(x,z), el = k >= 0 && G.el ? G.el[k] : null;
+  if (el && el.a === L) by = hBaseY(elDisp[k]);    // riding: follow the car
+  out.x = x - HO[L][0]*CS; out.y = y + by; out.z = z - HO[L][1]*CS; return out;
+}
+// ---- the look
+const hWallTex = canvasTex(128,128,(g,w,h)=>{
+  g.fillStyle='#c8b48e'; g.fillRect(0,0,w,h);
+  for (let i=0;i<2600;i++){ const v=texR(); g.fillStyle=v<.5?'rgba(150,128,92,.35)':'rgba(226,212,180,.3)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  for (let i=0;i<4;i++){ const x=texR()*w, y=30+texR()*60, r=8+texR()*14; const gr=g.createRadialGradient(x,y,0,x,y,r); gr.addColorStop(0,'rgba(110,90,60,.16)'); gr.addColorStop(1,'rgba(110,90,60,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2); }
+  g.fillStyle='#3b2f29'; g.fillRect(0,h-10,w,10); for (let x=0;x<w;x+=6){ g.fillStyle='rgba(120,100,80,.35)'; g.fillRect(x,h-8,3,2); g.fillRect(x+2,h-4,2,2); }
+  g.fillStyle='#2a201b'; g.fillRect(0,h-11,w,1); g.fillStyle='rgba(60,45,30,.18)'; g.fillRect(0,0,w,2);
+});
+const hCarpetTex = canvasTex(64,64,(g,w,h)=>{
+  g.fillStyle='#3e3026'; g.fillRect(0,0,w,h);
+  for (let y=0;y<h;y++) for (let x=0;x<w;x+=1){ const v = texR(); if (v < 0.22) { g.fillStyle = v < 0.08 ? 'rgba(150,118,72,.55)' : 'rgba(96,74,52,.6)'; g.fillRect(x, y, 1, 2+texR()*4|0); } }
+  for (let i=0;i<10;i++){ const x=texR()*w, y=texR()*h; g.strokeStyle='rgba(130,104,70,.35)'; g.beginPath(); g.arc(x,y,4+texR()*6,0,4+texR()*2); g.stroke(); }
+});
+const hCeilTex = canvasTex(32,32,(g,w,h)=>{
+  g.fillStyle='#d9d6cb'; g.fillRect(0,0,w,h);
+  for (let i=0;i<220;i++){ g.fillStyle=texR()<.5?'rgba(150,146,130,.45)':'rgba(240,238,230,.5)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  g.fillStyle='#9d998c'; g.fillRect(0,0,w,1); g.fillRect(0,0,1,h);
+});
+const hDoorTex = canvasTex(32,64,(g,w,h)=>{
+  g.fillStyle='#7a4f2c'; g.fillRect(0,0,w,h);
+  for (let y=0;y<h;y++){ g.fillStyle=`rgba(${70+texR()*30|0},${40+texR()*16|0},20,.35)`; g.fillRect(0,y,w,1); }
+  g.strokeStyle='rgba(50,30,15,.6)'; g.strokeRect(4,5,w-8,24); g.strokeRect(4,33,w-8,26);
+  g.fillStyle='#c9a85a'; g.fillRect(w-8,30,4,3); g.fillRect(w-7,33,2,5); g.fillStyle='#2a2116'; g.fillRect(w-7,24,2,3);
+  g.fillStyle='#b89a50'; g.fillRect(12,12,8,4); g.fillStyle='#1d1914'; g.fillRect(15,8,2,2);
+});
+const hSteelTex = canvasTex(32,32,(g,w,h)=>{ g.fillStyle='#8f9294'; g.fillRect(0,0,w,h); for (let y=0;y<h;y++){ g.fillStyle=`rgba(${190+texR()*40|0},${190+texR()*40|0},${195+texR()*40|0},.25)`; g.fillRect(0,y,w,1); } });
+const hFacadeTex = canvasTex(64,64,(g,w,h)=>{ g.fillStyle='#d8d6cf'; g.fillRect(0,0,w,h); for (let i=0;i<500;i++){ g.fillStyle='rgba(150,148,140,.35)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); } g.fillStyle='rgba(120,118,110,.5)'; g.fillRect(0,0,w,1); g.fillRect(0,0,1,h); });
+const hLawnTex = canvasTex(256,256,(g,w,h)=>{
+  g.fillStyle='#a9a294'; g.fillRect(0,0,w,h);
+  for (let i=0;i<4000;i++){ g.fillStyle=texR()<.5?'rgba(120,114,100,.4)':'rgba(200,196,184,.35)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  const sq = [[22,22],[146,22],[22,146],[146,146]];
+  for (const [x,y] of sq){ g.fillStyle='#4f6a37'; g.fillRect(x,y,88,88); for (let i=0;i<900;i++){ g.fillStyle=texR()<.5?'rgba(40,70,30,.6)':'rgba(110,140,70,.45)'; g.fillRect(x+texR()*88|0,y+texR()*88|0,1,2); } }
+  g.fillStyle='#8a6a48'; g.beginPath(); g.arc(128,128,30,0,7); g.fill(); g.strokeStyle='#6a4e34'; for (let r=8;r<30;r+=7){ g.beginPath(); g.arc(128,128,r,0,7); g.stroke(); }
+});
+const H188_SKY = new THREE.Color(0xb8a37a), H188_GND = new THREE.Color(0x2a2016);
+const hNumTex = [1,2,3,4,5].map(n=>textTex(String(n),32,24,(c,w,h,t)=>{ c.fillStyle='#120804'; c.fillRect(0,0,w,h); c.fillStyle='#ff7a2a'; c.font='bold 18px monospace'; c.textAlign='center'; c.fillText(t,w/2,18); }));
+function shuffle188(a, rng){ for (let k=a.length-1;k>0;k--){ const r=Math.floor(rng()*(k+1)); [a[k],a[r]]=[a[r],a[k]]; } return a; }
+const HOTEL_SCRAWLS = ["DON'T PRESS 5", "IT TAKES THE ELEVATOR TOO", "CHECKOUT IS NEVER", "THE COURTYARD HAS NO DOOR", "I SAW MYSELF ACROSS THE COURTYARD", "ROOM 188 IS ON EVERY FLOOR", "THE DING MEANS IT'S HERE"];
+
+// ---- layout: per floor a ring around the courtyard, a ring around that, spokes between them (different on every floor), a few dead ends
+function gen188(rng){
+  const K = new Uint8Array(HN*HN), floors = [];
+  for (let L=0; L<3; L++){
+    const m = new Uint8Array(HF*HF), set = (i,j,v=1) => { if (i>=0 && j>=0 && i<HF && j<HF) m[i*HF+j] = v; }, at = (i,j) => (i>=0 && j>=0 && i<HF && j<HF) ? m[i*HF+j] : 0;
+    for (let k=1;k<=16;k++){ set(k,1); set(k,16); set(1,k); set(16,k); }
+    for (let k=5;k<=12;k++){ set(k,5); set(k,12); set(5,k); set(12,k); }
+    const spokes = [];
+    for (const side of ['n','s','e','w']){
+      const inner = [], outer = []; for (let p=3;p<=14;p++){ if (HBAD[side].includes(p)) continue; (p>=5 && p<=12 ? inner : outer).push(p); }
+      shuffle188(inner, rng); shuffle188(outer, rng);
+      const got = [inner[0]];
+      if (rng() < 0.65){ const pool = shuffle188(inner.slice(1).concat(rng()<0.5 ? outer : []), rng); for (const p of pool) if (got.every(q=>Math.abs(q-p) >= 3)){ got.push(p); break; } }
+      for (const p of got) for (let d=2; d<=4; d++){ const c = side==='n' ? [p,d] : side==='s' ? [p,17-d] : side==='w' ? [d,p] : [17-d,p]; set(c[0], c[1]); spokes.push({ side, p, c }); }
+    }
+    // dead-end stubs off the spokes, sideways along the band
+    const nearCar = (i,j) => ELV.some(e=>Math.abs(e.ci-i) <= 1 && Math.abs(e.cj-j) <= 1);
+    const mids = spokes.filter(s=>{ const d = s.side==='n' ? s.c[1] : s.side==='s' ? 17-s.c[1] : s.side==='w' ? s.c[0] : 17-s.c[0]; return d === 3; });
+    shuffle188(mids, rng);
+    for (const s of mids.slice(0, 2 + (rng() < 0.5 ? 1 : 0))){
+      const horiz = s.side==='n' || s.side==='s', dir = rng()<0.5 ? -1 : 1, len = 1 + (rng()<0.55 ? 1 : 0);
+      for (let k=1;k<=len;k++){ const i = s.c[0] + (horiz ? dir*k : 0), j = s.c[1] + (horiz ? 0 : dir*k);
+        if (i<2 || j<2 || i>15 || j>15 || at(i,j) || nearCar(i,j)) break;
+        const side1 = horiz ? [[i,j-1],[i,j+1]] : [[i-1,j],[i+1,j]]; if (side1.some(([a,b])=>at(a,b))) break;
+        const ahead = horiz ? [i+dir,j] : [i,j+dir]; if (at(ahead[0],ahead[1])) break;
+        set(i,j); }
+    }
+    // little alcoves off the outer ring (ice machine nooks)
+    for (let t=0;t<2;t++){ const side = Math.floor(rng()*4), p = 3 + Math.floor(rng()*12); const c = side===0 ? [p,0] : side===1 ? [p,17] : side===2 ? [0,p] : [17,p]; if (!nearCar(c[0],c[1])) set(c[0],c[1]); }
+    for (const e of ELV) set(e.ci, e.cj, 2);
+    floors.push(m);
+    for (let i=0;i<HF;i++) for (let j=0;j<HF;j++) if (m[i*HF+j]) K[(HO[L][0]+i)*HN + HO[L][1]+j] = m[i*HF+j];
+  }
+  return { K, floors };
+}
+function buildLevel188(seed){
+  const rng = rngFrom(seed), gen = gen188(rng), K = gen.K; elPrev.length = 0;
+  const S = (i,j) => inGrid(i,j) && K[i*N+j] > 0;
+  const g = new THREE.Group(); scene.add(g);
+  const L0 = level = { seed, lk:3, group:g, gens:[], slotLeds:[], fuses:[], fuseMeshes:[], breaker:[-99,-99], rooms:[], halls:[], kind:new Uint8Array(N*N), fixed:new Uint8Array(E).fill(1), slabs:[], base:null, shown:new Uint8Array(E), circles:[], pillarSet:new Set(), sounds:[], used:new Set(), wet:[], drips:[], tvs:[], phones:[], lockers:[], cn:[], cnM:[], bt:[], btM:[], aw:[], awM:[], vents:[], holes:[], offhook:[], high:[], panels:[], panelAt:new Int16Array(N*N).fill(-1), edgeZ:new Uint8Array(E), wallMeshes:[], floats:[], lamps:[], cleanDesk:null, roller:null, red:{i0:-1,j0:-1,i1:-1,j1:-1}, clean:null, hcells:[[],[],[]], lands:[], cars:[], doorE:[], elv:[] };
+  const L = L0;
+  // ---- walls: open between neighbouring walkable cells of the same floor; elevator doors are opened/closed every frame
+  walls = new Uint8Array(E).fill(1);
+  const doorSet = new Set();
+  for (let k=0;k<ELV.length;k++){ L.doorE.push([]); L.lands.push([]); L.cars.push([]);
+    for (let f=0; f<3; f++){ const e = ELV[k], ci = HO[f][0]+e.ci, cj = HO[f][1]+e.cj, li = HO[f][0]+e.li, lj = HO[f][1]+e.lj, ed = edgeBetween(ci,cj,li,lj); doorSet.add(ed); L.doorE[k].push(ed);
+      const nx = li-ci, nz = lj-cj, ex = (ci+li+1)/2*CS, ez = (cj+lj+1)/2*CS;
+      L.lands[k].push({ x:ex + nx*1.45, z:ez + nz*1.45, ex, ez, nx, nz }); L.cars[k].push({ x:ex - nx*1.55, z:ez - nz*1.55 }); } }
+  for (let i=0;i<N;i++) for (let j=0;j<N;j++){ if (!S(i,j)) continue;
+    for (const [a,b] of [[1,0],[0,1]]){ const ni=i+a, nj=j+b; if (!S(ni,nj)) continue; const e = edgeBetween(i,j,ni,nj); if (doorSet.has(e)) continue;
+      if (K[i*N+j] === 2 || K[ni*N+nj] === 2) continue; walls[e] = 0; } }
+  L.base = walls.slice();
+  for (let f=0; f<3; f++) for (let i=0;i<HF;i++) for (let j=0;j<HF;j++){ const gi=HO[f][0]+i, gj=HO[f][1]+j; if (K[gi*N+gj] === 1) L.hcells[f].push([gi,gj]); }
+  const openE = (i,j,ni,nj) => { if (!S(i,j) || !S(ni,nj)) return false; const e = edgeBetween(i,j,ni,nj); return !walls[e] || doorSet.has(e); };
+  const isCourt = (f, i, j) => { const li = i-HO[f][0], lj = j-HO[f][1]; return li>=HCY0 && li<=HCY1 && lj>=HCY0 && lj<=HCY1; };
+  const hv = (x, z) => { const f = floorAt188(x,z); return [x - HO[f][0]*CS, z - HO[f][1]*CS, hBaseY(f)]; };   // logical -> drawn (x, z, floor y)
+  // ---- materials
+  const wallM = lam(0xffffff,{ map:hWallTex, emissive:0xffffff, emissiveMap:hWallTex, emissiveIntensity:0.12 }), facadeM = lam(0xffffff,{ map:hFacadeTex, emissive:0xffffff, emissiveMap:hFacadeTex, emissiveIntensity:0.16 }), revealM = lam(0xd8d4c8, { emissive:0x30302c }), steelM = lam(0xffffff,{ map:hSteelTex });
+  const carpetM = lam(0xffffff,{ map:hCarpetTex, emissive:0xffffff, emissiveMap:hCarpetTex, emissiveIntensity:0.1 }), ceilM = lam(0xffffff,{ map:hCeilTex, emissive:0xffffff, emissiveMap:hCeilTex, emissiveIntensity:0.08 }), doorM = lam(0xffffff,{ map:hDoorTex }), frameM = lam(0x4a3a2c);
+  // ---- slabs (walls) and wall spots, per walkable cell
+  const vSlabs = [], wins = [], spots = [];
+  for (let f=0; f<3; f++) for (let li=0; li<HF; li++) for (let lj=0; lj<HF; lj++){
+    const i = HO[f][0]+li, j = HO[f][1]+lj; if (!S(i,j)) continue;
+    const x0 = i*CS, x1 = x0+CS, z0 = j*CS, z1 = z0+CS, car = K[i*N+j] === 2;
+    for (const [a,b] of nbr4){ const ni=i+a, nj=j+b;
+      if (openE(i,j,ni,nj)) continue;
+      const r = a>0 ? [x1-HT,x1,z0,z1] : a<0 ? [x0,x0+HT,z0,z1] : b>0 ? [x0,x1,z1-HT,z1] : [x0,x1,z0,z0+HT];
+      L.slabs.push(r);
+      if (isCourt(f, ni, nj)) wins.push({ f, i, j, a, b });
+      else { vSlabs.push(r); if (!car && !S(ni,nj) && !(li===0 || lj===0 || li===17 || lj===17)) spots.push({ f, i, j, x: cc(i)+a*(CS/2-HT), z: cc(j)+b*(CS/2-HT), nx:-a, nz:-b, used:false }); }
+    }
+    for (const sx of [-1,1]) for (const sz of [-1,1]){
+      if (!openE(i,j,i+sx,j) || !openE(i,j,i,j+sz)) continue;
+      if (S(i+sx,j+sz) && openE(i+sx,j,i+sx,j+sz) && openE(i,j+sz,i+sx,j+sz)) continue;
+      const r = [sx>0 ? x1-HT : x0, sx>0 ? x1 : x0+HT, sz>0 ? z1-HT : z0, sz>0 ? z1 : z0+HT]; L.slabs.push(r); vSlabs.push(r); }
+  }
+  // elevator landing side panels (thin, at the door plane)
+  for (let k=0;k<ELV.length;k++) for (let f=0; f<3; f++){ const l = L.lands[k][f], ux = l.nz !== 0 ? 1 : 0, uz = l.nx !== 0 ? 1 : 0;
+    for (const [u0,u1] of [[-1.1,-0.62],[0.62,1.1]]){ const xa = l.ex + ux*u0, xb = l.ex + ux*u1, za = l.ez + uz*u0, zb = l.ez + uz*u1;
+      L.slabs.push([Math.min(xa,xb) - (ux ? 0 : 0.07), Math.max(xa,xb) + (ux ? 0 : 0.07), Math.min(za,zb) - (uz ? 0 : 0.07), Math.max(za,zb) + (uz ? 0 : 0.07)]); } }
+  // ---- draw walls
+  { const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), wallM, vSlabs.length);
+    vSlabs.forEach((r,k)=>{ const [x,z,y] = hv((r[0]+r[1])/2, (r[2]+r[3])/2); tmpQ.identity(); tmpV.set(x, y+HCH/2, z); tmpS.set(r[1]-r[0], HCH, r[3]-r[2]); tmpM.compose(tmpV,tmpQ,tmpS); m.setMatrixAt(k,tmpM); });
+    m.frustumCulled = false; g.add(m); }
+  // floors + ceilings
+  { const cells = []; for (let f=0;f<3;f++) for (const c of L.hcells[f]) cells.push(c);
+    const fm = new THREE.InstancedMesh(cellPlane(2,false), carpetM, cells.length), cm = new THREE.InstancedMesh(cellPlane(CS/0.6,true), ceilM, cells.length);
+    cells.forEach(([i,j],k)=>{ const [x,z,y] = hv(cc(i), cc(j)); tmpM.makeTranslation(x, y, z); fm.setMatrixAt(k, tmpM); tmpM.makeTranslation(x, y+HCH, z); cm.setMatrixAt(k, tmpM); });
+    fm.frustumCulled = cm.frustumCulled = false; g.add(fm, cm); }
+  // ---- the courtyard: window walls on every floor, the lawn, the roof
+  { const pieces = [], glass = [], backs = [[],[]];
+    const addEdge = (Lf, cx, cz, nx, nz) => {   // drawn coords of the edge centre, n = toward the courtyard
+      const by = hBaseY(Lf), th = Math.atan2(nx, nz), ux = Math.cos(th), uz = -Math.sin(th);
+      const P = (u0,u1,y0,y1,w0,w1) => pieces.push({ x:cx + ux*(u0+u1)/2 - nx*(w0+w1)/2, z:cz + uz*(u0+u1)/2 - nz*(w0+w1)/2, y:by+(y0+y1)/2, sx:u1-u0, sy:y1-y0, sz:w1-w0, th });
+      P(-2,2,0,0.8,0,HT); P(-2,2,2.2,HCH,0,HT); P(-2,-1.75,0.8,2.2,0,HT); P(-0.05,0.05,0.8,2.2,0,0.12); P(1.75,2,0.8,2.2,0,HT);   // one wide window per bay, a thin mullion
+      P(-2,2,HCH,HFH,0,HT);   // between floors
+      for (const uc of [-0.9,0.9]){ glass.push({ x:cx + ux*uc - nx*0.05, z:cz + uz*uc - nz*0.05, y:by+1.5, th });
+        if (Lf < 0 || Lf > 2) backs[rng() < 0.22 ? 1 : 0].push({ x:cx + ux*uc - nx*1.4, z:cz + uz*uc - nz*1.4, y:by+1.5, th }); }
+    };
+    for (let Lf=-1; Lf<=3; Lf++) for (let k=HCY0; k<=HCY1; k++){ const c = cc(k);
+      addEdge(Lf, c, HCY0*CS, 0, 1); addEdge(Lf, c, (HCY1+1)*CS, 0, -1); addEdge(Lf, HCY0*CS, c, 1, 0); addEdge(Lf, (HCY1+1)*CS, c, -1, 0); }
+    const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), [revealM, revealM, revealM, revealM, facadeM, wallM], pieces.length);
+    pieces.forEach((p,k)=>{ tmpQ.setFromAxisAngle(UP, p.th); tmpV.set(p.x, p.y, p.z); tmpS.set(p.sx, p.sy, p.sz); tmpM.compose(tmpV,tmpQ,tmpS); pm.setMatrixAt(k,tmpM); });
+    pm.frustumCulled = false; g.add(pm);
+    const gm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.7,1.4), new THREE.MeshBasicMaterial({ color:0x2a3a44, transparent:true, opacity:0.2, depthWrite:false, side:THREE.DoubleSide }), glass.length);
+    glass.forEach((p,k)=>{ tmpQ.setFromAxisAngle(UP, p.th); tmpV.set(p.x, p.y, p.z); tmpS.set(1,1,1); tmpM.compose(tmpV,tmpQ,tmpS); gm.setMatrixAt(k,tmpM); });
+    gm.frustumCulled = false; gm.renderOrder = 2; g.add(gm);
+    [lam(0x16130f), new THREE.MeshBasicMaterial({ color:0x8a7650 })].forEach((mat,b)=>{ if (!backs[b].length) return; const bm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.7,1.4), mat, backs[b].length);
+      backs[b].forEach((p,k)=>{ tmpQ.setFromAxisAngle(UP, p.th); tmpV.set(p.x, p.y, p.z); tmpS.set(1,1,1); tmpM.compose(tmpV,tmpQ,tmpS); bm.setMatrixAt(k,tmpM); }); bm.frustumCulled = false; g.add(bm); });
+    const cw = (HCY1-HCY0+1)*CS, cmid = (HCY0*CS + (HCY1+1)*CS)/2;
+    const lawnM = lam(0xffffff,{ map:hLawnTex, emissive:0xffffff, emissiveMap:hLawnTex, emissiveIntensity:0.42 });
+    const lawn = new THREE.Mesh(new THREE.PlaneGeometry(cw, cw), lawnM); lawn.rotation.x = -Math.PI/2; lawn.position.set(cmid, 0.01, cmid); g.add(lawn);
+    const roof = new THREE.Mesh(new THREE.PlaneGeometry(cw, cw), lam(0x6d6a62)); roof.rotation.x = Math.PI/2; roof.position.set(cmid, 5*HFH, cmid); g.add(roof);
+    for (const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]]){ const p = new THREE.Mesh(new THREE.PlaneGeometry(3.2,3.2), new THREE.MeshBasicMaterial({ color:0xd8d2b8 })); p.rotation.x = Math.PI/2; p.position.set(cmid + a*6, 5*HFH - 0.02, cmid + b*6); g.add(p); }
+    // a planter and a fence in the courtyard, like the photo
+    const fence = new THREE.InstancedMesh(new THREE.BoxGeometry(0.04,0.9,0.04), lam(0x8a8a84), 40);
+    for (let k=0;k<40;k++){ tmpM.makeTranslation(HCY0*CS + 1 + k*(cw-2)/39, 0.45, HCY0*CS + 1.2); fence.setMatrixAt(k, tmpM); } g.add(fence);
+    bx(g, cw-2, 0.04, 0.04, cmid, 0.88, HCY0*CS + 1.2, lam(0x8a8a84));
+  }
+  // ---- light panels in every hall cell (the car cells get one too: it lights the car wherever it is)
+  const panelVis = [];
+  for (let i=0;i<N;i++) for (let j=0;j<N;j++){ if (!S(i,j)) continue; const f = floorAt188(cc(i), cc(j)), car = K[i*N+j] === 2;
+    if (!car && rng() < 0.12) continue;
+    const p = { idx:L.panels.length, i, j, t:0, x:cc(i), z:cc(j), faulty: !car && rng() < 0.15, dead: !car && rng() < 0.05, red:false, ph:rng()*10, b:1, gk:-1, car: car ? elevCarAt(cc(i), cc(j)) : null, L:f };
+    L.panelAt[i*N+j] = p.idx; L.panels.push(p);
+    const alongX = openE(i,j,i+1,j) || openE(i,j,i-1,j); panelVis.push([p, alongX]); }
+  L.panelMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial({ color:0xffffff }), L.panels.length);
+  panelVis.forEach(([p, ax])=>{ const [x,z,y] = hv(p.x, p.z); tmpQ.identity(); tmpV.set(x, y+HCH-0.02, z); if (p.car != null) tmpS.setScalar(0.0001); else tmpS.set(ax ? 1.2 : 0.6, 0.04, ax ? 0.6 : 1.2); tmpM.compose(tmpV,tmpQ,tmpS); L.panelMesh.setMatrixAt(p.idx, tmpM); L.panelMesh.setColorAt(p.idx, tmpC.setRGB(1,1,1)); });
+  L.panelMesh.frustumCulled = false; g.add(L.panelMesh);
+  // ---- elevators: a landing on every walkable floor, one car per shaft
+  const btnOff = lam(0x3a3a36), btnOn = new THREE.MeshBasicMaterial({ color:0xffb040 });
+  for (let k=0;k<ELV.length;k++){
+    const E0 = L.lands[k][0], th = Math.atan2(E0.nx, E0.nz), el = { landings:[], car:null };
+    for (let f=0; f<3; f++){ const l = L.lands[k][f], [x,z,y] = hv(l.ex, l.ez);
+      const lg = new THREE.Group(); lg.position.set(x, y, z); lg.rotation.y = th; g.add(lg);
+      bx(lg, 0.5, 2.2, 0.1, -0.86, 1.1, 0.05, steelM); bx(lg, 0.5, 2.2, 0.1, 0.86, 1.1, 0.05, steelM); bx(lg, 2.2, HCH-2.2, 0.1, 0, 2.2+(HCH-2.2)/2, 0.05, steelM);
+      bx(lg, 0.06, 2.24, 0.14, -0.62, 1.12, 0.05, frameM); bx(lg, 0.06, 2.24, 0.14, 0.62, 1.12, 0.05, frameM); bx(lg, 1.3, 0.06, 0.14, 0, 2.22, 0.05, frameM);
+      const ind = new THREE.Mesh(new THREE.PlaneGeometry(0.26,0.18), new THREE.MeshBasicMaterial({ map:hNumTex[f+1] })); ind.position.set(0, 2.42, 0.105); lg.add(ind);
+      bx(lg, 0.12, 0.2, 0.02, -0.86, 1.1, 0.11, lam(0x6a6a66)); const btn = bx(lg, 0.05, 0.05, 0.02, -0.86, 1.13, 0.125, btnOff);
+      const dl = bx(lg, 0.62, 2.2, 0.04, -0.3, 1.1, -0.03, steelM), dr = bx(lg, 0.62, 2.2, 0.04, 0.3, 1.1, -0.03, steelM);
+      el.landings.push({ ind, btn, dl, dr }); }
+    const cg = new THREE.Group(); const l0 = L.lands[k][0], [cx0, cz0] = hv(l0.ex, l0.ez); cg.position.set(cx0, hBaseY(0), cz0); cg.rotation.y = th; g.add(cg);
+    const carWall = lam(0xb9b4a6), carFloor = lam(0x2e2a26);
+    bx(cg, 2.2, 0.05, 3.1, 0, 0.0, -1.58, carFloor); bx(cg, 2.2, 0.04, 3.1, 0, 2.52, -1.58, lam(0x9a968a));
+    bx(cg, 2.2, 2.5, 0.04, 0, 1.26, -3.08, carWall); bx(cg, 0.04, 2.5, 3.1, -1.08, 1.26, -1.58, carWall); bx(cg, 0.04, 2.5, 3.1, 1.08, 1.26, -1.58, carWall);
+    bx(cg, 0.46, 2.5, 0.06, -0.85, 1.26, -0.06, steelM); bx(cg, 0.46, 2.5, 0.06, 0.85, 1.26, -0.06, steelM);
+    bx(cg, 1.6, 0.04, 0.9, 0, 2.49, -1.6, new THREE.MeshBasicMaterial({ color:0xfff1d0 }));
+    bx(cg, 0.04, 0.04, 2.6, -1.03, 0.95, -1.6, lam(0xc8b070)); bx(cg, 0.04, 0.04, 2.6, 1.03, 0.95, -1.6, lam(0xc8b070));
+    const pnl = new THREE.Mesh(new THREE.PlaneGeometry(0.2,0.5), new THREE.MeshBasicMaterial({ map: textTex('',32,80,(c,w,h)=>{ c.fillStyle='#6d6d6a'; c.fillRect(0,0,w,h); for (let n=0;n<5;n++){ c.fillStyle= n===0 ? '#2a2a28' : '#e8d8a8'; c.beginPath(); c.arc(w/2, 12+n*14, 4, 0, 7); c.fill(); c.fillStyle='#111'; c.font='8px monospace'; c.fillText(String(5-n), 2, 15+n*14); } }) }));
+    pnl.position.set(1.05, 1.25, -0.5); pnl.rotation.y = -Math.PI/2; cg.add(pnl);
+    const cl = bx(cg, 0.6, 2.2, 0.03, -0.3, 1.1, -0.1, steelM), cr = bx(cg, 0.6, 2.2, 0.03, 0.3, 1.1, -0.1, steelM);
+    el.car = { g:cg, cl, cr }; el.btnOn = btnOn; el.btnOff = btnOff; L.elv.push(el);
+  }
+  // ---- choose where things go
+  const used = L.used, cellKey = (i,j) => i*N+j;
+  for (let k=0;k<ELV.length;k++) for (let f=0;f<3;f++){ used.add(cellKey(HO[f][0]+ELV[k].li, HO[f][1]+ELV[k].lj)); used.add(cellKey(HO[f][0]+ELV[k].ci, HO[f][1]+ELV[k].cj)); }
+  L.start = [1,1]; L.spawn = [cc(1), cc(1)]; used.add(cellKey(1,1)); used.add(cellKey(2,1)); used.add(cellKey(1,2));
+  L.mspawn = [cc(HO[2][0]+16), cc(HO[2][1]+16)]; used.add(cellKey(HO[2][0]+16, HO[2][1]+16));
+  const freeCell = (f, ok=()=>true) => { const c = shuffle188(L.hcells[f].filter(([i,j])=>!used.has(cellKey(i,j)) && ok(i,j)), rng)[0]; if (c) used.add(cellKey(c[0],c[1])); return c; };
+  const takeSpot = (f, ok=()=>true) => { const c = shuffle188(spots.filter(s=>s.f===f && !s.used && ok(s)), rng)[0]; if (c){ c.used = true; for (const s of spots) if (s.f===c.f && Math.hypot(s.x-c.x, s.z-c.z) < 2.2) s.used = true; } return c; };
+  const farFromLift = f => (i,j) => L.lands.every(ls=>Math.hypot(ls[f].x-cc(i), ls[f].z-cc(j)) > 12);
+  // keycard on floor 3 or 4, the room it opens on another floor
+  const kf = 1 + Math.floor(rng()*2), ef = [0,1,2].filter(f=>f!==kf)[Math.floor(rng()*2)];
+  const kcC = freeCell(kf, farFromLift(kf)) || freeCell(kf); L.kc = [cc(kcC[0]) + (rng()-0.5)*0.8, cc(kcC[1]) + (rng()-0.5)*0.8]; L.kcFloor = kf;
+  const exS = takeSpot(ef, s=>L.lands.every(ls=>Math.hypot(ls[ef].x-s.x, ls[ef].z-s.z) > 14) && (ef !== 0 || Math.hypot(s.x-cc(1), s.z-cc(1)) > 30)) || takeSpot(ef);
+  L.exitFloor = ef; L.roomNo = `${ef+2}${String(10 + Math.floor(rng()*80)).padStart(2,'0')}`;
+  L.exitPos = [exS.x + exS.nx*0.6, exS.z + exS.nz*0.6]; L.exitSpot = exS;
+  exitLight.position.set(exS.x + exS.nx*1.2, 1.6, exS.z + exS.nz*1.2); exitLight.intensity = 0;
+  { const [x,z,y] = hv(exS.x, exS.z), dg = new THREE.Group(); dg.position.set(x + exS.nx*0.02, y, z + exS.nz*0.02); dg.rotation.y = Math.atan2(exS.nx, exS.nz); g.add(dg);
+    bx(dg, 1.14, 2.2, 0.03, 0, 1.1, 0, frameM);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.98, 2.1), new THREE.MeshBasicMaterial({ color:0xfffdf2 })); glow.position.set(0, 1.05, 0.02); dg.add(glow);
+    const hinge = new THREE.Group(); hinge.position.set(-0.49, 0, 0.055); dg.add(hinge);
+    L.doorMatLocked = doorM; L.doorMatOpen = doorM;
+    L.door = new THREE.Mesh(new THREE.BoxGeometry(0.98, 2.1, 0.05), doorM); L.door.position.set(0.49, 1.05, 0); hinge.add(L.door); L.exitHinge = hinge;
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.34,0.12), new THREE.MeshBasicMaterial({ map: textTex(L.roomNo,64,24,(c,w,h,t)=>{ c.fillStyle='#c9a85a'; c.fillRect(0,0,w,h); c.fillStyle='#2a1d10'; c.font='bold 16px monospace'; c.textAlign='center'; c.fillText(t,w/2,18); }) }));
+    plate.position.set(0, 1.62, 0.03); L.door.add(plate); plate.position.x = 0;
+    const reader = bx(dg, 0.1, 0.16, 0.03, 0.72, 1.15, 0.03, lam(0x222222)); L.reader = bx(dg, 0.03, 0.03, 0.01, 0.72, 1.2, 0.05, new THREE.MeshBasicMaterial({ color:0xff2010 })); }
+  // ---- linen closets to hide in (2 per floor), house phones (2 per floor), batteries (4 per floor)
+  const closetTex = canvasTex(32,64,(g2,w,h)=>{ g2.fillStyle='#6a4a2c'; g2.fillRect(0,0,w,h); for (let y=0;y<h;y+=3){ g2.fillStyle='rgba(40,25,12,.35)'; g2.fillRect(0,y,w,1); } g2.fillStyle='#2a1a0c'; g2.fillRect(w/2,0,1,h); g2.fillStyle='#c9a85a'; g2.fillRect(w/2-4,30,2,6); g2.fillRect(w/2+2,30,2,6); for (let y=6;y<h-6;y+=4){ g2.fillStyle='rgba(20,12,6,.5)'; g2.fillRect(4,y,w/2-8,1); g2.fillRect(w/2+4,y,w/2-8,1); } });
+  const closetM = [lam(0x5a3e24), lam(0x5a3e24), lam(0x4a321c), lam(0x4a321c), lam(0xffffff,{ map:closetTex }), lam(0x5a3e24)];
+  for (let f=0; f<3; f++){
+    for (let t=0;t<2;t++){ const s = takeSpot(f); if (!s) break; const ry = Math.atan2(s.nx, s.nz), lx = s.x + s.nx*0.3, lz = s.z + s.nz*0.3;
+      const [x,z,y] = hv(lx, lz), lk = new THREE.Group(); lk.position.set(x, y, z); lk.rotation.y = ry; g.add(lk); bx(lk, 0.8, 2.05, 0.5, 0, 1.025, 0, closetM);
+      L.lockers.push({ x:lx, z:lz, ry, fx:lx + s.nx*0.75, fz:lz + s.nz*0.75 }); L.circles.push({ x:lx, z:lz, r:0.42 }); }
+    for (let t=0;t<2;t++){ const s = takeSpot(f); if (!s) break; const [x,z,y] = hv(s.x, s.z), ph = new THREE.Group(); ph.position.set(x + s.nx*0.06, y+1.35, z + s.nz*0.06); ph.rotation.y = Math.atan2(s.nx, s.nz); g.add(ph);
+      bx(ph, 0.24,0.32,0.09, 0,0,0, lam(0xe2dccb)); const hs = bx(ph, 0.06,0.28,0.07, -0.15,0,0.05, lam(0xd8d0bc)); bx(ph, 0.11,0.12,0.005, 0.03,-0.04,0.047, lam(0x8a8478));
+      L.phones.push({ x:s.x + s.nx*0.7, z:s.z + s.nz*0.7, mesh:ph, hs }); }
+    for (let t=0;t<4;t++){ const c = freeCell(f); if (!c) break; const p = [cc(c[0]) + (rng()-0.5)*1.2, cc(c[1]) + (rng()-0.5)*1.2]; L.bt.push(p);
+      const [x,z,y] = hv(p[0], p[1]), m = new THREE.Group(); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.3,8), lam(0xb8a640)); b.rotation.z = Math.PI/2; b.position.y = 0.08; m.add(b);
+      const cp = new THREE.Mesh(new THREE.CylinderGeometry(0.081,0.081,0.1,8), lam(0x222222)); cp.rotation.z = Math.PI/2; cp.position.set(0.1,0.08,0); m.add(cp); m.position.set(x, y, z); m.rotation.y = rng()*6; g.add(m); L.btM.push(m); }
+    // a housekeeping cart pushed against a wall
+    { const s = takeSpot(f); if (s){ const cx = s.x + s.nx*0.45, cz = s.z + s.nz*0.45, [x,z,y] = hv(cx, cz), cg2 = new THREE.Group(); cg2.position.set(x, y, z); cg2.rotation.y = Math.atan2(s.nx, s.nz) + Math.PI/2; g.add(cg2);
+      bx(cg2, 1.1, 0.04, 0.5, 0, 0.3, 0, lam(0x5a5550)); bx(cg2, 1.1, 0.04, 0.5, 0, 0.75, 0, lam(0x5a5550)); bx(cg2, 1.1, 0.04, 0.5, 0, 1.0, 0, lam(0x5a5550));
+      for (const [a,b] of [[-.53,-.23],[.53,-.23],[-.53,.23],[.53,.23]]) bx(cg2, 0.03, 1.0, 0.03, a, 0.5, b, lam(0x8a8a84));
+      bx(cg2, 0.5, 0.3, 0.4, -0.25, 0.92, 0, lam(0xe8e4da)); bx(cg2, 0.4, 0.2, 0.4, 0.28, 0.87, 0, lam(0xf2efe6)); bx(cg2, 0.4, 0.5, 0.42, 0.3, 0.55, 0, lam(0x30302c));
+      L.circles.push({ x:cx, z:cz, r:0.55 }); } }
+  }
+  // ---- room doors on the hall walls (the exit room gets a lit card reader)
+  const doorSpots = spots.filter(s=>!s.used && rng() < 0.62); doorSpots.forEach(s=>{ s.used = true; s.door = true; });
+  { const dm = new THREE.InstancedMesh(new THREE.BoxGeometry(0.98, 2.1, 0.05), doorM, doorSpots.length), fr = new THREE.InstancedMesh(new THREE.BoxGeometry(1.14, 2.2, 0.03), frameM, doorSpots.length);
+    doorSpots.forEach((s,k)=>{ const [x,z,y] = hv(s.x, s.z); tmpQ.setFromAxisAngle(UP, Math.atan2(s.nx, s.nz)); tmpS.set(1,1,1);
+      tmpV.set(x + s.nx*0.035, y+1.05, z + s.nz*0.035); tmpM.compose(tmpV,tmpQ,tmpS); dm.setMatrixAt(k,tmpM);
+      tmpV.set(x + s.nx*0.012, y+1.1, z + s.nz*0.012); tmpM.compose(tmpV,tmpQ,tmpS); fr.setMatrixAt(k,tmpM); });
+    dm.frustumCulled = fr.frustumCulled = false; g.add(dm, fr); }
+  // ---- wall dressing: sconces, exit signs that lie, scrawls
+  { const sconce = [], left = spots.filter(s=>!s.used); left.forEach((s,k)=>{ if (k % 3 === 0){ s.used = true; sconce.push(s); } });
+    const sm = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.28, 0.1), new THREE.MeshBasicMaterial({ color:0xffd9a0 }), sconce.length);
+    sconce.forEach((s,k)=>{ const [x,z,y] = hv(s.x, s.z); tmpQ.setFromAxisAngle(UP, Math.atan2(s.nx, s.nz)); tmpV.set(x + s.nx*0.06, y+1.85, z + s.nz*0.06); tmpS.set(1,1,1); tmpM.compose(tmpV,tmpQ,tmpS); sm.setMatrixAt(k,tmpM); });
+    sm.frustumCulled = false; g.add(sm);
+    const exitTex = textTex('',64,24,(c,w,h)=>{ c.fillStyle='#f4f0e6'; c.fillRect(0,0,w,h); c.fillStyle='#d8261c'; c.font='bold 17px monospace'; c.textAlign='center'; c.fillText(rng()<0.5 ? '◄EXIT' : 'EXIT►',w/2,18); });
+    for (let f=0; f<3; f++) for (let t=0;t<4;t++){ const c = shuffle188(L.hcells[f].slice(), rng)[0]; const [x,z,y] = hv(cc(c[0]), cc(c[1]));
+      const es = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.2,0.06), [lam(0xe8e4da),lam(0xe8e4da),lam(0xe8e4da),lam(0xe8e4da),new THREE.MeshBasicMaterial({ map:exitTex }),new THREE.MeshBasicMaterial({ map:exitTex })]);
+      es.position.set(x, y+HCH-0.16, z); es.rotation.y = (rng()<0.5 ? 0 : Math.PI/2); g.add(es); }
+    const msgs = shuffle188(HOTEL_SCRAWLS.slice(), rng);
+    for (let f=0; f<3; f++) for (let t=0;t<2;t++){ const s = takeSpot(f); if (!s) break; const txt = msgs[(f*2+t) % msgs.length], [x,z,y] = hv(s.x, s.z);
+      const tex = textTex(txt,512,96,(c,w,h,tt)=>{ c.clearRect(0,0,w,h); c.save(); c.translate(w/2,h/2); c.rotate((rng()-0.5)*0.08); c.font='bold 34px "Special Elite", "Courier New", monospace'; c.textAlign='center'; c.fillStyle='rgba(70,18,8,.85)'; c.fillText(tt,0,10); c.restore(); });
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.5), new THREE.MeshLambertMaterial({ map:tex, transparent:true, depthWrite:false })); m.position.set(x + s.nx*0.012, y+1.3+rng()*0.4, z + s.nz*0.012); m.rotation.y = Math.atan2(s.nx, s.nz); g.add(m); }
+  }
+  // ice machines in the little alcoves
+  for (let f=0; f<3; f++) for (const [i,j] of L.hcells[f]){ const li = i-HO[f][0], lj = j-HO[f][1]; if (!(li===0 || lj===0 || li===17 || lj===17)) continue;
+    const nx = li===0 ? 1 : li===17 ? -1 : 0, nz = lj===0 ? 1 : lj===17 ? -1 : 0, wx = cc(i) - nx*(CS/2-HT-0.4), wz = cc(j) - nz*(CS/2-HT-0.4), [x,z,y] = hv(wx, wz);
+    const im = new THREE.Group(); im.position.set(x, y, z); im.rotation.y = Math.atan2(nx, nz); g.add(im);
+    bx(im, 0.9, 1.7, 0.75, 0, 0.85, 0, lam(0xbcbab2)); bx(im, 0.5, 0.25, 0.01, 0, 1.25, 0.38, new THREE.MeshBasicMaterial({ color:0x6ab0d8 })); bx(im, 0.4, 0.3, 0.05, 0, 0.6, 0.38, lam(0x30302c));
+    L.circles.push({ x:wx, z:wz, r:0.55 }); L.drips.push({ x:wx, z:wz, t:rng()*3 }); }
+  // the keycard
+  { const kg = new THREE.Group(); bx(kg, 0.085, 0.006, 0.054, 0, 0, 0, new THREE.MeshBasicMaterial({ color:0xf4f2ea })); bx(kg, 0.085, 0.007, 0.012, 0, 0, 0.012, new THREE.MeshBasicMaterial({ color:0x2050c0 })); kg.scale.setScalar(1.6); g.add(kg); L.kcMesh = kg; }
+  L.kind = new Uint8Array(N*N);
+}
+
+// ---- every frame on every client: doors, car positions, riding, sounds, the elevator panel
+const elPrev = [];
+let elRumbleT = 0, elOverlay = '';
+function myCar188(){ if (LK !== 3 || !G.el) return -1; const k = elevCarAt(me.x, me.z); return k >= 0 && G.el[k] && G.el[k].a === floorAt188(me.x, me.z) ? k : -1; }
+function elevPress188(n){
+  const k = myCar188(); if (k < 0) return;
+  sfx.click && sfx.click(); vibrate(15);
+  if (n === 1){ msg('The button for 1 won\'t light up.', 2); return; }
+  if (n === 5){ msg('The button for 5 is warm. It won\'t light up.', 2.5); return; }
+  useReq({ k:'ego', i:k, f:n-2 });
+}
+function elevSound188(kind, x, z){
+  if (!sfx.ctx) return;
+  const o = x == null ? sfx.master : sfx.panner(x, 2.1, z, kind === 'ding' ? 3.5 : 2);
+  if (kind === 'ding'){ sfx.tone(o,{ f:1174.7, dur:1.8, gain:0.16, attack:0.003 }); sfx.tone(o,{ f:2349, dur:0.7, gain:0.04, attack:0.003 }); }
+  else if (kind === 'door') sfx.noise(o,{ dur:1.0, type:'bandpass', freq:700, q:0.8, gain:0.12, attack:0.25 });
+  else if (kind === 'thunk'){ sfx.tone(o,{ f:62, dur:0.35, gain:0.35 }); sfx.noise(o,{ dur:0.2, freq:220, gain:0.4 }); }
+  else if (kind === 'hum') sfx.noise(o,{ dur:0.6, freq:150, gain:0.13, attack:0.2 });
+}
+function update188(dt){
+  if (LK !== 3 || !level || !level.elv) return;
+  const els = G.el || [];
+  const kk = amHost() ? 1 : 1 - Math.exp(-8*dt);
+  for (let k=0;k<level.elv.length;k++){
+    const el = els[k]; if (!el) continue;
+    elDisp[k] = Math.abs(el.f - elDisp[k]) > 1.2 ? el.f : elDisp[k] + (el.f - elDisp[k])*kk;
+    const V = level.elv[k], dOpen = el.s === 4 ? 0 : el.d;
+    for (let f=0; f<3; f++){ const e = level.doorE[k][f]; walls[e] = (el.a === f && el.s !== 4 && el.s !== 0 && el.d > 0.72) ? 0 : 1;
+      const Ld = V.landings[f], dd = el.a === f ? dOpen : 0; Ld.dl.position.x = -0.3 - dd*0.56; Ld.dr.position.x = 0.3 + dd*0.56;
+      const num = clamp(Math.round(elDisp[k]) + 1, 0, 4); if (Ld.ind.material.map !== hNumTex[num]){ Ld.ind.material.map = hNumTex[num]; Ld.ind.material.needsUpdate = true; }
+      Ld.btn.material = (el.q & (1<<f)) ? V.btnOn : V.btnOff; }
+    V.car.g.position.y = hBaseY(elDisp[k]); V.car.cl.position.x = -0.3 - dOpen*0.56; V.car.cr.position.x = 0.3 + dOpen*0.56;
+    // what changed since last frame: sounds, and riding to another floor
+    const p = elPrev[k];
+    if (p && mode !== 'menu'){
+      const lp = level.lands[k][el.a];
+      if (p.a !== el.a){
+        if (elevCarAt(me.x, me.z) === k && floorAt188(me.x, me.z) === p.a && (mode === 'play')){ [me.x, me.z] = hShift(me.x, me.z, p.a, el.a); }
+        elevSound188('thunk', lp.x, lp.z); }
+      if (p.s === 4 && el.s !== 4) elevSound188('ding', lp.x, lp.z);
+      if (p.s !== 4 && el.s === 4){ const l0 = level.lands[k][p.a]; elevSound188('thunk', l0.x, l0.z); }
+      if ((p.s !== 1 && el.s === 1) || (p.s !== 3 && el.s === 3)) elevSound188('door', lp.x, lp.z);
+    }
+    elPrev[k] = { a:el.a, s:el.s };
+  }
+  // riding: a low rumble and a little shake
+  const mk = myCar188();
+  if (mk >= 0 && els[mk] && els[mk].s === 4){ elRumbleT -= dt; if (elRumbleT <= 0){ elRumbleT = 0.45; elevSound188('hum'); } }
+  // the keycard and the exit room
+  const L = level;
+  if (L.kcMesh){ const kc = G.kc; L.kcMesh.visible = !!kc && kc[0] === 0;
+    if (L.kcMesh.visible){ const [x,z,y] = [kc[1] - HO[floorAt188(kc[1],kc[2])][0]*CS, kc[2] - HO[floorAt188(kc[1],kc[2])][1]*CS, hBaseY(floorAt188(kc[1],kc[2]))]; L.kcMesh.position.set(x, y + 0.07 + Math.sin(nowS()*2)*0.01, z); L.kcMesh.rotation.y = nowS()*0.6; } }
+  if (L.exitHinge){ const tgt = G.open ? -1.45 : 0; L.exitHinge.rotation.y += (tgt - L.exitHinge.rotation.y) * (1 - Math.exp(-2.2*dt)); L.reader.material.color.setHex(G.open ? 0x30ff60 : (G.kc && G.kc[0] === 1 && Math.sin(nowS()*5) > 0 ? 0xff8020 : 0xff2010)); }
+  // the panel inside the car
+  const want = mk >= 0 && mode === 'play' && G.ph === 'play' && (role === 'monster' || me.alive) ? 'flex' : 'none';
+  const ov = $('elev'); if (ov.style.display !== want) ov.style.display = want;
+  if (want === 'flex'){ const el = els[mk], key = el.a + ':' + el.q + ':' + Math.round(elDisp[mk]); if (key !== elOverlay){ elOverlay = key;
+      ov.querySelectorAll('button').forEach(b=>{ const n = +b.dataset.f, f = n-2; b.classList.toggle('here', f === Math.round(elDisp[mk])); b.classList.toggle('lit', f >= 0 && f <= 2 && !!(el.q & (1<<f))); }); } }
+}
+// ---- host: the elevators move
+function hostElev188(dt){
+  if (!G.el) return;
+  G.el.forEach((el,k)=>{
+    const pick = () => { let best = -1, bd = 9; for (let f=0;f<3;f++) if (el.q & (1<<f)){ const d = Math.abs(f-el.a); if (d < bd){ bd = d; best = f; } } return best; };
+    if (el.s === 0){ if (el.q & (1<<el.a)){ el.q &= ~(1<<el.a); el.s = 1; } else { const t = pick(); if (t >= 0){ el.s = 4; el.tg = t; } } }
+    else if (el.s === 1){ el.q &= ~(1<<el.a); el.d = Math.min(1, el.d + dt/ELV_DOOR); if (el.d >= 1){ el.s = 2; el.t = 0; } }
+    else if (el.s === 2){ el.t += dt; if (el.q & (1<<el.a)){ el.q &= ~(1<<el.a); el.t = 0; } if (el.t >= (el.q ? 3 : 8)) el.s = 3; }
+    else if (el.s === 3){ if (el.q & (1<<el.a)){ el.q &= ~(1<<el.a); el.s = 1; }
+      else { el.d = Math.max(0, el.d - dt/ELV_DOOR); if (el.d <= 0){ const t = pick(); if (t >= 0 && t !== el.a){ el.s = 4; el.tg = t; } else el.s = 0; } } }
+    else if (el.s === 4){ const dir = Math.sign(el.tg - el.f); el.f += dir * ELV_SPD * dt;
+      if (dir === 0 || (dir > 0 && el.f >= el.tg) || (dir < 0 && el.f <= el.tg)){ const from = el.a; el.f = el.tg; el.a = el.tg; el.q &= ~(1<<el.a); el.s = 1; elevArrive188(k, from, el.a); } }
+    el.f = Math.round(el.f*1000)/1000; el.d = Math.round(el.d*1000)/1000;
+  });
+}
+function elevArrive188(k, from, to){
+  if (G.mo !== 'AI') return;
+  if (elevCarAt(G.ax, G.az) === k && floorAt188(G.ax, G.az) === from){ [G.ax, G.az] = hShift(G.ax, G.az, from, to); return; }
+  // the computer hears the ding on its floor and comes to see who got off
+  const A = H.ai, lp = level.lands[k][to];
+  if (!A.el && A.mode !== 'chase' && floorAt188(G.ax, G.az) === to && Math.hypot(lp.x-G.ax, lp.z-G.az) < 34*aiD().hear){ A.mode = 'hunt'; A.lx = lp.x; A.lz = lp.z; A.lt = 9*aiD().persist; A.rp = 0; }
+}
+// ---- the computer Occupant: hunts its own floor, rides the elevators to find survivors on others
+function hotelWp188(ax, az, tgt){
+  const f = floorAt188(ax, az), cells = level.hcells[f]; let pool = cells;
+  if (tgt && floorAt188(tgt.x, tgt.z) === f){ pool = cells.filter(([i,j])=>Math.abs(cc(i)-tgt.x) + Math.abs(cc(j)-tgt.z) < 30); if (!pool.length) pool = cells; }
+  const c = pool[Math.floor(Math.random()*pool.length)]; return [cc(c[0]), cc(c[1])];
+}
+function aiGo188(tx, tz, sp, dt){
+  const A = H.ai, ax = G.ax, az = G.az, ci = cellOf(ax), cj = cellOf(az), ti = cellOf(tx), tj = cellOf(tz);
+  let gx = tx, gz = tz;
+  if (ci !== ti || cj !== tj){ if (A.lc !== ci*N+cj){ A.lc = ci*N+cj; A.rp = 0; } A.rp -= dt; if (A.rp <= 0){ A.rp = 0.4; A.nx = nextStep(ci,cj,ti,tj,null); } if (!A.nx) return false; gx = cc(A.nx[0]); gz = cc(A.nx[1]); }
+  const dx = gx-ax, dz = gz-az, d = Math.hypot(dx,dz); if (d < 0.05){ G.amv = 0; return true; }
+  const st = Math.min(d, sp*dt); [G.ax, G.az] = collide(ax + dx/d*st, az + dz/d*st, 0.35); G.ay = Math.atan2(dx, dz); G.amv = 1; return true;
+}
+function aiElev188(dt){
+  const A = H.ai, T = A.el, el = G.el[T.k], fA = floorAt188(G.ax, G.az), lp = level.lands[T.k][fA], cp = level.cars[T.k][fA], sp = MON_SPEED*aiD().spd*0.85;
+  G.ach = 0; G.ads = 0; T.t += dt; T.all = (T.all||0) + dt;
+  if (T.all > 90){ A.el = null; return; }
+  const face = () => { G.ay = Math.atan2(-lp.nx, -lp.nz); G.amv = 0; };
+  if (T.ph === 'go'){ if (Math.hypot(lp.x-G.ax, lp.z-G.az) < 0.7){ T.ph = 'call'; T.t = 9; face(); } else if (!aiGo188(lp.x, lp.z, sp, dt)) A.el = null; return; }
+  if (T.ph === 'call'){ face();
+    if (el.a === fA && el.s !== 4 && el.s !== 0 && el.d > 0.85){ T.ph = 'enter'; T.t = 0; return; }
+    if (T.t > 3){ T.t = 0; el.q |= 1<<fA; }
+    return; }
+  if (T.ph === 'enter'){
+    if (!(el.a === fA && el.s !== 4 && el.d > 0.6)){ T.ph = 'call'; T.t = 0; return; }
+    if (elevCarAt(G.ax, G.az) === T.k && Math.hypot(cp.x-G.ax, cp.z-G.az) < 0.7){ T.ph = 'ride'; T.t = 9; G.amv = 0; return; }
+    if (!aiGo188(cp.x, cp.z, sp, dt)){ T.ph = 'call'; T.t = 0; } return; }
+  if (T.ph === 'ride'){ G.amv = 0; G.ay = Math.atan2(lp.nx, lp.nz);
+    if (fA === T.tf){ T.ph = 'exit'; T.t = 0; return; }
+    if (elevCarAt(G.ax, G.az) !== T.k){ T.ph = 'call'; T.t = 0; return; }
+    if (T.t > 3){ T.t = 0; el.q |= 1<<T.tf; } return; }
+  if (T.ph === 'exit'){
+    if (Math.hypot(lp.x-G.ax, lp.z-G.az) < 0.9 || T.t > 14){ A.el = null; A.mode = 'wander'; A.wp = null; A.lonely = 0; return; }
+    if (elevCarAt(G.ax, G.az) === T.k && !(el.a === fA && el.d > 0.6)){ G.amv = 0; return; }
+    aiGo188(lp.x, lp.z, sp, dt); }
+}
+function aiTick188(dt, alive){
+  const A = H.ai, D = aiD(), fA = floorAt188(G.ax, G.az);
+  const same = alive.filter(p=>floorAt188(p.x, p.z) === fA);
+  if (G.grace > 0 || G.stun > 0 || !G.el){ A.el = null; return aiTick(dt, same); }
+  if (A.el && A.el.ph !== 'ride' && A.el.ph !== 'exit'){
+    for (const p of same){ if (p.hd) continue; const d = Math.hypot(p.x-G.ax, p.z-G.az), hear = (p.m>=3 ? 60 : p.m===2 ? 32 : p.m===1 ? 11 : 0)*D.hear;
+      if (d < hear || (d < D.see && (p.l || d < D.near || lightAtCell(p.x,p.z) > 0.5) && losClear(G.ax,G.az,p.x,p.z))){ A.el = null; A.lc = -1; break; } }
+  }
+  if (!A.el){
+    const company = same.some(p=>!p.hd);   // alone on its floor: it gets restless; with company it only leaves if it can't find them for a long while
+    A.lonely = company && A.mode !== 'wander' ? 0 : (A.lonely||0) + dt*(company ? 0.25 : 1);
+    if (A.mode === 'wander' && A.lonely > [45,28,18,10][clamp(G.df ?? 1, 0, 3)] && alive.length){
+      A.lonely = 0;
+      const p = Math.random() < D.drift ? alive[Math.floor(Math.random()*alive.length)] : null;
+      const tf = p ? floorAt188(p.x, p.z) : [0,1,2].filter(f=>f !== fA)[Math.floor(Math.random()*2)];
+      if (tf !== fA){ const d0 = bfsFrom(cellOf(G.ax), cellOf(G.az)); let bk = -1, bd = 1e9;
+        level.lands.forEach((ls,k)=>{ const l = ls[fA], dd = d0[cellOf(l.x)*N+cellOf(l.z)]; if (dd >= 0 && dd < bd){ bd = dd; bk = k; } });
+        if (bk >= 0){ A.el = { tf, k:bk, ph:'go', t:0 }; A.lc = -1; } }
+    }
+  }
+  if (A.el) return aiElev188(dt);
+  aiTick(dt, same);
+}
+
+// the landing call button
+function elevCall188(){
+  if (LK !== 3 || !G.el || myCar188() >= 0) return null;
+  const f = floorAt188(me.x, me.z);
+  for (let k=0;k<ELV.length;k++){ const l = level.lands[k][f]; if (Math.hypot(l.x-me.x, l.z-me.z) > 1.9) continue;
+    const el = G.el[k]; if (el.a === f && (el.s === 1 || el.s === 2)) return null;
+    return { label: (el.q & (1<<f)) ? 'CALLED…' : 'CALL ELEVATOR', key:'E', fn:()=>{ useReq({ k:'ecall', i:k, f }); if (sfx.click) sfx.click(); } }; }
+  return null;
+}
+// drawing: move everything that follows a logical position to where it is drawn, render, then put it back
+const visSaved = [];
+function visPass188(){
+  visSaved.length = 0;
+  const add = o => { if (!o) return; visSaved.push(o, o.position.x, o.position.y, o.position.z); vis188(o.position.x, o.position.y, o.position.z, o.position); };
+  add(camera); for (const s of spots){ add(s); add(s.target); } for (const l of PL) add(l); add(exitLight);
+  for (const r of remotes.values()) add(r.mesh); add(MON.g); for (const f of fakes.values()) add(f.g);
+}
+function visRestore188(){ for (let i=0;i<visSaved.length;i+=4) visSaved[i].position.set(visSaved[i+1], visSaved[i+2], visSaved[i+3]); visSaved.length = 0; }
+
 /* ================= collision / sight ================= */
 function edgeBox(e){ const t=0.1; if (e < VN){ const i=Math.floor(e/N), j=e%N; return [i*CS-t, i*CS+t, j*CS-t, (j+1)*CS+t]; } const k=e-VN, j=Math.floor(k/N), i=k%N; return [i*CS-t, (i+1)*CS+t, j*CS-t, j*CS+t]; }
 function pushBox(p, x0,x1,z0,z1, r){
@@ -1751,6 +2209,7 @@ const STEP_SLOT = 0.42, STEP_GAIN = { stepC:0.5, stepK:0.8, stepT:0.5 };
 function stepSurf(x, z){
   if (LK === 0) return 'stepC';
   if (LK === 1) return 'stepK';
+  if (LK === 3) return 'stepC';
   if (LK === 2 && M37){ const k = k37(x, z); return (k === K37.WATER || k === K37.DEEP) ? null : 'stepT'; }
   return null; }
 function onWet(x,z){ for (const w of level.wet) if ((x-w.x)**2+(z-w.z)**2 < w.r*w.r) return true; return false; }
@@ -2091,8 +2550,8 @@ function skinLabel(){ return 'OCCUPANT SKIN: ' + SKIN_NAMES[mySkin].replace('THE
 
 /* ================= shared state ================= */
 let monVoiceOpt = 0; try { monVoiceOpt = +(localStorage.getItem('lvl0_monvoice')||0) ? 1 : 0; } catch(e){}
-let startOpt = 0; try { startOpt = clamp(+(localStorage.getItem('lvl0_start')||0)|0, 0, 2); } catch(e){}
-const LV_NAMES = ['LEVEL 0', 'LEVEL 1', 'LEVEL 37'];
+let startOpt = 0; try { startOpt = clamp(+(localStorage.getItem('lvl0_start')||0)|0, 0, 3); } catch(e){}
+const LV_NAMES = ['LEVEL 0', 'LEVEL 1', 'LEVEL 37', 'LEVEL 188'];
 let diffOpt = 1; try { const v = localStorage.getItem('lvl0_diff'); if (v !== null) diffOpt = clamp(+v|0, 0, 3); } catch(e){}
 // how the computer Occupant plays at each difficulty. It is never faster than a sprinting survivor (5.0), and the flashlight always works on it.
 const AI_DIFF = [
@@ -2159,7 +2618,7 @@ function hostStartRound(){
   aiReset();
   H.shiftT = 26; H.ringT = 30; H.ringEnd = 0;
   // the host can start the round on a later level
-  const sl = clamp(G.sl ?? startOpt, 0, 2); if (sl > 0){ const gr = G.grace; setupLevel(sl); G.grace = gr; }
+  const sl = clamp(G.sl ?? startOpt, 0, 3); if (sl > 0){ const gr = G.grace; setupLevel(sl); G.grace = gr; }
   broadcastState(); afterState();
 }
 function applyUse(pid, m){
@@ -2174,6 +2633,9 @@ function applyUse(pid, m){
     if (!isDead(pid) && !isEsc(pid)){ G.dead.push(pid); G.fz.forEach((f,i)=>{ if (f[0]===1 && f[3]===pid){ f[0]=0; f[1]=+level.fuses[i][0].toFixed(2); f[2]=+level.fuses[i][1].toFixed(2); f[3]=''; } }); }
   }
   else if (m.k === 'gen'){ const i = m.i|0; if (G.lv >= 1 && G.gen[i] === 0){ G.gen[i] = 1; if (G.gen.every(Boolean)) G.open = 1; const gn = level.gens[i]; if (gn && G.mo === 'AI' && H.ai.mode !== 'chase'){ H.ai.mode='hunt'; H.ai.lx=gn.x; H.ai.lz=gn.z; H.ai.lt=15; H.ai.rp=0; } } }
+  else if (m.k === 'kc'){ if (G.kc && G.kc[0] === 0 && !isDead(pid)){ G.kc[0] = 1; G.kc[3] = pid; } }
+  else if (m.k === 'kcuse'){ if (G.kc && G.kc[0] === 1 && G.kc[3] === pid && !isDead(pid)){ G.kc[0] = 2; G.open = 1; } }
+  else if (m.k === 'ecall' || m.k === 'ego'){ const el = G.el && G.el[m.i|0], f = m.f|0; if (el && f >= 0 && f <= 2) el.q |= 1<<f; }
   else if (m.k === 'esc'){ if (G.open && !isDead(pid) && !isEsc(pid)) G.esc.push(pid); }
   else if (m.k === 'cn'){ G.cn[m.i|0] = 1; }
   else if (m.k === 'stun'){
@@ -2200,6 +2662,7 @@ function applyUse(pid, m){
 function killSurvivor(p){
   if (isDead(p.pid)) return;
   G.dead.push(p.pid); G.kl.push(p.pid);
+  if (G.kc && G.kc[0] === 1 && G.kc[3] === p.pid){ G.kc[0] = 0; G.kc[1] = +p.x.toFixed(2); G.kc[2] = +p.z.toFixed(2); G.kc[3] = ''; }   // the keycard falls where they were caught
   for (const f of G.fz) if (f[0]===1 && f[3]===p.pid){ f[0]=0; f[1]=+p.x.toFixed(2); f[2]=+p.z.toFixed(2); f[3]=''; }
 }
 function survivorsAlive(){ return allPlayers().filter(p=>p.pid!==G.mo && !isDead(p.pid) && !isEsc(p.pid)); }
@@ -2242,6 +2705,7 @@ function lightAtCell(x,z){ if (LK === 2) return 0.05 + 0.75*dayK(G.tod||0); cons
 const aiD = () => AI_DIFF[clamp(G.df ?? 1, 0, 3)];
 // where survivors need to go next: the computer on HARD/IMPOSSIBLE knows these
 function aiObjectives(){
+  if ((G.lv|0) === 3){ const out = []; if (G.kc) out.push(G.kc[0] === 0 ? [G.kc[1], G.kc[2]] : level.exitPos); const f = floorAt188(G.ax, G.az); return out.filter(o=>floorAt188(o[0], o[1]) === f); }
   if ((G.lv|0) === 2) return [level.stairBase || level.exitPos];
   if (G.open) return [level.exitPos];
   const out = [];
@@ -2325,8 +2789,9 @@ function aiTick(dt, alive){
         // wander, drifting toward survivors (barely, on EASY)
         const tgt = alive.length && Math.random() < D.drift ? alive[Math.floor(Math.random()*alive.length)] : null;
         const sprd = tgt ? 12 : 20;
-        const i = clamp(cellOf(tgt ? tgt.x : ax) + Math.floor((Math.random()-0.5)*sprd), 0, N-1), j = clamp(cellOf(tgt ? tgt.z : az) + Math.floor((Math.random()-0.5)*sprd), 0, N-1);
-        A.wp = [cc(i), cc(j)];
+        if (LK === 3) A.wp = hotelWp188(ax, az, tgt);
+        else { const i = clamp(cellOf(tgt ? tgt.x : ax) + Math.floor((Math.random()-0.5)*sprd), 0, N-1), j = clamp(cellOf(tgt ? tgt.z : az) + Math.floor((Math.random()-0.5)*sprd), 0, N-1);
+        A.wp = [cc(i), cc(j)]; }
       }
     }
     [tx,tz] = A.wp; sp = D.wander;
@@ -2369,9 +2834,11 @@ function setupLevel(k){
   G.ax = level.mspawn[0]; G.az = level.mspawn[1];
   aiReset(); H.shiftT = 26; H.ringT = 30; H.ringEnd = 0;
   if (k === 2){ G.open = 1; G.tod = 0; G.stk = 0; G.asub = G.mo === 'AI' ? 1 : 0; }   // Level 37: the staircase is always there, you just have to find it
+  if (k === 3){ G.kc = [0, +level.kc[0].toFixed(2), +level.kc[1].toFixed(2), '']; G.el = ELV.map((e,i)=>({ a:i, f:i, s:0, d:0, q:0, t:0, tg:i })); G.w = ''; }   // Level 188: walls never change, so they aren't sent
+  else { G.kc = null; G.el = null; }
 }
 function advanceLevel(){
-  setupLevel(Math.min(2, (G.lv|0) + 1));
+  setupLevel(Math.min(3, (G.lv|0) + 1));
   G.grace = G.mo === 'AI' ? 12 : 15;
   broadcastState(); afterState();
 }
@@ -2386,11 +2853,13 @@ function hostTick(dt){
   if (!surv.length){ G.ph = 'end'; return; }
   if (!alive.length){
     // everyone left alive got out of Level 0: a few seconds later, the whole room drops into Level 1
-    if ((G.lv|0) < 2 && G.esc.length){ if (H.advT == null) H.advT = 3.5; H.advT -= dt; if (H.advT <= 0){ H.advT = null; advanceLevel(); } return; }
+    if ((G.lv|0) < 3 && G.esc.length){ if (H.advT == null) H.advT = 3.5; H.advT -= dt; if (H.advT <= 0){ H.advT = null; advanceLevel(); } return; }
     G.ph = 'end'; return;
   }
   let mp;
-  if (G.mo === 'AI'){ (LK === 2 ? aiTick37 : aiTick)(dt, alive); mp = { x:G.ax, z:G.az }; }
+  if (LK === 3){ hostElev188(dt);
+    if (G.kc && G.kc[0] === 1 && !ps.some(p=>p.pid === G.kc[3])){ G.kc[0] = 0; G.kc[1] = +level.kc[0].toFixed(2); G.kc[2] = +level.kc[1].toFixed(2); G.kc[3] = ''; } }   // whoever had it left the game
+  if (G.mo === 'AI'){ (LK === 2 ? aiTick37 : LK === 3 ? aiTick188 : aiTick)(dt, alive); mp = { x:G.ax, z:G.az }; }
   else {
     const m = ps.find(p=>p.pid===G.mo);
     if (!m){ G.dg = 0; G.mo = 'AI'; aiReset('hunt'); return; }
@@ -2748,7 +3217,7 @@ function renderLobby(){
   $('bMon').style.display = host ? '' : 'none';
   $('bMonVoice').textContent = 'OCCUPANT VOICE: ' + (G.ov ? 'MONSTER' : 'OFF') + (host ? '' : ' (host picks)'); $('bMonVoice').disabled = !host;
   $('bMon').textContent = 'THE OCCUPANT: ' + monLabel();
-  $('bLv').textContent = 'START AT: ' + LV_NAMES[clamp(G.sl ?? startOpt, 0, 2)] + (host ? '' : ' (host picks)'); $('bLv').disabled = !host;
+  $('bLv').textContent = 'START AT: ' + LV_NAMES[clamp(G.sl ?? startOpt, 0, 3)] + (host ? '' : ' (host picks)'); $('bLv').disabled = !host;
   $('bDiff').textContent = 'COMPUTER: ' + AI_DIFF[clamp(G.df ?? diffOpt, 0, 3)].name + (host ? '' : ' (host picks)'); $('bDiff').disabled = !host;
   $('monText').textContent = host ? (remotes.size ? 'Tap to choose who hunts.' : 'Alone? The computer will hunt you.') : 'The host picks who becomes the Occupant.';
   $('bStart').style.display = host ? '' : 'none';
@@ -2796,7 +3265,7 @@ function afterState(){
 const knownBo = new Set();
 function startRoundLocal(){
   role = G.mo === myPid ? 'monster' : 'survivor';
-  if (!amHost()) walls = hexToWalls(G.w);
+  if (!amHost() && G.w) walls = hexToWalls(G.w);
   applyWalls(false); wallsLoadedV = G.wv;
   if (role === 'monster'){ me.x = level.mspawn[0]; me.z = level.mspawn[1]; me.yaw = Math.random()*6; }
   else { const k = hashStr(myPid)%4, sp0 = level.spawn || [cc(1), cc(1)]; me.x = sp0[0] + [-0.8,0.8,-0.8,0.8][k]; me.z = sp0[1] + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; }
@@ -2819,17 +3288,18 @@ function startRoundLocal(){
     if (G.ov && voice.stream) setTimeout(()=>msg('Your mic is on. Survivors near you hear a monster.', 5), 1500);
     $('blacktext').textContent = 'YOU ARE THE OCCUPANT'; $('blacksub').textContent = 'They wake up in the halls. You can\'t run, but you walk faster than they do. Listen for them, and don\'t let them reach the exit.';
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
-  } else msg((G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
+  } else msg((G.lv|0) === 3 ? 'Find the keycard. The elevators work. Something else uses them too.' : (G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
   if ((G.lv|0) > 0){ seenZones.add(1); seenZones.add(2); }
 }
-function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? .86 : LK === 2 ? 1.0 : .64})` : ''; }
+function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? .86 : LK === 2 ? 1.0 : LK === 3 ? .82 : .64})` : ''; }
 function enterLevel(){
   seenLv = G.lv|0; seenOpen = G.open; seenPl = G.pl; genSeen = []; knownBo.clear(); crankK = -1; dashT = 0; ventT = 0; ventCD = 8; pendingEnd = false;
   PHANTOM.g.visible = false; seenZones.add(1); seenZones.add(2); for (const s of spots) s.intensity = 0;
   $('locker').style.display='none'; me.hidden = -1; $('white').style.transition='none'; $('white').style.opacity = 0; $('flash').style.opacity = 0; $('spec').style.display = 'none';
   setTimeout(()=>{ $('white').style.transition=''; }, 50);
   const b = $('black'); b.style.transition = 'none'; b.style.opacity = 1;
-  if ((G.lv|0) === 2){ $('blacktext').textContent = 'LEVEL 37'; $('blacksub').textContent = 'THE POOLROOMS · somewhere there is a staircase up to the sky. Find it. Stay out of the water at night.'; }
+  if ((G.lv|0) === 3){ $('blacktext').textContent = 'LEVEL 188'; $('blacksub').textContent = 'THE HOTEL · find the keycard. It opens one room. The elevators work. So does something else.'; }
+  else if ((G.lv|0) === 2){ $('blacktext').textContent = 'LEVEL 37'; $('blacksub').textContent = 'THE POOLROOMS · somewhere there is a staircase up to the sky. Find it. Stay out of the water at night.'; }
   else { $('blacktext').textContent = 'LEVEL 1'; $('blacksub').textContent = 'THE PARKING GARAGE · start all 5 generators, then find the exit'; }
   if (role === 'monster'){ me.x = level.mspawn[0]; me.z = level.mspawn[1]; me.yaw = Math.random()*6; abCD.dash = Math.max(abCD.dash, 6); mode = 'play'; }
   else { const k = hashStr(myPid)%4, sp0 = level.spawn || [cc(1), cc(1)]; me.x = sp0[0] + [-0.8,0.8,-0.8,0.8][k]; me.z = sp0[1] + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; me.pitch = 0;
@@ -2854,6 +3324,8 @@ function triggerDeath(){
 }
 function powerOn(){
   if (LK === 2) return;
+  if (LK === 3){ exitLight.intensity = 9; sfx.clunk(level.exitPos[0], level.exitPos[1]);
+    msg(role === 'monster' ? `They opened ROOM ${level.roomNo}. Floor ${level.exitFloor+2}. Stop them.` : `ROOM ${level.roomNo} IS OPEN. Floor ${level.exitFloor+2}. Get inside.`, 5); return; }
   powerFlash = 1.5; sfx.powerUp();
   exitLight.intensity = 9; level.door.material = level.doorMatOpen;
   if (role === 'monster') msg('They restored the power. The exit is open. Stop them.', 5);
@@ -2864,7 +3336,7 @@ function showEnd(){
   $('locker').style.display='none'; me.hidden = -1;
   vhsK = 0; $('vhs').style.opacity = 0;
   $('blackcount').textContent = '';
-  mode = 'end'; setTouchUI(false); VM.visible = false; PHANTOM.g.visible = false;
+  mode = 'end'; setTouchUI(false); VM.visible = false; $('elev').style.display = 'none'; PHANTOM.g.visible = false;
   try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
   $('hud').style.display='none'; $('black').style.opacity=0; $('white').style.opacity=0; canvas.style.filter=''; canvas.style.transform='';
   const escN = G.esc.length, survN = allPlayers().filter(p=>p.pid!==G.mo).length;
@@ -3186,6 +3658,7 @@ addEventListener('keydown', e=>{
   if (e.code === 'Escape'){ if (settingsOpen) closeSettings(); else if (mode === 'play' || mode === 'spect' || mode === 'lobby' || mode === 'menu') openSettings(); return; }
   if (e.target.tagName === 'INPUT' || settingsOpen) return;
   keys.add(e.code);
+  if (mode==='play' && LK === 3 && /^Digit[1-5]$/.test(e.code) && myCar188() >= 0){ elevPress188(+e.code.slice(5)); return; }   // the elevator panel
   if (mode==='play' && role==='survivor'){
     if (e.code==='KeyF' && me.hidden<0){ me.light=!me.light; sfx.click(); }
     if (e.code==='KeyC' || e.code==='ControlLeft'){ me.crouch=!me.crouch; }
@@ -3242,6 +3715,7 @@ touch.addEventListener('touchmove', e=>{
 },{passive:false});
 const endTouch = e=>{ for (const t of e.changedTouches){ if (t.identifier===stickId){ stickId=null; stickV=[0,0]; stick.style.display='none'; } if (t.identifier===lookId) lookId=null; } };
 touch.addEventListener('touchend', endTouch); touch.addEventListener('touchcancel', endTouch);
+document.querySelectorAll('#elev button').forEach(b=>{ const go = e=>{ e.preventDefault(); e.stopPropagation(); elevPress188(+b.dataset.f); }; b.addEventListener('touchstart', go, {passive:false}); b.addEventListener('mousedown', go); });
 const BTN = { bA:null, bB:null, bC:null, bD:null, bE:null, bF:null, bUse:null };
 for (const id of Object.keys(BTN)){
   const b = $(id);
@@ -3320,7 +3794,7 @@ function diffLabel(){ $('bDiff1').textContent = 'COMPUTER: ' + AI_DIFF[diffOpt].
 diffLabel();
 function lvLabel(){ $('bLv1').textContent = 'START AT: ' + LV_NAMES[startOpt]; }
 lvLabel();
-$('bLv1').onclick = ()=>{ startOpt = (startOpt + 1) % 3; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); };
+$('bLv1').onclick = ()=>{ startOpt = (startOpt + 1) % 4; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); };
 $('bDiff1').onclick = ()=>{ diffOpt = (diffOpt + 1) % 4; try { localStorage.setItem('lvl0_diff', diffOpt); } catch(e){} diffLabel(); };
 $('bSolo').onclick = ()=>{
   readName(); sfx.init(); if (isTouch) goFull();
@@ -3336,7 +3810,7 @@ $('bJoin').onclick = async ()=>{ if (voice.want && !voice.stream) voiceEnable(tr
   readName(); sfx.init(); if (isTouch) goFull(); if (await connect(c, false)) sfx.bindLevel();
 };
 $('joincode').addEventListener('input', e=>{ e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g,''); });
-$('bLv').onclick = ()=>{ if (!amHost()) return; startOpt = G.sl = ((G.sl ?? startOpt) + 1) % 3; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); broadcastState(); renderLobby(); };
+$('bLv').onclick = ()=>{ if (!amHost()) return; startOpt = G.sl = ((G.sl ?? startOpt) + 1) % 4; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); broadcastState(); renderLobby(); };
 $('bDiff').onclick = ()=>{ if (!amHost()) return; diffOpt = G.df = ((G.df ?? diffOpt) + 1) % 4; try { localStorage.setItem('lvl0_diff', diffOpt); } catch(e){} diffLabel(); broadcastState(); renderLobby(); };
 $('bMonVoice').onclick = ()=>{ if (!amHost()) return; monVoiceOpt = G.ov = G.ov ? 0 : 1; try { localStorage.setItem('lvl0_monvoice', monVoiceOpt); } catch(e){} broadcastState(); renderLobby(); };
 $('bMon').onclick = ()=>{
@@ -3441,6 +3915,9 @@ function updateMe(dt){
   // fuses
   G.fz.forEach((f,i)=>{ if (f[0]===0 && Math.hypot(f[1]-me.x, f[2]-me.z) < 1.2){ f[0]=1; f[3]=myPid; pickT = nowS(); useReq({k:'fuse',i}); me.loudT = 0.8; sfx.pickup(); const n=G.fz.filter(q=>q[0]>=1).length; msg(`You found a fuse. ${n}/${FUSES}`, 3); } });
   G.bt.forEach((t,i)=>{ if (!t && Math.hypot(level.bt[i][0]-me.x, level.bt[i][1]-me.z) < 1.1){ G.bt[i]=1; useReq({k:'bt',i}); me.bat = Math.min(100, me.bat+50); sfx.pickup(); msg('Batteries.', 2); } });
+  if (LK === 3 && G.kc){ const kc = G.kc;
+    if (kc[0] === 0 && Math.hypot(kc[1]-me.x, kc[2]-me.z) < 1.2){ kc[0] = 1; kc[3] = myPid; useReq({ k:'kc' }); sfx.pickup(); me.loudT = 0.6; msg(`A keycard. ROOM ${level.roomNo}. Floor ${level.exitFloor+2}.`, 4); }
+    if (kc[0] === 1 && kc[3] === myPid && !G.open && Math.hypot(level.exitPos[0]-me.x, level.exitPos[1]-me.z) < 1.9){ useReq({ k:'kcuse' }); if (!amHost()) kc[0] = 2; } }
   const carrying = G.fz.filter(f=>f[0]===1 && f[3]===myPid).length;
   if (carrying && Math.hypot(level.breaker[0]-me.x, level.breaker[1]-me.z) < 1.8){
     if (amHost()) applyUse(myPid,{k:'place'});
@@ -3459,8 +3936,10 @@ function contextAction(){
     if (me.hidden >= 0) return { label:'LEAVE', key:'E', fn:()=>unhide() };
     if (crankK >= 0) return { label:'STOP', key:'E', fn:()=>{ crankK = -1; } };
     const k = nearLocker(1.3); if (k>=0 && !lockerTaken(k)) return { label:'HIDE', key:'E', fn:()=>hide(k) };
+    { const c = elevCall188(); if (c) return c; }
     if (LK >= 1 && G.gen){ const gi = level.gens.findIndex((gn,i)=>!G.gen[i] && Math.hypot(gn.x-me.x, gn.z-me.z) < 1.9); if (gi >= 0) return { label: LK === 2 ? 'TURN VALVE' : 'START GENERATOR', key:'E', fn:()=>{ crankK = gi; crankT = 0; crankS = 0; } }; }
   }
+  if (role==='monster' && G.grace<=0 && G.stun<=0 && ventT<=0){ const c = elevCall188(); if (c) return c; }
   if (role==='monster' && G.grace<=0 && G.stun<=0 && ventT<=0){ const k = nearVent(1.5); if (k>=0 && ventCD<=0) return { label:'VENT', key:'E', fn:()=>enterVent(k) }; }
   return null;
 }
@@ -3537,6 +4016,9 @@ function answerPhone(i){
   let tx, tz, what;
   const ground = G.fz.map((f,k)=>[f,k]).filter(([f])=>f[0]===0);
   const carrying = G.fz.some(f=>f[0]===1 && f[3]===myPid);
+  if (G.lv === 3){ const kc = G.kc || [0,0,0]; if (G.open || kc[0] >= 1){ [tx,tz] = level.exitPos; what = `room ${level.roomNo}`; } else { tx = kc[1]; tz = kc[2]; what = 'the keycard'; }
+    const fl = floorAt188(tx, tz), mf = floorAt188(me.x, me.z), who = ['A front desk clerk, very calm:','A child, whispering:','Your own voice:','Static, then a man:'][Math.floor(Math.random()*4)];
+    setTimeout(()=>msg(fl === mf ? `${who} "…${what}… this floor… go ${compass(tx-me.x, tz-me.z)}…"` : `${who} "…${what}… floor ${fl+2}… take the elevator…"`, 6), 900); return; }
   if (G.lv === 2){ [tx,tz]=level.stairBase || level.exitPos; what = 'the stairs'; }
   else if (G.open){ [tx,tz]=level.exitPos; what = 'the door'; }
   else if (G.lv >= 1){ const off = level.gens.filter((gn,i)=>!G.gen[i]).sort((a,b)=>Math.hypot(a.x-me.x,a.z-me.z)-Math.hypot(b.x-me.x,b.z-me.z))[0] || level.gens[0]; tx = off.x; tz = off.z; what = G.lv === 2 ? 'a valve' : 'a generator'; }
@@ -3585,6 +4067,7 @@ function updateMonsterDisplay(dt){
 }
 
 function panelBright(p, t, mx, mz){
+  if (p.car != null){ const el = G.el && G.el[p.car]; return el && el.a === p.L ? 1 : 0; }   // Level 188: the light in an elevator car
   if (p.dead) return 0;
   if (LK === 1 && !G.open && (p.gk < 0 || !G.gen || !G.gen[p.gk])) return 0;
   let b = 1;
@@ -3666,6 +4149,10 @@ function updateZoneEnv(dt){
   const z = zoneAt(camera.position.x, camera.position.z);
   if (z !== curZone){ curZone = z; if (mode==='play' && role==='survivor' && z && ZNAME[z] && !seenZones.has(z)){ seenZones.add(z); msg('— ' + ZNAME[z] + ' —', 3); } }
   const k = 1 - Math.exp(-2.5*dt);
+  if (LK === 3){   // the hotel: you can see a long way
+    _fogT.setHex(role==='monster' ? 0x2a1e14 : 0x1a140d); scene.fog.color.lerp(_fogT, k); scene.background.copy(scene.fog.color);
+    scene.fog.density = lerp(scene.fog.density, role==='monster' ? 0.02 : 0.03, k);
+    amb.intensity = lerp(amb.intensity, role==='monster' ? 1.0 : 0.36, k); amb.color.lerp(H188_SKY, k); amb.groundColor.lerp(H188_GND, k); return; }
   _fogT.copy(ZFOG[z]); if (role==='monster') _fogT.multiplyScalar(LK === 1 ? 1.4 : LK === 2 ? 1 : 0.7);
   scene.fog.color.lerp(_fogT, k); scene.background.copy(scene.fog.color);
   scene.fog.density = lerp(scene.fog.density, role==='monster' ? (LK === 1 ? 0.06 : LK === 2 ? 0.03 : 0.11) : ZDENS[z]*(LK === 0 && mode !== 'menu' && mode !== 'lobby' && mode !== 'end' ? 1.45 : 1), k);
@@ -3738,6 +4225,7 @@ const dustMat = new THREE.PointsMaterial({ color:0xd8d0b0, size:0.035, transpare
 const dust = new THREE.Points(dustGeo, dustMat); dust.frustumCulled = false; dust.visible = false; scene.add(dust);
 const dustV = new Float32Array(DUST_N*3); let dustLife = 0;
 function dropDust(x, z){
+  if (LK === 3) return;
   const a = dustGeo.attributes.position.array;
   for (let k=0;k<DUST_N;k++){ a[k*3]=x+(Math.random()-0.5)*0.7; a[k*3+1]=WH-0.05-Math.random()*0.3; a[k*3+2]=z+(Math.random()-0.5)*0.7;
     dustV[k*3]=(Math.random()-0.5)*0.12; dustV[k*3+1]=-(0.25+Math.random()*0.55); dustV[k*3+2]=(Math.random()-0.5)*0.12; }
@@ -3805,10 +4293,10 @@ function updateHUD(dt){
   const obj = $('obj');
   if (role === 'monster'){
     const left = allPlayers().filter(p=>p.pid!==G.mo && !isDead(p.pid) && !isEsc(p.pid)).length;
-    if (G.grace > 0 && mode==='play') { $('blacksub').textContent = LK === 2 ? `You are the thing in the water. By day you can't strike: stay unseen, get close without being looked at to bring the night sooner. At night, hunt. You can only leave the water to lunge.` : `You can't see them through walls. Listen. Running footsteps, voices and gasping give them away. Use the vents to get around.`; const c = String(Math.ceil(G.grace)); if ($('blackcount').textContent !== c) $('blackcount').textContent = c; }
+    if (G.grace > 0 && mode==='play') { $('blacksub').textContent = LK === 2 ? `You are the thing in the water. By day you can't strike: stay unseen, get close without being looked at to bring the night sooner. At night, hunt. You can only leave the water to lunge.` : LK === 3 ? `They wake on another floor. The elevators are the only way between floors, and everyone hears the ding. Listen for them.` : `You can't see them through walls. Listen. Running footsteps, voices and gasping give them away. Use the vents to get around.`; const c = String(Math.ceil(G.grace)); if ($('blackcount').textContent !== c) $('blackcount').textContent = c; }
     if (G.grace <= 0 && $('blackcount').textContent) $('blackcount').textContent = '';
     $('objLbl').textContent = 'THE OCCUPANT';
-    obj.textContent = G.grace > 0 ? `They wake in ${Math.ceil(G.grace)}…` : G.stun > 0 ? 'Blinded…' : ventT > 0 ? 'In the vents…' : G.dg > 0 ? `Disguised · ${Math.ceil(G.dg)}s · ${left} left` : G.lv === 2 ? (isNight() ? `Night. Hunt. ${left} left · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}` : `Daylight: stay unseen · stalk ${Math.round(G.stk||0)}% · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}`) : G.open ? `The exit is open. ${left} left.` : ( G.lv === 1 ? `Listen for them. ${left} left · generators ${(G.gen||[]).filter(Boolean).length}/${(G.gen||[]).length}` : `Listen for them. ${left} left · fuses ${G.pl}/${FUSES}`);
+    obj.textContent = G.grace > 0 ? `They wake in ${Math.ceil(G.grace)}…` : G.stun > 0 ? 'Blinded…' : ventT > 0 ? 'In the vents…' : G.dg > 0 ? `Disguised · ${Math.ceil(G.dg)}s · ${left} left` : G.lv === 2 ? (isNight() ? `Night. Hunt. ${left} left · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}` : `Daylight: stay unseen · stalk ${Math.round(G.stk||0)}% · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}`) : G.lv === 3 ? `Listen for them. ${left} left · ${G.open ? 'the room is open' : G.kc && G.kc[0] >= 1 ? 'they have the keycard' : 'the keycard is still out there'} · floor ${floorAt188(me.x, me.z)+2}` : G.open ? `The exit is open. ${left} left.` : ( G.lv === 1 ? `Listen for them. ${left} left · generators ${(G.gen||[]).filter(Boolean).length}/${(G.gen||[]).length}` : `Listen for them. ${left} left · fuses ${G.pl}/${FUSES}`);
     if (G.grace <= 0 && $('black').style.opacity === '1' && mode==='play') $('black').style.opacity = 0;
     $('kit').style.display = 'none';
     { const st = $('stam'); st.style.opacity = me.stam < 99 ? 1 : 0; $('stamf').style.width = me.stam+'%'; st.classList.toggle('adr', false); st.classList.toggle('winded', !!me.winded); }
@@ -3816,7 +4304,9 @@ function updateHUD(dt){
     const found = G.fz.filter(f=>f[0]>=1).length, mine = G.fz.filter(f=>f[0]===1 && f[3]===myPid).length;
     $('objLbl').textContent = me.hidden >= 0 ? 'HIDING' : 'OBJECTIVE';
     const gOn = (G.gen||[]).filter(Boolean).length;
-    obj.textContent = G.lv === 2 ? `Find the staircase · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}` : G.open ? 'The exit is open. Find the door.' : G.lv === 1 ? `Start the generators · ${gOn}/${G.gen.length}` : found >= FUSES ? `Bring the fuses to the breaker · ${G.pl}/${FUSES}` : `Find the fuses · ${found}/${FUSES}` + (mine ? ` · carrying ${mine}` : '');
+    if (G.lv === 3){ const kc = G.kc || [0], f = floorAt188(me.x, me.z) + 2, ef = level.exitFloor + 2, who = kc[3] === myPid ? 'You have' : ((allPlayers().find(p=>p.pid === kc[3])||{}).n || 'Someone') + ' has';
+      obj.textContent = G.open ? `ROOM ${level.roomNo} is open · floor ${ef} · you're on ${f}` : kc[0] === 0 ? `Find the keycard · you're on floor ${f}` : `${who} the keycard · ROOM ${level.roomNo}, floor ${ef} · you're on ${f}`; }
+    else obj.textContent = G.lv === 2 ? `Find the staircase · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}` : G.open ? 'The exit is open. Find the door.' : G.lv === 1 ? `Start the generators · ${gOn}/${G.gen.length}` : found >= FUSES ? `Bring the fuses to the breaker · ${G.pl}/${FUSES}` : `Find the fuses · ${found}/${FUSES}` + (mine ? ` · carrying ${mine}` : '');
     $('kit').style.display = '';
     $('batfill').style.width = me.bat+'%'; $('batfill').style.background = me.bat < 20 ? '#e25a44' : '#e8de9e';
     const st = $('stam'); st.style.opacity = me.stam < 99 && me.hidden < 0 ? 1 : 0; $('stamf').style.width = me.stam+'%'; st.classList.toggle('adr', !!me.adren); st.classList.toggle('winded', !!me.winded);
@@ -3894,7 +4384,7 @@ function toSpectate(){
   $('white').style.transition = ''; $('black').style.transition = ''; $('scare').style.opacity = 0; camera.fov = SET.fov; camera.updateProjectionMatrix();
   $('locker').style.display='none'; $('stun').style.display='none'; $('stunTxt').style.display='none'; $('prompt').style.display='none'; $('stam').style.opacity=0;
   vhsK = 0; $('vhs').style.opacity = 0;
-  VM.visible = false; $('flash').style.opacity = 0; canvas.style.filter=''; canvas.style.transform='';
+  VM.visible = false; $('flash').style.opacity = 0; canvas.style.filter=''; canvas.style.transform=''; $('elev').style.display = 'none';
   if (pendingEnd || G.ph === 'end'){ showEnd(); return; }
   mode = 'spect'; $('black').style.opacity = 0; $('spec').style.display = 'block'; $('bat').style.display='none'; setTouchUI(isTouch);
   $('btns').style.display = 'none';
@@ -3958,7 +4448,7 @@ function frame(now){
     if (sees) lastSeen = t;
     updateVHS(dt);
     updateLowRes(dt, sees);
-    updateCans(dt); updateVent(dt); update37(dt);
+    updateCans(dt); updateVent(dt); update37(dt); update188(dt);
     updateCamFx(dt);
     updateMonsterSenses(dt);
     updateAmbience(dt);
@@ -3967,12 +4457,14 @@ function frame(now){
     updateItems();
   }
   updateVoice(dt);
+  if (LK === 3) visPass188();
   renderer.render(scene, camera);
+  if (LK === 3) visRestore188();
   grain();
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape };
+window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
 </script>
 </body>
 </html>
