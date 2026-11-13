@@ -14,3 +14,4 @@ v0.13.0: the Snatcher 3D model Occupant, low-res camera when it's in view.
 v0.14.0: the Crawler, Occupant sprint, shorter dash, more fog.
 v0.15.0: darker Occupant view, stomping footsteps, quieter ambience.
 v0.16.0: recorded footsteps and attack sounds, mouse flashlight/throw.
+v0.17.0: proximity voice chat with a mic meter.
