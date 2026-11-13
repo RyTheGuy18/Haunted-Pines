@@ -19,6 +19,8 @@
   #game{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;transform-origin:50% 50%}
   #grain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;opacity:.04;image-rendering:pixelated}
   #vig{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(0,0,0,.8) 100%)}
+  #scare{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:7;mix-blend-mode:hard-light;background:repeating-linear-gradient(0deg,rgba(255,255,255,.18) 0 2px,transparent 2px 4px),radial-gradient(ellipse at center,rgba(0,0,0,0) 30%,rgba(90,0,0,.85) 100%);animation:scarej .07s steps(2) infinite}
+  @keyframes scarej{0%{transform:translate(0,0)}50%{transform:translate(-6px,4px)}100%{transform:translate(5px,-3px)}}
   #flash{position:fixed;inset:0;pointer-events:none;background:#8a0000;opacity:0}
   #white{position:fixed;inset:0;pointer-events:none;background:#fffbe8;opacity:0;transition:opacity 1.5s}
   #vhs{position:fixed;inset:0;pointer-events:none;opacity:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.07) 0 1px,transparent 1px 3px)}
@@ -161,6 +163,7 @@
 <canvas id="grain" width="160" height="100"></canvas>
 <div id="vig"></div>
 <div id="flash"></div>
+<div id="scare"></div>
 <div id="vhs"><div id="vband"></div><div id="vtxt">◄◄ TRACKING</div></div>
 <div id="white"></div>
 <div id="locker"><div id="breath">HOLD YOUR BREATH<i><b id="breathb"></b></i></div></div>
@@ -168,7 +171,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.19.0</div>
+<div class="osd" id="ver">v0.19.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -1097,7 +1100,7 @@ function buildPaperMan(){
 const MONS = [buildMonster(), buildMannequin(), buildPaperMan()];
 const PHANS = [buildMonster(), buildMannequin(), buildPaperMan()];
 for (const m of [...MONS, ...PHANS]) m.g.visible = false;
-for (const m of [...MONS, ...PHANS]){ m.g.scale.setScalar(1.06); m.headH = 2.7; }
+for (const m of [...MONS, ...PHANS]){ m.g.scale.setScalar(1.06); m.headH = 2.7; m.headZ = 0.12; }
 MON = MONS[0]; PHANTOM = PHANS[0];
 // everyone starts on the Snatcher once (new storage key), then their own choice sticks
 let mySkin = SNATCHER; try { const v = localStorage.getItem('lvl0_skin2'); if (v !== null) mySkin = ((+v|0)%SKN+SKN)%SKN; } catch(e){}
@@ -1111,7 +1114,7 @@ function makeSnatcher(){
   const dummy = () => new THREE.Object3D();
   const P = { legL:dummy(), legR:dummy(), torso:dummy(), armL:dummy(), armR:dummy(), head:dummy() };
   g.visible = false; scene.add(g);
-  return { g, P, gltf:{ mixer, B, saved:new Map(), last:nowS() }, headH: 2.58, anim: animSnatcher };
+  return { g, P, gltf:{ mixer, B, saved:new Map(), last:nowS() }, headH: 2.58, headZ: 0.15, anim: animSnatcher };
 }
 const _q = new THREE.Quaternion(), _ax = { x:new THREE.Vector3(1,0,0), y:new THREE.Vector3(0,1,0), z:new THREE.Vector3(0,0,1) };
 function animSnatcher(M, t, moving, speed, stunned, dash){
@@ -1166,7 +1169,7 @@ function makeCrawler(){
   const I = crawlerInstance(crawlerT, lam(0xffffff, { map, side: THREE.DoubleSide })), g = new THREE.Group(); g.add(I.mesh);
   const dummy = () => new THREE.Object3D();
   g.visible = false; scene.add(g);
-  return { g, P:{ legL:dummy(), legR:dummy(), torso:dummy(), armL:dummy(), armR:dummy(), head:dummy() }, bones: I.bones, headH: 1.85, anim: animCrawler };
+  return { g, P:{ legL:dummy(), legR:dummy(), torso:dummy(), armL:dummy(), armR:dummy(), head:dummy() }, bones: I.bones, headH: 1.85, headZ: 0.5, anim: animCrawler };
 }
 // bones: 0 body, 1 arm L, 2 arm R, 3 leg L, 4 leg R, 5 head. Body tips forward; limbs swing in diagonal pairs.
 function animCrawler(M, t, moving, speed, stunned, dash){
@@ -1670,7 +1673,7 @@ function pitchDown(ctx, amount){   // amount 0..1: 0.5 = one octave down
   return { inp, out };
 }
 function monsterVoice(ctx){
-  const p = pitchDown(ctx, 0.56), out = ctx.createGain(); out.gain.value = 0;
+  const p = pitchDown(ctx, 0.44), out = ctx.createGain(); out.gain.value = 0;
   // growl: ring-modulate the shifted voice with a low wobble, mix with the plain shifted voice
   const ring = ctx.createGain(); ring.gain.value = 0; const osc = ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 38; const og = ctx.createGain(); og.gain.value = 1; osc.connect(og).connect(ring.gain); osc.start();
   const body = ctx.createGain(); body.gain.value = 0.85; p.out.connect(body); p.out.connect(ring);
@@ -1714,7 +1717,7 @@ function updateVoice(dt){
     }
     const asMon = !!(r && playing && r.pid === G.mo && G.ov);
     if (asMon && !c.mv && c.src){ c.mv = monsterVoice(sfx.ctx); c.src.connect(c.mv.inp); c.mv.out.connect(c.g); }
-    if (c.dry) c.dry.gain.value = asMon ? 0 : 1; if (c.mv) c.mv.out.gain.value = asMon ? 0.55 : 0;
+    if (c.dry) c.dry.gain.value = asMon ? 0 : 1; if (c.mv) c.mv.out.gain.value = asMon ? 1.1 : 0;
     c.g.gain.value = lerp(c.g.gain.value, g*1.5*SET.vv/100, k);
     if (c.pan.positionX){ c.pan.positionX.value = px; c.pan.positionY.value = 1.6; c.pan.positionZ.value = pz; } else c.pan.setPosition(px, 1.6, pz);
   }
@@ -1843,6 +1846,7 @@ function startFall(){
 function attackSound(){ return MON === MONS[CRAWLER] ? ['atk1','atk2','atk4'][Math.floor(Math.random()*3)] : 'atk2'; }
 let seenKl = 0;
 function triggerDeath(){
+  $('white').style.transition = 'none';
   if (me.hidden >= 0){ me.hidden = -1; $('locker').style.display='none'; }
   me.alive = false; mode = 'deadAnim'; deathT = 0; PHANTOM.g.visible = false; VM.visible = false;
   if (!sfx.sample(attackSound(), null, 1.1)) sfx.screech(); else sfx.tone(sfx.master,{f:70,to:25,dur:1.4,gain:0.6});
@@ -1918,8 +1922,8 @@ const sfx = {
   },
   samples:{},
   loadSamples(){
-    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', near:'sfx/near-noise.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3' };
-    for (const [k, url] of Object.entries(files)) fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(buf=>{ this.samples[k] = buf; if (k==='crawl' || k==='heavy' || k==='near') this.startLoop(k); }).catch(e=>console.warn('sound failed', url, e));
+    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3' };
+    for (const [k, url] of Object.entries(files)) fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(buf=>{ this.samples[k] = buf; if (k==='crawl' || k==='heavy') this.startLoop(k); }).catch(e=>console.warn('sound failed', url, e));
   },
   loops:{},
   startLoop(k){
@@ -2040,7 +2044,6 @@ function updateOccLoops(dt, monSelf, md, fooled){
     lp.src.playbackRate.value = fast ? 1.18 : 1;
     if (lp.pan.positionX){ lp.pan.positionX.value = x; lp.pan.positionY.value = 0.2; lp.pan.positionZ.value = z; } else lp.pan.setPosition(x, 0.2, z);
   }
-  // 8-bit noise that swells as it gets close (not for the Occupant itself, not while it's fooling you)
   if (L.near){ const d = fooled ? 99 : md, near = !monSelf && live && role === 'survivor' && me.alive ? Math.pow(clamp(1 - (d-2)/14, 0, 1), 1.6) : 0; L.near.g.gain.value = lerp(L.near.g.gain.value, near*0.5, 1 - Math.exp(-4*dt)); }
 }
 function muteOccLoops(){ for (const lp of Object.values(sfx.loops)) lp.g.gain.value *= 0.9; }
@@ -2732,19 +2735,29 @@ function placeCamera(dt){
     camera.rotation.set(me.pitch, me.yaw, Math.sin(me.bob*0.5)*(role==='monster'?0.02:0.006));
     { const fv = lerp(camera.fov, dashT > 0 ? SET.fov + 16 : SET.fov, 1-Math.exp(-14*dt)); if (Math.abs(fv-camera.fov) > 0.01){ camera.fov = fv; camera.updateProjectionMatrix(); } }
   } else if (mode==='deadAnim'){
+    // JUMPSCARE: it snaps into your face, the camera zooms and shakes, the light strobes, then a hard cut to black
     deathT += dt;
-    const [lx,,lz] = lookDir(me.yaw, 0);
-    MON.g.position.set(me.x + lx*0.75, EYE - (MON.headH||2.55) + Math.sin(deathT*40)*0.02, me.z + lz*0.75);
-    if (MON.anim) MON.anim(MON, nowS(), false, 0, false, true);
-    MON.g.rotation.y = Math.atan2(-lx, -lz);
-    MON.P.head.rotation.z = Math.sin(deathT*30)*0.2;
-    MON.P.torso.rotation.x = 0.1;
-    camera.position.set(me.x + (Math.random()-0.5)*0.08, EYE + (Math.random()-0.5)*0.08, me.z);
-    camera.rotation.set(0.02 + (Math.random()-0.5)*0.05, me.yaw, (Math.random()-0.5)*0.08);
-    spots[0].intensity = Math.random()<0.75 ? SPOT_I*1.3 : 0;
-    spots[0].position.set(me.x, EYE-0.15, me.z); spots[0].target.position.set(me.x+lx*5, EYE+0.3, me.z+lz*5);
-    $('flash').style.opacity = deathT < 1.3 ? (Math.random()<0.3 ? 0.45 : 0.08) : 0;
-    if (deathT > 1.3){ $('blacktext').textContent = 'YOU WERE FOUND'; $('blacksub').textContent = ''; $('black').style.opacity = 1; }
+    const [lx,,lz] = lookDir(me.yaw, 0), sh = Math.max(0.25, 1 - deathT/1.5), R = () => Math.random()-0.5;
+    const face = deathT < 1.35, lunge = Math.max(0, 1.4 - deathT*14);
+    $('msg').style.opacity = 0;
+    MON.g.visible = face;
+    MON.g.position.set(me.x, 0, me.z);
+    MON.g.rotation.y = Math.atan2(-lx, -lz) + R()*0.08;
+    if (MON.anim){ MON.anim(MON, nowS(), false, 0, false, true); if (MON.bones){ MON.bones[0].rotation.x = -0.15; MON.bones[5].rotation.set(-0.7, 0, Math.sin(deathT*38)*0.25); } }
+    else { MON.P.head.rotation.z = Math.sin(deathT*38)*0.3; MON.P.torso.rotation.x = 0.1; }
+    // put its actual face right in front of your eyes, whatever the skin's shape
+    const hb = MON.gltf ? MON.gltf.B.Head : MON.bones ? MON.bones[5] : MON.P.head;
+    MON.g.updateMatrixWorld(true); const hp = hb.getWorldPosition(_jv);
+    MON.g.position.x += me.x + lx*(0.45+lunge) - hp.x; MON.g.position.y += EYE - 0.02 + R()*0.04 - hp.y; MON.g.position.z += me.z + lz*(0.45+lunge) - hp.z;
+    camera.position.set(me.x + R()*0.12*sh, EYE + R()*0.12*sh, me.z);
+    camera.rotation.set(R()*0.16*sh, me.yaw + R()*0.12*sh, R()*0.24*sh);
+    { const fv = face ? 46 : SET.fov; if (camera.fov !== fv){ camera.fov = fv; camera.updateProjectionMatrix(); } }
+    spots[0].intensity = face && Math.random() < 0.6 ? SPOT_I*1.6 : 0;
+    spots[0].position.set(me.x, EYE-0.05, me.z); spots[0].target.position.set(me.x+lx*3, EYE, me.z+lz*3);
+    $('white').style.opacity = deathT < 0.06 ? 1 : 0;
+    $('flash').style.opacity = face ? (Math.random() < 0.35 ? 0.6 : 0.12) : 0;
+    $('scare').style.opacity = face ? (0.55 + Math.random()*0.45) : deathT < 1.6 ? 1 : 0;
+    if (!face){ $('blacktext').textContent = 'YOU WERE FOUND'; $('blacksub').textContent = ''; $('black').style.transition = 'none'; $('black').style.opacity = 1; }
     if (deathT > 4) toSpectate();
   } else if (mode==='fallAnim'){
     fallT += dt; fallV += 13*dt; fallY -= fallV*dt;
@@ -2766,7 +2779,9 @@ function placeCamera(dt){
     $('spec').textContent = `WATCHING ${r.n.toUpperCase()}  ·  ${isTouch?'tap':'click'} to switch`;
   }
 }
+const _jv = new THREE.Vector3();
 function toSpectate(){
+  $('white').style.transition = ''; $('black').style.transition = ''; $('scare').style.opacity = 0; camera.fov = SET.fov; camera.updateProjectionMatrix();
   $('locker').style.display='none'; $('stun').style.display='none'; $('stunTxt').style.display='none'; $('prompt').style.display='none'; $('stam').style.opacity=0;
   vhsK = 0; $('vhs').style.opacity = 0;
   VM.visible = false; $('flash').style.opacity = 0; canvas.style.filter=''; canvas.style.transform='';
@@ -2828,7 +2843,7 @@ function frame(now){
     updateLights(dt);
     const sees = survivorSeesMonster();
     stingCD -= dt;
-    if (sees){ if (t - lastSeen > 7 && stingCD <= 0 && Math.hypot(mDisp.x-me.x, mDisp.z-me.z) < 12){ sfx.stinger(); stingCD = 9; vibrate(120); } lastSeen = t; }
+    if (sees) lastSeen = t;
     updateVHS(dt);
     updateLowRes(dt, sees);
     updateCans(dt); updateVent(dt);
