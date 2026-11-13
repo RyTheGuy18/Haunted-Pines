@@ -28,3 +28,5 @@ v0.23.0: grand poolrooms with terraces, steps and dark arches; bigger rooms; wad
 v0.24.0: hazmat player model with animations, wading + breathing sounds, round sunroofs, pool decks, cleaner poolrooms, Shift Walls ability removed.
 v0.25.0: hazmat first-person arm, quieter panting, exits never blocked, bigger quiet garage with 5 loud generators.
 v0.26.0: real flashlight model, diesel generator sounds, generator lamps stay lit, Occupant hears voices further, kill fix for player Occupants.
+v0.26.1: generator start-up sound trimmed to a 1-second loop.
+v0.26.2: generator start-up clicks while cranking, then catches and keeps running.
