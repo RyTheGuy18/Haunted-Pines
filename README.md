@@ -44,3 +44,4 @@ v0.28.4: the settings button works on phones again.
 v0.28.5: UPDATE GAME button in settings (shows if a newer version is out and reloads the app fresh, handy for the iPhone home-screen app).
 v0.28.6: if your mic is blocked, the game shows why and exactly where to turn it on, with buttons to ask again.
 v0.28.7: all sound and the mic turn off when you leave the app or your phone sleeps, and come back when you return.
+v0.28.8: fixed the iPhone mic being blocked even when Safari allows it.
