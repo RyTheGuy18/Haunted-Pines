@@ -27,3 +27,4 @@ v0.22.0: exact round pool railings, much bigger Level 37, pool sounds instead of
 v0.23.0: grand poolrooms with terraces, steps and dark arches; bigger rooms; wading wakes; tunnel arches fixed; lockers never block doorways.
 v0.24.0: hazmat player model with animations, wading + breathing sounds, round sunroofs, pool decks, cleaner poolrooms, Shift Walls ability removed.
 v0.25.0: hazmat first-person arm, quieter panting, exits never blocked, bigger quiet garage with 5 loud generators.
+v0.26.0: real flashlight model, diesel generator sounds, generator lamps stay lit, Occupant hears voices further, kill fix for player Occupants.
