@@ -144,16 +144,18 @@
   #touch{position:fixed;inset:0;display:none;z-index:5}
   #stick{position:fixed;width:116px;height:116px;margin:-58px 0 0 -58px;border:2px solid rgba(241,230,180,.25);border-radius:50%;display:none;pointer-events:none;z-index:6}
   #knob{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px;border-radius:50%;background:rgba(241,230,180,.3)}
-  #btns{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));display:none;z-index:7;
-    grid-template-columns:66px 66px 88px;grid-template-rows:66px 66px 88px;gap:9px;grid-template-areas:". . u" "f d c" "e a b"}
+  /* v0.28.2 (Ryan): every button the same round size, in one column against the right edge */
+  #btns{position:fixed;right:max(8px,env(safe-area-inset-right));top:0;bottom:0;display:none;z-index:7;flex-direction:column;justify-content:center;align-items:center;gap:var(--bg,8px);
+    padding:60px 0 max(8px,env(safe-area-inset-bottom));pointer-events:none}   /* top 60px: the ⚙ button */
+  #btns button{width:var(--bs,62px);height:var(--bs,62px);flex:0 0 auto;pointer-events:auto;font-size:calc(var(--bs,62px)*.22)!important;letter-spacing:.02em!important}
+  #btns button svg{width:calc(var(--bs,62px)*.36)!important;height:calc(var(--bs,62px)*.36)!important}
   #btns button{border-radius:50%;padding:0;background:rgba(14,12,5,.5);border:1.5px solid rgba(241,230,180,.32);font-size:16px;letter-spacing:.06em;line-height:1;position:relative;overflow:hidden;color:var(--ink)}
   #btns button svg{width:24px;height:24px;display:block;margin:0 auto 3px;fill:none;stroke:currentColor;stroke-width:2}
   #btns button.on{border-color:var(--hot);color:var(--hot);background:rgba(233,210,124,.15)}
   #btns button.m{border-color:rgba(231,138,118,.55);color:var(--mon)}
   #btns button.cd{opacity:.55}
   #btns button.cd::before{content:'';position:absolute;inset:0;background:conic-gradient(rgba(0,0,0,.6) calc(var(--p)*1%),transparent 0)}
-  #bA{grid-area:a} #bB{grid-area:b;font-size:19px} #bC{grid-area:c} #bD{grid-area:d} #bE{grid-area:e} #bF{grid-area:f}
-  #bUse{grid-area:u;width:66px;justify-self:center;font-size:17px;border-color:var(--ink)!important;background:rgba(241,230,180,.18)!important;display:none}
+  #bUse{order:-1;border-color:var(--ink)!important;background:rgba(241,230,180,.18)!important;display:none}
   body.touch #cross{display:none}
   #elev{position:fixed;left:50%;top:13%;transform:translateX(-50%);display:none;flex-direction:column;align-items:center;gap:6px;z-index:8;padding:8px 14px;background:rgba(20,18,14,.72);border:1px solid rgba(241,230,180,.3)}
   #elev .et{font-size:16px;letter-spacing:.3em;opacity:.8} #elev .eb{display:flex;gap:9px} #elev .eh{font-size:14px;letter-spacing:.2em;opacity:.7}
@@ -185,7 +187,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.28.1</div>
+<div class="osd" id="ver">v0.28.2</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -3971,7 +3973,7 @@ addEventListener('mousemove', e=>{
   const sv = 0.0022*SET.sens/100; me.yaw -= e.movementX*sv; me.pitch = clamp(me.pitch - e.movementY*sv, -1.35, 1.35);
 });
 /* touch controls (v0.28.1, Ryan: better iPhone controls):
-   - the stick appears where your left thumb lands, has a small dead zone, and FOLLOWS your thumb if you drag past it
+   - the stick appears where your left thumb lands and stays locked there (v0.28.2), with a small dead zone
    - push the stick all the way out (past the ring) to RUN, so your right thumb stays free to look (the RUN button still works)
    - look has a little acceleration: slow drags aim precisely, quick flicks turn you around
    - the left 40% (or more of the screen in portrait) starts the stick; touches that start on a button never steer the camera */
@@ -3991,9 +3993,8 @@ touch.addEventListener('touchmove', e=>{
   e.preventDefault();
   for (const t of e.changedTouches){
     if (t.identifier===stickId){
-      let dx=t.clientX-stickO[0], dy=t.clientY-stickO[1]; let l=Math.hypot(dx,dy); const m=STICK_R;
-      // dragged far past the ring: the stick follows your thumb
-      if (l > m*1.75){ const k = (l - m*1.75)/l; stickO[0] += dx*k; stickO[1] += dy*k; dx=t.clientX-stickO[0]; dy=t.clientY-stickO[1]; l=Math.hypot(dx,dy); stick.style.left=stickO[0]+'px'; stick.style.top=stickO[1]+'px'; }
+      let dx=t.clientX-stickO[0], dy=t.clientY-stickO[1]; const l=Math.hypot(dx,dy), m=STICK_R;
+      // v0.28.2 (Ryan): the stick stays locked where your thumb first landed (it used to follow and drift up while running)
       // pushed out past the ring = run (a little hysteresis so it doesn't flicker)
       if (role === 'survivor' || role === 'monster'){ if (!stickRun && l > m*1.3 && dy < l*0.35) stickRun = true; else if (stickRun && (l < m*1.1 || dy > l*0.5)) stickRun = false; }
       stick.classList.toggle('run', stickRun);
@@ -4045,6 +4046,7 @@ function setButtons(){
   else cfg = [ { label:'DARK', icon:'dark', m:1, down:()=>ability('blackout'), cd:'blackout' }, { label:'DISGUISE', icon:'mask', m:1, down:()=>ability('disguise'), cd:'disguise' }, { label:'LURE', icon:'lure', m:1, down:()=>ability('lure'), cd:'lure' }, { label:'DASH', icon:'dash', m:1, down:()=>ability('dash'), cd:'dash' }, run ];
   ['bA','bB','bC','bD','bE','bF'].forEach((id,k)=>{ const c=cfg[k]; BTN[id]=c; const b=$(id); b.style.display = c ? '' : 'none'; if (c){ b.innerHTML = ICON[c.icon] + c.label; b.classList.toggle('m', !!c.m); } });
   BTN.bUse = { down:()=>{ const a=contextAction(); if (a) a.fn(); } };
+  fitButtons();
   $('abil').innerHTML = role==='monster' ? ['blackout','lure','disguise','dash'].map((k,i)=>(LK === 2 && k !== 'lure' && k !== 'dash') ? '' : `<div class="ab" id="ab_${k}"><div class="k">[${i+1}]</div><div class="n">${(LK === 2 ? ['','SPLASH','','LUNGE (NIGHT)'] : ['BLACKOUT','LURE','DISGUISE','DASH'])[i]}</div><div class="cdf"></div></div>`).join('') : '';
 }
 function updateButtons(){
@@ -4053,14 +4055,21 @@ function updateButtons(){
     if (c.cd){ const v=abCD[c.cd]; b.classList.toggle('cd', v>0); b.style.setProperty('--p', (v/AB_CD[c.cd]*100).toFixed(0)); }
     if (c.cnt){ const n=c.cnt(); b.classList.toggle('cd', n<=0); b.style.setProperty('--p', n>0?0:100); const lbl = c.label+' '+n; if (b.dataset.l!==lbl){ b.dataset.l=lbl; b.innerHTML = ICON[c.icon] + lbl; } } }
   const act = contextAction();
-  const u = $('bUse'); const want = act && isTouch ? 'block' : 'none'; if (u.style.display !== want) u.style.display = want; if (act && u.textContent !== act.label) u.textContent = act.label;
+  const u = $('bUse'); const want = act && isTouch ? 'block' : 'none'; if (u.style.display !== want){ u.style.display = want; fitButtons(); } if (act && u.textContent !== act.label) u.textContent = act.label;
   const p = $('prompt'); if (act){ const h = isTouch ? act.label : `<kbd>${act.key}</kbd>${act.label}`; if (p.innerHTML !== h) p.innerHTML = h; p.style.display='block'; } else p.style.display='none';
   if (role==='monster' && !isTouch) for (const k of ['blackout','lure','disguise','dash']){ const el=$('ab_'+k); if (!el) continue; const v=abCD[k]; el.classList.toggle('ready', v<=0 && G.grace<=0); el.querySelector('.cdf').style.width = (v>0 ? (1-v/AB_CD[k])*100 : 100) + '%'; }
 }
+function fitButtons(){
+  const bs = $('btns'), n = [...bs.children].filter(b=>b.style.display !== 'none').length || 1;
+  const vv = window.visualViewport, h = (vv ? vv.height : innerHeight) - 72, gap = 7;
+  const size = Math.max(40, Math.min(64, Math.floor((h - gap*(n-1))/n)));
+  bs.style.setProperty('--bs', size + 'px'); bs.style.setProperty('--bg', gap + 'px');
+}
+addEventListener('resize', ()=>fitButtons());
 function setTouchUI(on){
   const show = on && isTouch;
   touch.style.display = show ? 'block' : 'none';
-  $('btns').style.display = show ? 'grid' : 'none';
+  $('btns').style.display = show ? 'flex' : 'none'; if (show) fitButtons();
   document.body.classList.toggle('playing', show);
   if (!show){ stick.style.display='none'; stickId=null; lookId=null; stickV=[0,0]; runHeld=false; stickRun=false; stick.classList.remove('run'); }
 }

@@ -6,7 +6,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 - Live: https://rytheguy18.github.io/Haunted-Pines/ (GitHub Pages, `main` branch, repo root)
 - Owner: Ryan (GitHub `rytheguy18` / `RyTheGuy18`). Plays it with friends and younger brothers, mostly on phones.
-- Current version: **v0.28.1** (shown bottom-right of the menu, `#ver`)
+- Current version: **v0.28.2** (shown bottom-right of the menu, `#ver`)
 
 ## Files
 
@@ -125,7 +125,7 @@ Esc (desktop), ⚙ button (phones), or SETTINGS in menu/lobby. Volume, voice vol
 
 Other localStorage keys: `lvl0_name`, `lvl0_skin2` (skin), `lvl0_voice`, `lvl0_monvoice`, `lvl0_diff`, `lvl0_start`.
 
-**Touch controls (v0.28.1, Ryan: better iPhone controls):** floating stick on the left 42% (`STICK_R 50`, dead zone 0.14, follows your thumb if you drag past 1.75× the ring); **push the stick past the ring = run** (`stickRun`, "RUN" lights over the stick; RUN button still works); touch look has mild acceleration (slow = precise, flicks turn fast; vertical ×0.85). Buttons release on `touchcancel`. Pinch/double-tap zoom blocked in play. Portrait while playing shows a "turn your phone sideways" cover (`#rotate`, `body.playing`). iPhone in Safari (not installed) gets a menu hint to Add to Home Screen (iPhone has no fullscreen API).
+**Touch controls (v0.28.1, Ryan: better iPhone controls):** floating stick on the left 42% (`STICK_R 50`, dead zone 0.14, **locked where your thumb lands** — v0.28.2, Ryan: it drifted up while running when it followed the thumb); **push the stick past the ring = run** (`stickRun`, "RUN" lights over the stick; RUN button still works); touch look has mild acceleration (slow = precise, flicks turn fast; vertical ×0.85). Buttons release on `touchcancel`. **v0.28.2:** all buttons (incl. USE, on top) are the same round size in ONE column against the right edge (`#btns` flex column, `fitButtons()` sizes them 40–64 px to fit the screen height below the ⚙). Pinch/double-tap zoom blocked in play. Portrait while playing shows a "turn your phone sideways" cover (`#rotate`, `body.playing`). iPhone in Safari (not installed) gets a menu hint to Add to Home Screen (iPhone has no fullscreen API).
 
 Controls (desktop): WASD, Shift sprint, C crouch, Left click / F flashlight, E hide / vent / start generator / call elevator, 1–5 elevator floor (inside a car), V mute, Esc settings, Occupant 1–4. Phones: left thumb move, right thumb look, buttons bottom-right (Occupant gets 6 buttons incl. RUN and DASH), USE pops up near things.
 
