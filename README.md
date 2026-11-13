@@ -47,3 +47,4 @@ v0.28.7: all sound and the mic turn off when you leave the app or your phone sle
 v0.28.8: fixed the iPhone mic being blocked even when Safari allows it.
 v0.29.0: quieter footsteps (one clean step each), blackouts are pitch black then flicker back on, the lure is just thumping footsteps behind you, and the random breathing sounds are gone.
 v0.29.1: the Lurker comes at you a bit faster during blackouts.
+v0.30.0: the Lurker is faster and actually runs (new run animation, skin kept), with its own quiet quick footsteps. New telephone model, real ring and pick-up sounds, and phone directions now say left/right/behind you with an arrow pointing the way.
