@@ -168,7 +168,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.18.0</div>
+<div class="osd" id="ver">v0.18.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -1022,6 +1022,7 @@ function makeAvatar(pid){
   bx(K, 0.08,0.08,0.06, 0,-0.1,0.06, PM.mask); bx(K, 0.05,0.05,0.02, 0,-0.1,0.1, PM.filt);
   bx(H, 0.4,0.04,0.04, 0,0.04,0.17, PM.mask);
   P.head = H;
+  g.scale.setScalar(0.86);   // eye level 1.6 m, same as the first-person camera
   scene.add(g); return { g, P };
 }
 function animAvatar(A, t, mv){
@@ -1095,21 +1096,21 @@ function buildPaperMan(){
 const MONS = [buildMonster(), buildMannequin(), buildPaperMan()];
 const PHANS = [buildMonster(), buildMannequin(), buildPaperMan()];
 for (const m of [...MONS, ...PHANS]) m.g.visible = false;
-for (const m of [...MONS, ...PHANS]) m.headH = 2.55;
+for (const m of [...MONS, ...PHANS]){ m.g.scale.setScalar(1.06); m.headH = 2.7; }
 MON = MONS[0]; PHANTOM = PHANS[0];
 // everyone starts on the Snatcher once (new storage key), then their own choice sticks
 let mySkin = SNATCHER; try { const v = localStorage.getItem('lvl0_skin2'); if (v !== null) mySkin = ((+v|0)%SKN+SKN)%SKN; } catch(e){}
 /* ---- the Snatcher: a rigged glTF model, idle clip from the file + code-driven walk/lunge on top ---- */
 let snatcherSrc = null;
 function makeSnatcher(){
-  const root = cloneSkinned(snatcherSrc.scene), g = new THREE.Group(); root.scale.setScalar(2.5); g.add(root);
+  const root = cloneSkinned(snatcherSrc.scene), g = new THREE.Group(); root.scale.setScalar(3.0); g.add(root);   // ~2.7 m: nearly brushing the 2.8 m ceiling
   root.traverse(o=>{ if (o.isMesh){ const old = o.material; o.material = lam(0xffffff, { map: old.map || null }); if (o.material.map){ o.material.map.magFilter = THREE.NearestFilter; o.material.map.minFilter = THREE.NearestFilter; o.material.map.colorSpace = THREE.SRGBColorSpace; } o.frustumCulled = false; } });
   const B = {}; root.traverse(o=>{ if (o.isBone) B[o.name.replace('mixamorig','').replace(':','')] = o; });
   const mixer = new THREE.AnimationMixer(root); if (snatcherSrc.animations[0]) mixer.clipAction(snatcherSrc.animations[0]).play();
   const dummy = () => new THREE.Object3D();
   const P = { legL:dummy(), legR:dummy(), torso:dummy(), armL:dummy(), armR:dummy(), head:dummy() };
   g.visible = false; scene.add(g);
-  return { g, P, gltf:{ mixer, B, saved:new Map(), last:nowS() }, headH: 2.15, anim: animSnatcher };
+  return { g, P, gltf:{ mixer, B, saved:new Map(), last:nowS() }, headH: 2.58, anim: animSnatcher };
 }
 const _q = new THREE.Quaternion(), _ax = { x:new THREE.Vector3(1,0,0), y:new THREE.Vector3(0,1,0), z:new THREE.Vector3(0,0,1) };
 function animSnatcher(M, t, moving, speed, stunned, dash){
@@ -1145,7 +1146,7 @@ function rigCrawler(gl){
     const w = Math.min(1, v.distanceTo(J[r]) / 2.5); si[i*4]=r; sw[i*4]=w; si[i*4+1]=0; sw[i*4+1]=1-w; }
   geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
   // scale to ~1.7 m tall, feet on the floor, centered
-  geo.computeBoundingBox(); const bb = geo.boundingBox, S = 1.7/(bb.max.y-bb.min.y), zc = (bb.min.z+bb.max.z)/2;
+  geo.computeBoundingBox(); const bb = geo.boundingBox, S = 2.15/(bb.max.y-bb.min.y), zc = (bb.min.z+bb.max.z)/2;
   const m4 = new THREE.Matrix4().makeScale(S,S,S).premultiply(new THREE.Matrix4().makeTranslation(0, -bb.min.y*S, -zc*S));
   geo.applyMatrix4(m4); J.forEach(j=>j.applyMatrix4(m4));
   return { geo, J, map: src.material.map, reg };
@@ -1164,7 +1165,7 @@ function makeCrawler(){
   const I = crawlerInstance(crawlerT, lam(0xffffff, { map, side: THREE.DoubleSide })), g = new THREE.Group(); g.add(I.mesh);
   const dummy = () => new THREE.Object3D();
   g.visible = false; scene.add(g);
-  return { g, P:{ legL:dummy(), legR:dummy(), torso:dummy(), armL:dummy(), armR:dummy(), head:dummy() }, bones: I.bones, headH: 1.45, anim: animCrawler };
+  return { g, P:{ legL:dummy(), legR:dummy(), torso:dummy(), armL:dummy(), armR:dummy(), head:dummy() }, bones: I.bones, headH: 1.85, anim: animCrawler };
 }
 // bones: 0 body, 1 arm L, 2 arm R, 3 leg L, 4 leg R, 5 head. Body tips forward; limbs swing in diagonal pairs.
 function animCrawler(M, t, moving, speed, stunned, dash){
@@ -1670,7 +1671,7 @@ function updateVoice(dt){
       const rMon = r.pid === G.mo, rGone = isDead(r.pid) || isEsc(r.pid) || !r.a;
       if (rMon) g = 0;
       else if (rGone) g = iAmDead ? 1 : 0;
-      else { const d = Math.hypot(r.x-cx, r.z-cz); g = clamp(1 - (d-2)/18, 0, 1); if (g > 0 && !losClear(cx, cz, r.x, r.z)) g *= 0.55; px = r.x; pz = r.z; }
+      else { const d = Math.hypot(r.x-cx, r.z-cz); g = Math.pow(clamp(1 - (d-1.5)/10.5, 0, 1), 1.6); if (g > 0 && !losClear(cx, cz, r.x, r.z)) g *= 0.55; px = r.x; pz = r.z; }
     }
     c.g.gain.value = lerp(c.g.gain.value, g*1.5*SET.vv/100, k);
     if (c.pan.positionX){ c.pan.positionX.value = px; c.pan.positionY.value = 1.6; c.pan.positionZ.value = pz; } else c.pan.setPosition(px, 1.6, pz);
@@ -1882,7 +1883,7 @@ const sfx = {
     src.loopStart = Math.min(0.04, buf.duration/4); src.loopEnd = buf.duration - 0.04;   // skip the mp3 padding so it loops cleanly
     const g = c.createGain(); g.gain.value = 0; let pan = null;
     if (k === 'near') src.connect(g).connect(this.master);
-    else { pan = c.createPanner(); pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 3.5; pan.maxDistance = 60; pan.rolloffFactor = 1.15; src.connect(g).connect(pan).connect(this.master); }
+    else { pan = c.createPanner(); pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 5; pan.maxDistance = 70; pan.rolloffFactor = 1.0; src.connect(g).connect(pan).connect(this.master); }
     src.start(); this.loops[k] = { src, g, pan };
   },
   sample(k, pos, gain=1, ref=3){
@@ -1987,7 +1988,7 @@ function updateOccLoops(dt, monSelf, md, fooled){
   const crawl = MON === MONS[CRAWLER], live = G.ph==='play' && (mode==='play' || mode==='spect' || mode==='deadAnim' || mode==='escAnim');
   let moving, vol, x, z, fast;
   if (monSelf){ moving = me.moving && ventT <= 0; vol = 0.35; x = me.x; z = me.z; fast = me.running || dashT > 0; }
-  else { moving = live && mDisp.mv > 0 && G.stun <= 0 && md < 50 && !fooled; vol = 1.25; x = mDisp.x; z = mDisp.z; fast = mDisp.mv === 2; }
+  else { moving = live && mDisp.mv > 0 && G.stun <= 0 && md < 50 && !fooled; vol = 2.2; x = mDisp.x; z = mDisp.z; fast = mDisp.mv === 2; }
   const k = 1 - Math.exp(-10*dt);
   for (const [name, lp] of [['crawl', L.crawl], ['heavy', L.heavy]]){
     const on = live && moving && (name === 'crawl') === crawl;
@@ -2676,7 +2677,7 @@ function updateHUD(dt){
 }
 function placeCamera(dt){
   if (mode==='play'){
-    const eye = role==='monster' ? 2.05 : me.crouch ? 1.0 : me.hidden>=0 ? 1.55 : EYE;
+    const eye = role==='monster' ? Math.min(2.5, (MON.headH||2.7)*0.9) : me.crouch ? 1.0 : me.hidden>=0 ? 1.55 : EYE;
     camera.position.set(me.x, eye + Math.sin(me.bob)*(role==='monster'?0.07:0.045), me.z);
     VM.visible = role==='survivor' && me.hidden < 0;
     if (me.hidden >= 0){ const lk = level.lockers[me.hidden]; camera.position.set(lk.x + Math.sin(lk.ry)*0.18, 1.55 + Math.sin(nowS()*1.3)*0.008, lk.z + Math.cos(lk.ry)*0.18); }
