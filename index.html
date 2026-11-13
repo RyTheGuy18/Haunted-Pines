@@ -171,11 +171,11 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.26.2</div>
+<div class="osd" id="ver">v0.26.4</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
-    <div id="kit"><div id="bat"><div id="batfill"></div></div><span id="cans"></span></div>
+    <div id="kit"><div id="bat"><div id="batfill"></div></div></div>
     <div id="micbox"><span id="micl">MIC</span><div id="micbar"><i id="micfill"></i><b id="mict1"></b><b id="mict2"></b></div><span id="mics"></span></div></div>
   <button id="bGear">⚙</button>
   <div id="plist"></div>
@@ -217,13 +217,12 @@
     <b>Find 3 fuses</b>, bring them to the breaker, then find the exit door.<br><br>
     <b>Hide</b> in lockers. It can't open them, but hold your breath when it's close.<br>
     <b>Blind it:</b> hold your flashlight on its face up close to stun it.<br>
-    <b>Throw cans</b> to make noise somewhere else and pull it away.<br>
     <b>Escape Level 0</b> and everyone still alive drops into <b>Level 1</b>, a dark parking garage. Start all 5 generators (it takes a while and it's LOUD: the Occupant will come), then find the exit.<br>
     <b>Escape the garage</b> and you wake up in <b>Level 37, the Poolrooms</b>. Turn all 3 drain valves to empty the great pool, then climb down to the drain at the bottom.<br>
     <b>Adrenaline</b> kicks in when it's close, so run. It walks faster than you but it can't sprint.<br>
     <b>Crouch in the dark</b> with your light off and it can barely see you.<br>
     <b>Trust nobody far away.</b> It can look like one of you. Watch for a hazmat suit with no flashlight and lights flickering around it, or hold your light on them.<br><br>
-    <i>The Occupant</i> hunts by sound: it hears running, cans and gasps, but can't see you through walls. It can kill the lights, move the walls, fake footsteps, disguise itself as a survivor, lunge forward with its arms out, and crawl through vents (you'll hear it climb out). It hears every fuse you place.<br>
+    <i>The Occupant</i> hunts by sound: it hears running, talking and gasps, but can't see you through walls. It can kill the lights, move the walls, fake footsteps, disguise itself as a survivor, lunge forward with its arms out, and crawl through vents (you'll hear it climb out). It hears every fuse you place.<br>
     When the computer hunts you, pick how smart it is: <b>EASY</b> barely listens, <b>IMPOSSIBLE</b> reads where you're going and cuts you off, but it still can't outrun you and your flashlight still works on it.<br><br>
     <span id="controls"></span>
   </details>
@@ -300,7 +299,7 @@ const isTouch = ('ontouchstart' in window) || matchMedia('(pointer:coarse)').mat
 document.body.classList.toggle('touch', isTouch);
 $('controls').textContent = isTouch
   ? 'Left thumb moves, right thumb looks. USE pops up next to lockers.'
-  : 'Click to look · WASD move · Shift run · C crouch · Left click / F flashlight · E hide · Right click / G throw can · V mute mic · Esc settings · Occupant: Shift sprint, E vent, 1 blackout, 2 lure, 3 disguise, 4 dash.';
+  : 'Click to look · WASD move · Shift run · C crouch · Left click / F flashlight · E hide · V mute mic · Esc settings · Occupant: Shift sprint, E vent, 1 blackout, 2 lure, 3 disguise, 4 dash.';
 function vibrate(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
 
 /* ================= constants ================= */
@@ -847,23 +846,10 @@ function buildLevel(seed, kind=0){
   }
   // and a few against the outer walls
   for (let k=0;k<(kind===1?8:4);k++){ const p = takeSlot(q=>zoneOf(q.i,q.j)!==2); if (!p) break; mountLocker(p.x, p.z, p.nx, p.nz); }
-  // noise cans to throw
-  L.cn = []; L.cnM = [];
-  for (let k=0;k<(kind===1?13:7);k++){ const c=pick(2,far); const p=[cc(c[0])+(rng()-0.5)*2, cc(c[1])+(rng()-0.5)*2]; L.cn.push(p);
-    const m = new THREE.Group(); bx(m, 0.1,0.15,0.1, 0,0.075,0, lam(0xa8a8a0)); bx(m, 0.105,0.08,0.105, 0,0.075,0, lam(0xb04a2a)); m.position.set(p[0],0,p[1]); m.rotation.y=rng()*6; g.add(m); L.cnM.push(m); }
+  L.cn = []; L.cnM = []; // cans were removed in v0.26.4 (Ryan's call)
   for (let k=0;k<(kind===2?0:4);k++){ const c=pick(3,far); const x=cc(c[0])+(rng()-0.5)*1.5, z=cc(c[1])+(rng()-0.5)*1.5; const n=1+Math.floor(rng()*3);
     for (let s=0;s<n;s++){ const b=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.4,0.45), lam(0x8a6a3a)); b.position.set(x+(rng()-0.5)*0.15, 0.2+s*0.4, z+(rng()-0.5)*0.15); b.rotation.y=rng()*0.6; g.add(b); }
     L.circles.push({x,z,r:0.42}); }
-  if (kind === 1){
-    const carCols = [0x5a2a24, 0x2c3a4a, 0x7a7a74, 0x3a4a2e, 0x1c1c1e, 0x8a7a5a];
-    const openCell = (i,j) => !walls[vIdx(i,j)] && !walls[vIdx(i+1,j)] && !walls[hIdx(i,j)] && !walls[hIdx(i,j+1)];
-    for (let k=0;k<22;k++){ let c=null; for (let t=0;t<40 && !c;t++){ const q = pick(3, far); if (q[0]>0 && q[1]>0 && q[0]<N-1 && q[1]<N-1 && openCell(q[0],q[1]) && L.gens.every(gn=>Math.hypot(gn.x-cc(q[0]),gn.z-cc(q[1]))>5) && Math.hypot(L.exitPos[0]-cc(q[0]), L.exitPos[1]-cc(q[1])) > 7) c = q; }
-      if (!c) continue; const x=cc(c[0]), z=cc(c[1]), along = rng()<0.5, hw = along?0.9:2.0, hd = along?2.0:0.9;
-      const car = new THREE.Group(); car.position.set(x,0,z); car.rotation.y = along ? 0 : Math.PI/2; g.add(car); const col = lam(carCols[k%carCols.length]);
-      bx(car, 1.8,0.62,3.9, 0,0.55,0, col); bx(car, 1.6,0.55,2.0, 0,1.1,-0.2, col); bx(car, 1.5,0.42,0.04, 0,1.12,0.81, lam(0x101418)); bx(car, 1.5,0.42,0.04, 0,1.12,-1.21, lam(0x101418));
-      for (const [wx,wz] of [[-0.85,1.25],[0.85,1.25],[-0.85,-1.25],[0.85,-1.25]]){ const w = new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.22,10), lam(0x111111)); w.rotation.z=Math.PI/2; w.position.set(wx,0.33,wz); car.add(w); }
-      L.slabs.push([x-hw, x+hw, z-hd, z+hd]); }
-  }
   // the pitfalls: one big hall, a grid of deep square pits with narrow walkways between them
   L.holes = [];
   const strips = [], WK = 0.6;
@@ -1432,7 +1418,6 @@ function buildLevel37(seed){
   for (const [c, k] of [[0xe88aa8,0],[0xe8c86a,1],[0x9ee6c9,2]]){ const a = k*2.1+0.5, r = ATR.pool*0.55, x = ATR.x+Math.cos(a)*r, z = ATR.z+Math.sin(a)*r; const f = new THREE.Mesh(new THREE.TorusGeometry(0.5,0.18,6,14), lam(c)); f.rotation.x = Math.PI/2; f.position.set(x, 0.2, z); f.userData = { x, z, p:k*2 }; g.add(f); L.floats.push(f); }
   // ---- things to pick up, and PA speakers on poles (they crackle with hints, like the phones do elsewhere)
   const openSpot = (minD=1, kinds=[K37.WATER, K37.DRY]) => { for (let t=0;t<400;t++){ const x = 3+rng()*(S37-6), z = 3+rng()*(S37-6); if (d37(x,z) >= minD && kinds.includes(k37(x,z)) && deepSd(x,z) > 1) return [x,z]; } return [ATR.x+ATR.r-2, ATR.z]; };
-  for (let k=0;k<22;k++){ const p = openSpot(1); L.cn.push(p); const m = new THREE.Group(); bx(m, 0.1,0.15,0.1, 0,0.075,0, lam(0xa8a8a0)); bx(m, 0.105,0.08,0.105, 0,0.075,0, lam(0xb04a2a)); m.position.set(p[0], h37(p[0],p[1]), p[1]); g.add(m); L.cnM.push(m); }
   for (let k=0;k<16;k++){ const p = openSpot(1); L.bt.push(p); const m = new THREE.Group(); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.3,8), lam(0xb8a640)); b.rotation.z = Math.PI/2; b.position.y = 0.08; m.add(b); m.position.set(p[0], h37(p[0],p[1]), p[1]); g.add(m); L.btM.push(m); }
   for (let k=0;k<10;k++){ const p = openSpot(1.6); const ph = new THREE.Group(), y0 = h37(p[0],p[1]); ph.position.set(p[0], y0, p[1]); ph.rotation.y = rng()*6; g.add(ph);
     bx(ph, 0.08,2.4,0.08, 0,1.2,0, lam(0x8c938e)); const top = new THREE.Group(); top.position.y = 2.35; ph.add(top);
@@ -1814,7 +1799,7 @@ let myName = '';
 try { myName = localStorage.getItem('lvl0_name') || ''; } catch(e){}
 $('name').value = myName;
 let roundT0 = 0;
-const me = { hidden:-1, cans:2, breath:100, adren:false, x:0, z:0, yaw:0, pitch:0, bat:100, light:false, stam:100, alive:true, esc:false, crouch:false, moving:false, running:false, bob:0, step:0, san:100, loudT:0 };
+const me = { hidden:-1, cans:0, breath:100, adren:false, x:0, z:0, yaw:0, pitch:0, bat:100, light:false, stam:100, alive:true, esc:false, crouch:false, moving:false, running:false, bob:0, step:0, san:100, loudT:0 };
 let role = 'none';
 const lightOn = () => role==='survivor' && me.alive && !me.esc && me.light && me.bat > 0;
 const remotes = new Map();
@@ -2805,7 +2790,7 @@ function startRoundLocal(){
   applyWalls(false); wallsLoadedV = G.wv;
   if (role === 'monster'){ me.x = level.mspawn[0]; me.z = level.mspawn[1]; me.yaw = Math.random()*6; }
   else { const k = hashStr(myPid)%4, sp0 = level.spawn || [cc(1), cc(1)]; me.x = sp0[0] + [-0.8,0.8,-0.8,0.8][k]; me.z = sp0[1] + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; }
-  me.pitch = 0; me.bat = 100; me.light = false; me.stam = 100; me.alive = true; me.esc = false; me.crouch = false; me.san = 100; me.loudT = 0; me.hidden = -1; me.cans = 2; me.breath = 100; me.winded = false; me.vmRun = 0;
+  me.pitch = 0; me.bat = 100; me.light = false; me.stam = 100; me.alive = true; me.esc = false; me.crouch = false; me.san = 100; me.loudT = 0; me.hidden = -1; me.cans = 0; me.breath = 100; me.winded = false; me.vmRun = 0;
   stunCharge = 0; stunCD = 0; ventCD = 8; ventT = 0; roundT0 = nowS(); creakT = 25 + Math.random()*20; silT = 0; silNext = 70 + Math.random()*50; $('locker').style.display='none';
   seenPl = G.pl; seenOpen = G.open; seenKl = (G.kl||[]).length; seenLv = G.lv|0; genSeen = []; crankK = -1; dashT = 0; pendingEnd = false; specIdx = 0; knownBo.clear(); abCD = { blackout:8, shift:8, lure:5, disguise:20, dash:10 };
   mode = 'play';
@@ -3185,7 +3170,6 @@ addEventListener('keydown', e=>{
   if (mode==='play' && role==='survivor'){
     if (e.code==='KeyF' && me.hidden<0){ me.light=!me.light; sfx.click(); }
     if (e.code==='KeyC' || e.code==='ControlLeft'){ me.crouch=!me.crouch; }
-    if (e.code==='KeyG' || e.code==='KeyQ') throwCan();
   }
   if (mode==='play' && e.code==='KeyV'){ toggleMute(); }
   if (mode==='play' && role==='survivor'){
@@ -3206,7 +3190,6 @@ canvas.addEventListener('mousedown', e=>{
   if (document.pointerLockElement !== canvas){ try { const r = canvas.requestPointerLock && canvas.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch(err){} return; }
   if (mode==='play' && role==='survivor' && me.alive){
     if (e.button === 0 && me.hidden < 0){ me.light = !me.light; sfx.click(); }
-    else if (e.button === 2) throwCan();
   }
 });
 addEventListener('contextmenu', e=>{ if (document.pointerLockElement === canvas || e.target === canvas) e.preventDefault(); });
@@ -3265,8 +3248,7 @@ function setButtons(){
   let cfg;
   if (role==='survivor') cfg = [
     { label:'LIGHT', icon:'light', down:()=>{ if(mode==='play' && me.hidden<0){ me.light=!me.light; sfx.click(); } }, on:()=>lightOn() }, run,
-    { label:'CROUCH', icon:'crouch', down:()=>{ me.crouch=!me.crouch; }, on:()=>me.crouch },
-    { label:'THROW', icon:'can', down:()=>throwCan(), cnt:()=>me.cans } ];
+    { label:'CROUCH', icon:'crouch', down:()=>{ me.crouch=!me.crouch; }, on:()=>me.crouch } ];
   else if (LK === 2) cfg = [ { label:'SPLASH', icon:'lure', m:1, down:()=>ability('lure'), cd:'lure' }, { label:'LUNGE', icon:'dash', m:1, down:()=>ability('dash'), cd:'dash' }, run ];
   else cfg = [ { label:'DARK', icon:'dark', m:1, down:()=>ability('blackout'), cd:'blackout' }, { label:'DISGUISE', icon:'mask', m:1, down:()=>ability('disguise'), cd:'disguise' }, { label:'LURE', icon:'lure', m:1, down:()=>ability('lure'), cd:'lure' }, { label:'DASH', icon:'dash', m:1, down:()=>ability('dash'), cd:'dash' }, run ];
   ['bA','bB','bC','bD','bE','bF'].forEach((id,k)=>{ const c=cfg[k]; BTN[id]=c; const b=$(id); b.style.display = c ? '' : 'none'; if (c){ b.innerHTML = ICON[c.icon] + c.label; b.classList.toggle('m', !!c.m); } });
@@ -3804,7 +3786,7 @@ function updateHUD(dt){
   const obj = $('obj');
   if (role === 'monster'){
     const left = allPlayers().filter(p=>p.pid!==G.mo && !isDead(p.pid) && !isEsc(p.pid)).length;
-    if (G.grace > 0 && mode==='play') { $('blacksub').textContent = LK === 2 ? `You are the thing in the water. By day you can't strike: stay unseen, get close without being looked at to bring the night sooner. At night, hunt. You can only leave the water to lunge.` : `You can't see them through walls. Listen. Running footsteps, thrown cans and gasping give them away. Use the vents to get around.`; const c = String(Math.ceil(G.grace)); if ($('blackcount').textContent !== c) $('blackcount').textContent = c; }
+    if (G.grace > 0 && mode==='play') { $('blacksub').textContent = LK === 2 ? `You are the thing in the water. By day you can't strike: stay unseen, get close without being looked at to bring the night sooner. At night, hunt. You can only leave the water to lunge.` : `You can't see them through walls. Listen. Running footsteps, voices and gasping give them away. Use the vents to get around.`; const c = String(Math.ceil(G.grace)); if ($('blackcount').textContent !== c) $('blackcount').textContent = c; }
     if (G.grace <= 0 && $('blackcount').textContent) $('blackcount').textContent = '';
     $('objLbl').textContent = 'THE OCCUPANT';
     obj.textContent = G.grace > 0 ? `They wake in ${Math.ceil(G.grace)}…` : G.stun > 0 ? 'Blinded…' : ventT > 0 ? 'In the vents…' : G.dg > 0 ? `Disguised · ${Math.ceil(G.dg)}s · ${left} left` : G.lv === 2 ? (isNight() ? `Night. Hunt. ${left} left · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}` : `Daylight: stay unseen · stalk ${Math.round(G.stk||0)}% · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}`) : G.open ? `The exit is open. ${left} left.` : ( G.lv === 1 ? `Listen for them. ${left} left · generators ${(G.gen||[]).filter(Boolean).length}/${(G.gen||[]).length}` : `Listen for them. ${left} left · fuses ${G.pl}/${FUSES}`);
@@ -3818,7 +3800,6 @@ function updateHUD(dt){
     obj.textContent = G.lv === 2 ? `Find the staircase · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}` : G.open ? 'The exit is open. Find the door.' : G.lv === 1 ? `Start the generators · ${gOn}/${G.gen.length}` : found >= FUSES ? `Bring the fuses to the breaker · ${G.pl}/${FUSES}` : `Find the fuses · ${found}/${FUSES}` + (mine ? ` · carrying ${mine}` : '');
     $('kit').style.display = '';
     $('batfill').style.width = me.bat+'%'; $('batfill').style.background = me.bat < 20 ? '#e25a44' : '#e8de9e';
-    const ct = `CANS ×${me.cans}`; if ($('cans').textContent !== ct) $('cans').textContent = ct;
     const st = $('stam'); st.style.opacity = me.stam < 99 && me.hidden < 0 ? 1 : 0; $('stamf').style.width = me.stam+'%'; st.classList.toggle('adr', !!me.adren); st.classList.toggle('winded', !!me.winded);
     const cranking = crankK >= 0, showStun = stunCharge > 0.05 || cranking; $('stun').style.display = showStun ? 'block' : 'none'; $('stunTxt').style.display = showStun ? 'block' : 'none';
     if (showStun){ $('stun').style.setProperty('--p', (cranking ? crankT/GEN_T*100 : stunCharge/0.7*100).toFixed(0)); const tt = cranking ? 'STARTING…' : 'BLINDING…'; if ($('stunTxt').textContent !== tt) $('stunTxt').textContent = tt; }
