@@ -104,7 +104,7 @@
   .stat b{display:block;font-size:30px;font-weight:400;color:var(--hot)} .stat span{font-size:15px;letter-spacing:.2em;color:var(--dim)}
 
   /* ---------- HUD ---------- */
-  #hud{position:fixed;inset:0;pointer-events:none;display:none;text-shadow:0 0 6px #000,0 0 2px #000}
+  #hud{position:fixed;inset:0;pointer-events:none;display:none;z-index:6;text-shadow:0 0 6px #000,0 0 2px #000}
   #objBox{position:absolute;left:max(14px,env(safe-area-inset-left));top:10px;max-width:min(58vw,460px);padding:6px 14px 8px 10px;border-left:3px solid var(--hot);background:linear-gradient(90deg,rgba(0,0,0,.55),rgba(0,0,0,0))}
   #objBox .lbl{font-size:14px}
   #obj{font-size:22px;line-height:1.05}
@@ -187,7 +187,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.28.3</div>
+<div class="osd" id="ver">v0.28.4</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
