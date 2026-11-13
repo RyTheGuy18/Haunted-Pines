@@ -156,7 +156,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.14.0</div>
+<div class="osd" id="ver">v0.15.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -466,7 +466,7 @@ function genWalls(rng){
     if (ka===1 && kb===1){ w[e]=0; continue; }              // halls are wide open
     if (za===1 && zb===1){ if (rng()<0.8) w[e]=0; continue; }
     if (za===2 && zb===2){ w[e]=0; continue; }
-    if (rng()<0.35) w[e]=0;
+    if (rng()<0.43) w[e]=0;
   }
   const rooms = [...halls];
   for (let k=0;k<3;k++){ const r = place(2+Math.floor(rng()*2), 2+Math.floor(rng()*2), 3, 40); if (r){ rooms.push(r); for (let i=r.i0;i<=r.i1;i++) for (let j=r.j0;j<=r.j1;j++){ kind[i*N+j]=0; if (i<r.i1) w[edgeBetween(i,j,i+1,j)]=0; if (j<r.j1) w[edgeBetween(i,j,i,j+1)]=0; } } }
@@ -1309,7 +1309,7 @@ function aiTick(dt, alive){
   let tx, tz, sp;
   A.sprCD = Math.max(0, (A.sprCD||0) - dt);
   if (A.mode==='chase'){ tx=A.lx; tz=A.lz; sp=MON_SPEED;
-    if (A.sprT > 0){ A.sprT -= dt; sp = MON_SPEED*1.05; if (A.sprT <= 0) A.sprCD = 4; } else if (A.sprCD <= 0) A.sprT = 3; }
+    if (A.sprT > 0){ A.sprT -= dt; sp = MON_SPEED*1.15; if (A.sprT <= 0) A.sprCD = 4; } else if (A.sprCD <= 0) A.sprT = 1.8; }
   else if (A.mode==='hunt'){ tx=A.lx; tz=A.lz; sp=MON_SPEED; if (Math.hypot(tx-ax,tz-az)<1.2){ A.mode='wander'; A.wp=null; } }
   else {
     if (!A.wp || Math.hypot(A.wp[0]-ax,A.wp[1]-az) < 1.5){
@@ -1620,7 +1620,7 @@ function startRoundLocal(){
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
   } else msg('Find 3 fuses. Something else is awake.', 5);
 }
-function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? 1.05 : .72})` : ''; }
+function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? .86 : .64})` : ''; }
 function enterLevel(){
   seenLv = G.lv|0; seenOpen = G.open; seenPl = G.pl; genSeen = []; knownBo.clear(); crankK = -1; dashT = 0; ventT = 0; ventCD = 8; pendingEnd = false;
   PHANTOM.g.visible = false; seenZones.add(1); seenZones.add(2); for (const s of spots) s.intensity = 0;
@@ -1746,6 +1746,12 @@ const sfx = {
     o.connect(g).connect(dest); o.start(t); o.stop(t+dur+0.05);
   },
   step(vol, wet, pos, ref){ if(!this.ctx) return; const o=pos ? this.panner(pos.x, pos.y ?? 0.3, pos.z, ref||1.5) : this.master; this.noise(o,{dur:0.13,freq:360+Math.random()*160,gain:vol}); if (wet) this.noise(o,{dur:0.16,type:'bandpass',freq:900+Math.random()*400,q:2,gain:vol*0.9,at:0.02}); },
+  stomp(pos, run){ if(!this.ctx) return; const o=pos ? this.panner(pos.x, pos.y ?? 0.1, pos.z, 7) : this.master;
+    this.noise(o,{dur:0.34,freq:110,gain:run?1.6:1.35,buf:this.brown,attack:0.003}); this.tone(o,{f:44,to:24,dur:0.38,gain:run?1.1:0.95}); this.tone(o,{f:88,to:50,dur:0.12,gain:0.35});
+    if (Math.random()<0.35) this.noise(o,{dur:0.2,type:'bandpass',freq:420,q:3,gain:0.22,at:0.04}); },
+  skitter(pos, run){ if(!this.ctx) return; const o=pos ? this.panner(pos.x, pos.y ?? 0.1, pos.z, 6) : this.master;
+    const n = 3 + (Math.random()*2|0);
+    for (let k=0;k<n;k++){ const at = k*0.045 + Math.random()*0.02; this.noise(o,{dur:0.025,type:'bandpass',freq:2600+Math.random()*1800,q:5,gain:run?1:0.85,at}); this.noise(o,{dur:0.05,freq:260,gain:0.35,at}); } },
   monStep(pos, run){ if(!this.ctx) return; const o=pos ? this.panner(pos.x, pos.y ?? 0.1, pos.z, 4.5) : this.master; this.noise(o,{dur:0.2,freq:200,gain:run?1:0.85}); this.tone(o,{f:55,dur:0.12,gain:0.4}); if (Math.random()<0.3) this.noise(o,{dur:0.25,type:'bandpass',freq:700,q:6,gain:0.25,at:0.05}); },
   click(pos){ if(!this.ctx) return; const o=this.out(pos); this.noise(o,{dur:0.025,type:'highpass',freq:2500,gain:0.4}); this.tone(o,{f:120,type:'square',dur:0.06,gain:0.05}); },
   heart(vol){ if(!this.ctx) return; this.tone(this.master,{f:55,dur:0.16,gain:vol}); this.tone(this.master,{f:50,dur:0.2,gain:vol*0.7,at:0.2}); },
@@ -1762,7 +1768,7 @@ const sfx = {
   phoneStatic(){ if(!this.ctx) return; this.noise(this.master,{dur:1.8,type:'bandpass',freq:1600,q:1,gain:0.25,attack:0.05}); },
   breath(vol){ if(!this.ctx) return; this.noise(this.master,{dur:0.8,type:'bandpass',freq:900,q:0.7,gain:vol,attack:0.3}); },
   far(kind, pos){
-    if(!this.ctx) return; const o=this.out(pos);
+    if(!this.ctx) return; const o=this.quiet(pos, 0.4);
     if (kind===0){ this.noise(o,{dur:0.6,freq:220,gain:1}); this.tone(o,{f:60,to:35,dur:0.5,gain:0.5}); }
     else if (kind===1){ const f=this.noise(o,{dur:2.4,type:'bandpass',freq:300,q:3,gain:0.5,attack:0.6}); f.frequency.linearRampToValueAtTime(600,this.ctx.currentTime+2.2); }
     else if (kind===2){ for (let k=0;k<3;k++) this.noise(o,{dur:0.09,freq:380,gain:0.9,at:k*0.35}); }
@@ -1783,8 +1789,11 @@ const sfx = {
   crank(x,z){ if(!this.ctx) return; const o=this.panner(x,0.6,z,3); this.noise(o,{dur:0.35,type:'bandpass',freq:180+Math.random()*80,q:2,gain:0.9}); for (let k=0;k<3;k++) this.noise(o,{dur:0.06,freq:400,gain:0.5,at:0.08+k*0.07}); },
   genStart(x,z){ if(!this.ctx) return; const o=this.panner(x,0.6,z,6); this.noise(o,{dur:1.6,freq:160,gain:1,attack:0.05,buf:this.brown}); this.tone(o,{f:28,to:48,type:'sawtooth',dur:1.6,gain:0.4}); },
   dash(x,z){ if(!this.ctx) return; const o=this.panner(x,1.6,z,5); const f=this.noise(o,{dur:0.55,type:'bandpass',freq:900,q:2,gain:1}); f.frequency.exponentialRampToValueAtTime(2600,this.ctx.currentTime+0.4); this.tone(o,{f:320,to:120,type:'sawtooth',dur:0.45,gain:0.12}); this.noise(o,{dur:0.3,type:'bandpass',freq:500,q:1,gain:0.5}); },
-  ding(pos){ if(!this.ctx) return; const o=this.out(pos); this.tone(o,{f:1318.5,dur:2.4,gain:0.09,attack:0.004}); this.tone(o,{f:2637,dur:1.1,gain:0.025,attack:0.004}); this.tone(o,{f:659.3,dur:1.8,gain:0.03,attack:0.004}); },
-  creak(x,z){ if(!this.ctx) return; const o=this.panner(x,WH,z,2); const f=this.noise(o,{dur:1.5,type:'bandpass',freq:240,q:9,gain:0.45,attack:0.35,buf:this.brown}); f.frequency.exponentialRampToValueAtTime(150,this.ctx.currentTime+1.4); for (let k=0;k<3;k++) this.noise(o,{dur:0.04,type:'bandpass',freq:1400+Math.random()*600,q:3,gain:0.18,at:0.3+k*0.35+Math.random()*0.1}); },
+  quiet(pos, k){ const p=this.ctx.createPanner(); p.panningModel='HRTF'; p.distanceModel='inverse'; p.refDistance=1.5; p.maxDistance=80; p.rolloffFactor=1.3;
+    if (p.positionX){ p.positionX.value=pos.x; p.positionY.value=pos.y ?? 0.3; p.positionZ.value=pos.z; } else p.setPosition(pos.x, pos.y ?? 0.3, pos.z);
+    const g=this.ctx.createGain(); g.gain.value=k; p.connect(g).connect(this.master); return p; },
+  ding(pos){ if(!this.ctx) return; const o=this.quiet(pos, 0.5); this.tone(o,{f:1318.5,dur:2.4,gain:0.09,attack:0.004}); this.tone(o,{f:2637,dur:1.1,gain:0.025,attack:0.004}); this.tone(o,{f:659.3,dur:1.8,gain:0.03,attack:0.004}); },
+  creak(x,z){ if(!this.ctx) return; const o=this.quiet({x,y:WH,z}, 0.55); const f=this.noise(o,{dur:1.5,type:'bandpass',freq:240,q:9,gain:0.45,attack:0.35,buf:this.brown}); f.frequency.exponentialRampToValueAtTime(150,this.ctx.currentTime+1.4); for (let k=0;k<3;k++) this.noise(o,{dur:0.04,type:'bandpass',freq:1400+Math.random()*600,q:3,gain:0.18,at:0.3+k*0.35+Math.random()*0.1}); },
   squeak(x,z){ if(!this.ctx) return; const o=this.panner(x,0.3,z,1.5); this.tone(o,{f:1900+Math.random()*500,to:1500,type:'triangle',dur:0.22,gain:0.03,attack:0.05}); this.noise(o,{dur:0.3,freq:260,gain:0.1,attack:0.05}); },
   tick(x,z){ if(!this.ctx) return; const o=this.panner(x,1.6,z,0.8); this.noise(o,{dur:0.02,type:'highpass',freq:3200,gain:0.35}); },
   ventIn(){ if(!this.ctx) return; this.noise(this.master,{dur:0.3,type:'bandpass',freq:700,q:4,gain:0.4}); this.tone(this.master,{f:140,to:90,type:'square',dur:0.15,gain:0.05}); },
@@ -1793,6 +1802,7 @@ const sfx = {
   escape(){ if(!this.ctx) return; for (const f of [261.6,329.6,392,523.3]) this.tone(this.master,{f,type:'sine',dur:3,gain:0.06,attack:0.8}); },
 };
 // fake Occupant footsteps that start soft far behind you and run right up to your back
+function occStep(pos, run){ if (MON === MONS[CRAWLER]) sfx.skitter(pos, run); else sfx.stomp(pos, run); }
 function dashSound(x, z){ playEventSound('dash', x, z); safe(()=>net.room && net.room.emit('snd',{k:'dash',x,z})); }
 function startGenLoop(gn){
   if (!sfx.ctx || gn.loop) return; const c = sfx.ctx, gl = c.createGain(); gl.gain.value = 0.16; gl.connect(sfx.panner(gn.x, 0.6, gn.z, 2.5)); gn.loop = gl;
@@ -2021,10 +2031,10 @@ function updateMe(dt){
   if (me.stam <= 0.5) me.winded = true;
   if (me.winded && (role === 'monster' ? me.stam >= 100 : (me.stam >= 35 || (!runReq && me.stam >= 12)))) me.winded = false;
   me.running = runReq && !me.winded && me.stam > 0.5;
-  if (role === 'monster') me.stam = clamp(me.stam + (me.running ? -34 : 24)*dt, 0, 100);   // ~3s sprint, ~4s to recharge
+  if (role === 'monster') me.stam = clamp(me.stam + (me.running ? -55 : 24)*dt, 0, 100);   // ~1.8s sprint, ~4s to recharge
   else me.stam = clamp(me.stam + (me.running ? (me.adren ? -8 : -14) : 16)*dt, 0, 100);   // ~7s of sprint (~12s with adrenaline)
   let sp;
-  if (role === 'monster') sp = me.running ? MON_SPEED*1.05 : MON_SPEED;
+  if (role === 'monster') sp = me.running ? MON_SPEED*1.15 : MON_SPEED;
   else sp = me.crouch ? 1.35 : me.running ? (me.adren ? 5.6 : 5.0) : 2.6;
   const sn = Math.sin(me.yaw), cs = Math.cos(me.yaw);
   const vx = (fx*cs + fz*sn)*sp, vz = (-fx*sn + fz*cs)*sp;
@@ -2033,9 +2043,9 @@ function updateMe(dt){
   me.loudT = Math.max(0, me.loudT - dt);
   if (want){
     me.bob += dt*(me.running?11:me.crouch?5:7.5);
-    me.step += dt*(me.running?2.6:me.crouch?1.1:1.7);
+    me.step += dt*(role==='monster' && MON === MONS[CRAWLER] ? (me.running?5:4) : me.running?2.6:me.crouch?1.1:1.7);
     if (me.step >= 1){ me.step -= 1;
-      if (role==='monster') sfx.monStep(null, me.running);
+      if (role==='monster') occStep(null, me.running);
       else sfx.step(me.crouch?0.06:me.running?0.24:0.14, onWet(me.x,me.z));
     }
   }
@@ -2267,10 +2277,10 @@ function updateZoneEnv(dt){
   const z = zoneAt(camera.position.x, camera.position.z);
   if (z !== curZone){ curZone = z; if (mode==='play' && role==='survivor' && z && !seenZones.has(z)){ seenZones.add(z); msg('— ' + ZNAME[z] + ' —', 3); } }
   const k = 1 - Math.exp(-2.5*dt);
-  _fogT.copy(ZFOG[z]); if (role==='monster') _fogT.multiplyScalar(LK === 1 ? 2.2 : 0.8);
+  _fogT.copy(ZFOG[z]); if (role==='monster') _fogT.multiplyScalar(LK === 1 ? 1.4 : 0.7);
   scene.fog.color.lerp(_fogT, k); scene.background.copy(scene.fog.color);
-  scene.fog.density = lerp(scene.fog.density, role==='monster' ? (LK === 1 ? 0.03 : 0.1) : ZDENS[z], k);
-  amb.intensity = lerp(amb.intensity, role==='monster' ? (LK === 1 ? 2.8 : 0.42) : 0.16, k);
+  scene.fog.density = lerp(scene.fog.density, role==='monster' ? (LK === 1 ? 0.06 : 0.11) : ZDENS[z], k);
+  amb.intensity = lerp(amb.intensity, role==='monster' ? (LK === 1 ? 1.5 : 0.34) : 0.16, k);
   amb.color.lerp(ZSKY[z], k); amb.groundColor.lerp(ZGND[z], k);
 }
 function survivorSeesMonster(){
@@ -2292,7 +2302,7 @@ function updateAmbience(dt){
   const monSelf = role==='monster';
   const fooled = !monSelf && disguisedFrom(camera.position.x, camera.position.z);
   const mdT = fooled ? 99 : md;   // disguised: no drone, no heartbeat, the hum stays on
-  const humTarget = (silenced() ? 0 : 0.085) * Math.min(1.2, localLight) * (monSelf ? 1 : clamp((mdT-3)/10, 0, 1)) * [1, 0.7, 0.25][Math.max(0,curZone)];
+  const humTarget = (silenced() ? 0 : 0.062) * Math.min(1.2, localLight) * (monSelf ? 1 : clamp((mdT-3)/10, 0, 1)) * [1, 0.7, 0.25][Math.max(0,curZone)];
   sfx.windG.gain.value = lerp(sfx.windG.gain.value, curZone===2 && !silenced() ? 0.22 : 0, 0.03);
   sfx.humG.gain.value = lerp(sfx.humG.gain.value, humTarget, silenced() ? 0.3 : 0.15);
   sfx.droneG.gain.value = lerp(sfx.droneG.gain.value, monSelf ? 0.05 : 0.2*clamp(1-mdT/18,0,1), 0.05);
@@ -2312,7 +2322,7 @@ function updateAmbience(dt){
   for (const dp of level.drips){ dp.t -= dt; if (dp.t <= 0 && !silenced()){ dp.t = 1.2+Math.random()*2.5; if (Math.hypot(dp.x-camera.position.x, dp.z-camera.position.z) < 18) sfx.drip(dp.x, dp.z); } }
   if (G.ring >= 0){ ringT -= dt; if (ringT <= 0){ ringT = 3; const ph=level.phones[G.ring]; if (ph) sfx.ring(ph.x, ph.z); } } else ringT = 0;
   // the Occupant's footsteps
-  if (!monSelf && mDisp.mv && md < 45){ monStepT -= dt; if (monStepT <= 0){ monStepT = 0.42 * (h01(Math.floor(t*3))<0.5 ? 0.75 : 1.25); if (fooled) sfx.step(0.14, onWet(mDisp.x,mDisp.z), {x:mDisp.x,y:0.1,z:mDisp.z}); else sfx.monStep({x:mDisp.x,y:0.1,z:mDisp.z}, false); } }
+  if (!monSelf && mDisp.mv && md < 45){ monStepT -= dt; if (monStepT <= 0){ monStepT = (MON === MONS[CRAWLER] ? 0.24 : 0.46) * (mDisp.mv===2 ? 0.8 : 1) * (h01(Math.floor(t*3))<0.5 ? 0.8 : 1.2); if (fooled) sfx.step(0.14, onWet(mDisp.x,mDisp.z), {x:mDisp.x,y:0.1,z:mDisp.z}); else occStep({x:mDisp.x,y:0.1,z:mDisp.z}, mDisp.mv===2); } }
   if (role==='survivor' && me.alive && !me.esc){
     heartT -= dt;
     if (mdT < 16 && heartT <= 0){ const k=mdT/16; heartT=lerp(0.36,1.1,k); sfx.heart(lerp(0.7,0.15,k)); if (mdT<9) vibrate(35); }
@@ -2552,7 +2562,7 @@ function frame(now){
     mDisp.x = -999; mDisp.z = -999;
     updatePanels(t);
     { const e = Math.floor(t - pageT0); $('osdTime').textContent = `${Math.floor(e/3600)}:${String(Math.floor(e/60)%60).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`; }
-    if (sfx.ctx){ sfx.listen(camera); sfx.humG.gain.value = lerp(sfx.humG.gain.value, 0.06*localLight, 0.1); sfx.droneG.gain.value *= 0.95; sfx.breathG.gain.value = 0; }
+    if (sfx.ctx){ sfx.listen(camera); sfx.humG.gain.value = lerp(sfx.humG.gain.value, 0.045*localLight, 0.1); sfx.droneG.gain.value *= 0.95; sfx.breathG.gain.value = 0; }
     nextSurge -= dt; if (nextSurge <= 0){ nextSurge = 20+Math.random()*30; surgeT = 1.2; } surgeT = Math.max(0, surgeT-dt);
   } else {
     updateRemotes(dt);
