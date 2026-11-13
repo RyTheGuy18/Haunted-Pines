@@ -6,7 +6,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 - Live: https://rytheguy18.github.io/Haunted-Pines/ (GitHub Pages, `main` branch, repo root)
 - Owner: Ryan (GitHub `rytheguy18` / `RyTheGuy18`). Plays it with friends and younger brothers, mostly on phones.
-- Current version: **v0.20.1** (shown bottom-right of the menu, `#ver`)
+- Current version: **v0.20.2** (shown bottom-right of the menu, `#ver`)
 
 ## Files
 
@@ -61,7 +61,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 **Caught** → full-screen jumpscare: the real head of the current skin (`MON.gltf.B.Head`, `MON.bones[5]`, or `MON.P.head`) is placed 0.45 m in front of your eyes, zoomed camera, shake, strobe, red static overlay (`#scare`), then a hard cut to "YOU WERE FOUND", then spectate.
 
-**Camera/look**: PSX vertex snapping, low render resolution, film grain, camcorder OSD. Since v0.20 survivors always see a **VHS camcorder look** (`updateCamFx`, `#tape`): scanlines, red/cyan bleed via CSS drop-shadows, slight blur (desktop only), head-switching noise strip at the bottom, `● REC SP 0:00:00` timecode top-centre, random tracking slips every 15–40 s. Level 0 fog is ×1.45 for survivors only (`updateZoneEnv`). When a survivor **sees** the Occupant (or it's very close) the render resolution drops hard (`updateLowRes`). VHS tracking effect near it.
+**Camera/look**: PSX vertex snapping, low render resolution, film grain, camcorder OSD. An always-on VHS camcorder overlay (scanlines, bleed, head-switching strip, REC timecode) was tried in v0.20.0 and **removed in v0.20.2 at Ryan's request** — `updateCamFx` only does the near-monster bleed/jitter again. Level 0 fog is ×1.45 for survivors only (`updateZoneEnv`). When a survivor **sees** the Occupant (or it's very close) the render resolution drops hard (`updateLowRes`). VHS tracking effect near it.
 
 ## Audio
 

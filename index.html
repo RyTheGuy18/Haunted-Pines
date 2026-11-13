@@ -24,10 +24,6 @@
   #flash{position:fixed;inset:0;pointer-events:none;background:#8a0000;opacity:0}
   #white{position:fixed;inset:0;pointer-events:none;background:#fffbe8;opacity:0;transition:opacity 1.5s}
   #vhs{position:fixed;inset:0;pointer-events:none;opacity:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.07) 0 1px,transparent 1px 3px)}
-  #tape{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:2;background:repeating-linear-gradient(0deg,rgba(0,0,0,.17) 0 1px,transparent 1px 3px),linear-gradient(180deg,rgba(40,60,90,.06),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,rgba(60,30,20,.08))}
-  #headsw{position:absolute;left:-4%;right:-4%;bottom:0;height:3.2%;opacity:.55;background:repeating-linear-gradient(90deg,rgba(255,255,255,.32) 0 2px,transparent 2px 9px,rgba(140,200,255,.18) 9px 11px,transparent 11px 19px)}
-  #tapeOsd{position:absolute;left:50%;top:12px;transform:translateX(-50%);font-size:clamp(16px,2.4vw,22px);letter-spacing:.14em;color:#f4eed6;text-shadow:2px 0 rgba(255,40,40,.5),-2px 0 rgba(40,200,255,.45);white-space:nowrap}
-  #tapeOsd b{color:var(--red);font-weight:400;animation:blink 1.2s steps(1) infinite}
   #vband{position:absolute;left:0;right:0;height:12%;top:30%;background:linear-gradient(transparent,rgba(255,255,255,.22),rgba(120,200,255,.12),transparent)}
   #vtxt{position:absolute;left:max(18px,env(safe-area-inset-left));bottom:18%;font-size:26px;color:#e8f0ff;text-shadow:2px 0 #f33,-2px 0 #3cf;opacity:0}
   #black{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity 1.2s;text-align:center;padding:0 20px;z-index:8}
@@ -168,7 +164,6 @@
 <div id="vig"></div>
 <div id="flash"></div>
 <div id="scare"></div>
-<div id="tape"><div id="headsw"></div><div id="tapeOsd"><b>●</b> REC&nbsp;&nbsp;SP&nbsp;&nbsp;<span id="tapeT">0:00:00</span></div></div>
 <div id="vhs"><div id="vband"></div><div id="vtxt">◄◄ TRACKING</div></div>
 <div id="white"></div>
 <div id="locker"><div id="breath">HOLD YOUR BREATH<i><b id="breathb"></b></i></div></div>
@@ -176,7 +171,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.20.1</div>
+<div class="osd" id="ver">v0.20.2</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -2058,7 +2053,7 @@ function leaveRoom(){
 }
 function goMenu(note){
   $('locker').style.display='none'; me.hidden = -1;
-  vhsK = 0; $('vhs').style.opacity = 0; $('tape').style.opacity = 0;
+  vhsK = 0; $('vhs').style.opacity = 0;
   mode='menu'; role='none'; VM.visible = false; amb.intensity = 0.16; PHANTOM.g.visible = false; $('hud').style.display='none'; $('black').style.opacity=0; $('white').style.opacity=0; setTouchUI(false); showScreen('menu');
   canvas.style.filter=''; canvas.style.transform='';
   try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
@@ -2196,7 +2191,7 @@ function powerOn(){
 }
 function showEnd(){
   $('locker').style.display='none'; me.hidden = -1;
-  vhsK = 0; $('vhs').style.opacity = 0; $('tape').style.opacity = 0;
+  vhsK = 0; $('vhs').style.opacity = 0;
   $('blackcount').textContent = '';
   mode = 'end'; setTouchUI(false); VM.visible = false; PHANTOM.g.visible = false;
   try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
@@ -2598,7 +2593,7 @@ $('bLeave').onclick = ()=>{ leaveRoom(); goMenu(''); };
 $('bAgain').onclick = ()=>{ sfx.init(); hostStartRound(); };
 $('bLobby').onclick = ()=>{ if (!amHost() || net.solo) return; G.ph = 'lobby'; G.dg = 0; broadcastState(); afterState(); };
 function toLobby(){
-  $('locker').style.display='none'; me.hidden = -1; vhsK = 0; $('vhs').style.opacity = 0; $('tape').style.opacity = 0;
+  $('locker').style.display='none'; me.hidden = -1; vhsK = 0; $('vhs').style.opacity = 0;
   mode = 'lobby'; role = 'none'; VM.visible = false; amb.intensity = 0.16; PHANTOM.g.visible = false; MON.g.visible = false;
   $('hud').style.display='none'; $('black').style.opacity=0; $('white').style.opacity=0; $('blackcount').textContent=''; setTouchUI(false);
   canvas.style.filter=''; canvas.style.transform=''; showScreen('lobby'); renderLobby();
@@ -3006,22 +3001,10 @@ function updateVHS(dt){
   const el = $('vhs'); el.style.opacity = vhsK > 0.02 ? Math.min(1, vhsK*1.2) : 0;
   if (vhsK > 0.02){ $('vband').style.top = ((nowS()*37) % 120 - 15) + '%'; $('vtxt').style.opacity = (vhsK > 0.5 && Math.sin(nowS()*9) > 0) ? 0.85 : 0; }
 }
-let glitchT = 0, glitchNext = 18;
 function updateCamFx(dt){
-  // the whole round is filmed on a cheap camcorder: scanlines, colour bleed, a soft picture, head-switching noise at the bottom
-  const tape = $('tape'), onTape = (mode==='play' || mode==='deadAnim') && role==='survivor' && me.alive && !me.esc;
-  tape.style.opacity = onTape ? 1 : 0;
-  if (!onTape) return;
-  const t = nowS();
-  $('headsw').style.transform = `translateX(${((Math.random()-0.5)*14).toFixed(1)}px) skewX(${((Math.random()-0.5)*30).toFixed(0)}deg)`;
-  { const e = Math.max(0, Math.floor(t - roundT0)); const s = `${Math.floor(e/3600)}:${String(Math.floor(e/60)%60).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`; if ($('tapeT').textContent !== s) $('tapeT').textContent = s; }
-  // every so often the tracking slips for a moment
-  glitchNext -= dt; if (glitchNext <= 0){ glitchNext = 15 + Math.random()*25; glitchT = 0.35 + Math.random()*0.4; }
-  glitchT = Math.max(0, glitchT - dt);
-  const v = Math.max(vhsK, glitchT > 0 ? 0.45 : 0), jit = v > 0.05 ? (Math.random()-0.5)*v*14 : 0;
-  if (glitchT > 0 && vhsK < 0.3){ $('vhs').style.opacity = 0.7; $('vband').style.top = ((t*61) % 120 - 15) + '%'; }
-  const c = 1.4 + v*6;
-  canvas.style.filter = `${isTouch ? '' : 'blur(0.35px) '}saturate(1.12) contrast(1.06) drop-shadow(${c.toFixed(1)}px 0 0 rgba(255,40,40,${(0.26+v*0.2).toFixed(2)})) drop-shadow(${(-c).toFixed(1)}px 0 0 rgba(40,200,255,${(0.2+v*0.15).toFixed(2)}))`;
+  if (role!=='survivor' || !me.alive || me.esc) return;
+  const v = vhsK, jit = v > 0.05 ? (Math.random()-0.5)*v*14 : 0;
+  canvas.style.filter = v > 0.05 ? `drop-shadow(${(3+v*5).toFixed(1)}px 0 0 rgba(255,40,40,.45)) drop-shadow(${(-3-v*5).toFixed(1)}px 0 0 rgba(40,200,255,.35))` : '';
   canvas.style.transform = jit ? `translateX(${jit.toFixed(1)}px)` : '';
 }
 
@@ -3123,7 +3106,7 @@ const _jv = new THREE.Vector3();
 function toSpectate(){
   $('white').style.transition = ''; $('black').style.transition = ''; $('scare').style.opacity = 0; camera.fov = SET.fov; camera.updateProjectionMatrix();
   $('locker').style.display='none'; $('stun').style.display='none'; $('stunTxt').style.display='none'; $('prompt').style.display='none'; $('stam').style.opacity=0;
-  vhsK = 0; $('vhs').style.opacity = 0; $('tape').style.opacity = 0;
+  vhsK = 0; $('vhs').style.opacity = 0;
   VM.visible = false; $('flash').style.opacity = 0; canvas.style.filter=''; canvas.style.transform='';
   if (pendingEnd || G.ph === 'end'){ showEnd(); return; }
   mode = 'spect'; $('black').style.opacity = 0; $('spec').style.display = 'block'; $('bat').style.display='none'; setTouchUI(isTouch);
