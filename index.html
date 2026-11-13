@@ -189,7 +189,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.28.7</div>
+<div class="osd" id="ver">v0.28.8</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -3285,7 +3285,8 @@ function showVoice(){ const m = 'MIC: ' + (!voice.stream ? '—' : voice.muted ?
 /* v0.28.1 voice fixes (Ryan: iPhone voice unreliable, people could barely hear him):
    - the mic goes through a Web Audio chain (high-pass → MIC BOOST gain → compressor → limiter) and THAT stream is what's sent,
      so quiet phone mics come through loud and even; switching microphones just swaps the source node (no call renegotiation)
-   - iPhone: navigator.audioSession 'play-and-record' while the mic is on (speaker, no ducking), 'playback' otherwise (plays with the silent switch on)
+   - iPhone: navigator.audioSession 'play-and-record' while the mic is on (and right before asking for it), 'auto' otherwise.
+     NEVER 'playback': in that mode iOS refuses the microphone outright (that was the v0.28.1–0.28.7 "mic blocked" bug)
    - the audio engine is resumed whenever iOS suspends/interrupts it; a mic track that iOS ends is re-acquired
    - calls: Opus with in-band FEC and a higher bitrate, a watchdog closes dead calls so voiceSync re-dials them */
 /* v0.28.6 (Ryan: "mic blocked", wanted the phone to actually ask): the mic request always comes straight from a tap
@@ -3301,7 +3302,7 @@ function micHelp(e){
       ? '<ol><li>Open the <b>Settings</b> app → <b>Apps</b> → <b>Safari</b> → <b>Microphone</b> → pick <b>Ask</b> (or Allow).</li><li>Swipe this app fully closed and open it again.</li><li>Tap <b>VOICE CHAT</b> and pick <b>Allow</b>.</li></ol>'
       : '<ol><li>Tap <b>aA</b> (or the ⋯ / page icon) next to the web address.</li><li><b>Website Settings</b> → <b>Microphone</b> → <b>Allow</b> (or Ask).</li><li>Tap <b>RELOAD &amp; ASK AGAIN</b> below and pick <b>Allow</b>.</li></ol><div class="devnote">If that list isn\'t there: Settings app → Apps → Safari → Microphone → Ask.</div>')
       : '<ol><li>Tap the lock / settings icon next to the web address.</li><li>Set <b>Microphone</b> to <b>Allow</b>.</li><li>Tap <b>RELOAD &amp; ASK AGAIN</b>.</li></ol>'; }
-  $('mhWhy').textContent = why; $('mhSteps').innerHTML = steps; $('micHelp').style.display = 'flex';
+  $('mhWhy').textContent = why + (n ? ` (${n})` : ''); $('mhSteps').innerHTML = steps; $('micHelp').style.display = 'flex';
   $('netnote').textContent = 'The microphone is off. Voice chat needs it.';
 }
 $('mhTry').onclick = ()=>{ $('micHelp').style.display = 'none'; sfx.init(); voiceEnable(true); };   // straight from the tap, so the phone can show its prompt
@@ -3311,11 +3312,12 @@ $('mhClose').onclick = ()=>{ $('micHelp').style.display = 'none'; };
 try { if (localStorage.getItem('lvl0_askmic') === '1'){ localStorage.removeItem('lvl0_askmic'); const ask = ()=>{ removeEventListener('pointerdown', ask, true); sfx.init(); voiceEnable(true); }; addEventListener('pointerdown', ask, true); queueMicrotask(()=>{ $('netnote').textContent = 'Tap anywhere and your phone will ask to use the microphone.'; }); } } catch(e){}
 const micConstraints = id => ({ audio:{ deviceId: id ? { exact:id } : undefined, echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 }, video:false });
 async function getMic(){
+  setAudioSession(true);   // iOS only hands out the mic in a recording-capable session
   try { return await navigator.mediaDevices.getUserMedia(micConstraints(SET.mic)); }
   catch(e){ if (SET.mic){ SET.mic = ''; saveSet(); return await navigator.mediaDevices.getUserMedia(micConstraints('')); }
     if (e && (e.name === 'OverconstrainedError' || e.name === 'TypeError')) return await navigator.mediaDevices.getUserMedia({ audio:true }); throw e; }
 }
-function setAudioSession(){ try { if (navigator.audioSession) navigator.audioSession.type = voice.raw ? 'play-and-record' : 'playback'; } catch(e){} }
+function setAudioSession(rec){ try { if (navigator.audioSession) navigator.audioSession.type = (rec || voice.raw) ? 'play-and-record' : 'auto'; } catch(e){} }
 function micChain(){
   const ctx = sfx.ctx; if (!ctx || !ctx.createMediaStreamDestination) return null;
   if (!voice.chain) try {
@@ -3350,7 +3352,7 @@ async function voiceEnable(on){
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ $('netnote').textContent = "This browser can't use a microphone here."; voice.want = false; showVoice(); return false; }
     sfx.init();
     let raw; try { raw = await getMic(); }
-    catch(e){ voice.want = false; try { localStorage.setItem('lvl0_voice','0'); } catch(_){} showVoice(); micHelp(e); return false; }
+    catch(e){ voice.want = false; try { localStorage.setItem('lvl0_voice','0'); } catch(_){} showVoice(); setAudioSession(); micHelp(e); return false; }
     plugMic(raw); fillDevices();
   }
   voice.want = on; try { localStorage.setItem('lvl0_voice', on ? '1' : '0'); } catch(e){}
@@ -3716,7 +3718,6 @@ const sfx = {
     if (this.ctx){ this.ctx.resume && this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     let c; try { c = new AC({ latencyHint:'interactive' }); } catch(e){ c = new AC(); } this.ctx = c;
-    try { if (navigator.audioSession && !voice.raw) navigator.audioSession.type = 'playback'; } catch(e){}
     if (canSink && SET.spk) c.setSinkId(SET.spk).catch(()=>{});
     this.master = c.createGain(); this.master.gain.value = 0.9 * SET.vol/100;
     const comp = c.createDynamicsCompressor(); this.master.connect(comp); comp.connect(c.destination);
