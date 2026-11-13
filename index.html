@@ -65,6 +65,13 @@
   .btn.primary::after{opacity:.7}
   .btn.ghost{font-size:21px;padding:8px 12px}
   .btn.monb{border-color:rgba(231,138,118,.45);color:var(--mon)}
+  #settings{z-index:40;background:rgba(4,3,1,.88)}
+  #settings .btn{font-size:22px}
+  .srow{display:flex;justify-content:space-between;align-items:baseline;font-size:19px;color:#cfc49e}
+  #settings input[type=range]{padding:0;border:0;background:none;height:30px;accent-color:#e9d27c;width:100%}
+  #bGear{position:absolute;right:max(14px,env(safe-area-inset-right));top:8px;width:42px;height:42px;border:1px solid var(--line);background:rgba(0,0,0,.45);font-size:24px;line-height:1;pointer-events:auto;display:none;padding:0}
+  body.touch #bGear{display:block}
+  body.touch #plist{top:58px}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .row.code{grid-template-columns:1fr 1.2fr}
   #joincode{text-transform:uppercase;text-align:center;letter-spacing:.35em}
@@ -161,12 +168,13 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.17.0</div>
+<div class="osd" id="ver">v0.18.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
     <div id="kit"><div id="bat"><div id="batfill"></div></div><span id="cans"></span></div>
     <div id="micbox"><span id="micl">MIC</span><div id="micbar"><i id="micfill"></i><b id="mict1"></b><b id="mict2"></b></div><span id="mics"></span></div></div>
+  <button id="bGear">⚙</button>
   <div id="plist"></div>
   <div id="spec"></div>
   <div id="cross"></div>
@@ -199,6 +207,7 @@
     <div class="lbl">IF YOU BECOME THE OCCUPANT</div>
     <div class="picker"><button id="bSkinL">◀</button><div class="pv" id="bSkin"></div><button id="bSkinR">▶</button></div>
   </div>
+  <button class="btn ghost" id="bSet1">SETTINGS</button>
   <details class="how"><summary>HOW TO SURVIVE</summary><br>
     <b>Find 3 fuses</b>, bring them to the breaker, then find the exit door.<br><br>
     <b>Hide</b> in lockers. It can't open them, but hold your breath when it's close.<br>
@@ -231,7 +240,23 @@
   </div>
   <button class="btn primary" id="bStart">START</button>
   <div id="lwait">Waiting for the host to start…</div>
+  <button class="btn ghost" id="bSet2">SETTINGS</button>
   <button class="btn ghost" id="bLeave">LEAVE</button>
+</div></div>
+
+<div class="screen" id="settings"><div class="col">
+  <div class="title"><h1 style="font-size:clamp(40px,10vw,64px)">SETTINGS</h1><div class="tag" id="pausenote"></div></div>
+  <div class="card">
+    <div class="srow"><span class="lbl">VOLUME</span><span id="vVol"></span></div><input type="range" id="sVol" min="0" max="100">
+    <div class="srow"><span class="lbl">VOICE CHAT VOLUME</span><span id="vVv"></span></div><input type="range" id="sVv" min="0" max="200">
+    <div class="row"><button class="btn" id="bVoice3">VOICE CHAT: OFF</button><button class="btn" id="bMute">MIC: ON</button></div>
+  </div>
+  <div class="card">
+    <div class="srow"><span class="lbl">LOOK SENSITIVITY</span><span id="vSens"></span></div><input type="range" id="sSens" min="30" max="250">
+    <div class="srow"><span class="lbl">FIELD OF VIEW</span><span id="vFov"></span></div><input type="range" id="sFov" min="60" max="100">
+  </div>
+  <button class="btn primary" id="bResume">RESUME</button>
+  <button class="btn ghost" id="bQuit">LEAVE GAME</button>
 </div></div>
 
 <div class="screen" id="end"><div class="col">
@@ -262,7 +287,7 @@ const isTouch = ('ontouchstart' in window) || matchMedia('(pointer:coarse)').mat
 document.body.classList.toggle('touch', isTouch);
 $('controls').textContent = isTouch
   ? 'Left thumb moves, right thumb looks. USE pops up next to lockers.'
-  : 'Click to look · WASD move · Shift run · C crouch · Left click / F flashlight · E hide · Right click / G throw can · V mute mic · Occupant: Shift sprint, E vent, 1 blackout, 2 shift walls, 3 lure, 4 disguise, 5 dash.';
+  : 'Click to look · WASD move · Shift run · C crouch · Left click / F flashlight · E hide · Right click / G throw can · V mute mic · Esc settings · Occupant: Shift sprint, E vent, 1 blackout, 2 shift walls, 3 lure, 4 disguise, 5 dash.';
 function vibrate(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
 
 /* ================= constants ================= */
@@ -1346,7 +1371,7 @@ function aiTick(dt, alive){
 function advanceLevel(){
   buildLevel(lvSeed(1), 1); sfx.bindLevel();
   walls = level.base.slice(); G.w = wallsHex(); G.wv++;
-  G.lv = 1; G.esc = []; G.open = 0; G.fz = []; G.pl = 0; G.gen = level.gens.map(()=>0);
+  G.lv = 1; G.esc = []; G.dead = [];   // everyone caught on Level 0 wakes up in the garage too G.open = 0; G.fz = []; G.pl = 0; G.gen = level.gens.map(()=>0);
   G.aw = level.aw.map(()=>0); G.bt = level.bt.map(()=>0); G.cn = level.cn.map(()=>0);
   G.bo = []; G.stun = 0; G.dg = 0; G.ring = -1; G.ads = 0;
   G.ax = level.mspawn[0]; G.az = level.mspawn[1]; G.grace = G.mo === 'AI' ? 12 : 15;
@@ -1537,13 +1562,48 @@ async function connect(code, host){
   renderLobby();
   return true;
 }
+/* ================= settings ================= */
+const SET = { vol:100, vv:100, sens:100, fov:74 };
+try { Object.assign(SET, JSON.parse(localStorage.getItem('lvl0_set') || '{}')); } catch(e){}
+let settingsOpen = false;
+function saveSet(){ try { localStorage.setItem('lvl0_set', JSON.stringify(SET)); } catch(e){} }
+function applySet(){
+  if (sfx.master) sfx.master.gain.value = 0.9 * SET.vol/100;
+  $('vVol').textContent = SET.vol + '%'; $('vVv').textContent = SET.vv + '%'; $('vSens').textContent = (SET.sens/100).toFixed(2) + 'x'; $('vFov').textContent = SET.fov + '°';
+  if (!dashT){ camera.fov = SET.fov; camera.updateProjectionMatrix(); }
+}
+for (const [id, key] of [['sVol','vol'],['sVv','vv'],['sSens','sens'],['sFov','fov']]){ const el = $(id); el.value = SET[key]; el.addEventListener('input', ()=>{ SET[key] = +el.value; applySet(); saveSet(); }); }
+const soloPaused = () => settingsOpen && net.solo && (mode === 'play' || mode === 'spect');
+function openSettings(){
+  if (settingsOpen) return; settingsOpen = true;
+  const inGame = mode === 'play' || mode === 'spect' || mode === 'deadAnim' || mode === 'fallAnim' || mode === 'escAnim';
+  $('pausenote').textContent = inGame ? (net.solo ? 'PAUSED' : 'The game keeps going while you\'re in here.') : '';
+  $('bResume').textContent = inGame ? 'RESUME' : 'BACK';
+  $('bQuit').style.display = inGame || mode === 'lobby' ? '' : 'none'; $('bQuit').textContent = inGame ? 'LEAVE GAME' : 'LEAVE ROOM';
+  keys.clear(); runHeld = false; stickV = [0,0];
+  $('settings').classList.add('show'); showVoice(); applySet();
+  try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
+}
+function closeSettings(){
+  if (!settingsOpen) return; settingsOpen = false; $('settings').classList.remove('show');
+  if (!isTouch && (mode === 'play' || mode === 'spect')){ try { const r = canvas.requestPointerLock && canvas.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch(e){} }
+}
+$('bSet1').onclick = $('bSet2').onclick = openSettings;
+$('bGear').addEventListener('touchstart', e=>{ e.preventDefault(); e.stopPropagation(); openSettings(); }, { passive:false }); $('bGear').onclick = openSettings;
+$('bResume').onclick = closeSettings;
+$('bQuit').onclick = ()=>{ closeSettings(); leaveRoom(); goMenu(''); };
+$('bVoice3').onclick = ()=>{ sfx.init(); voiceEnable(!(voice.want && voice.stream)); };
+$('bMute').onclick = ()=>toggleMute();
+document.addEventListener('pointerlockchange', ()=>{ if (!document.pointerLockElement && (mode === 'play' || mode === 'spect') && !settingsOpen && !isTouch) openSettings(); });
+queueMicrotask(applySet);   // after the audio engine below has been defined
 /* ================= proximity voice chat (PeerJS audio calls, one per pair) =================
    lobby / end screen: everyone hears everyone. In a round: survivors hear each other by distance (~20 m),
    the Occupant hears survivors near it, nobody hears the Occupant's mic, and the dead only talk to the dead. */
 const voice = { want:false, stream:null, calls:new Map(), muted:false, an:null, buf:null, level:0, talkT:0, loudT:0 };
 const VT1 = 0.025, VT2 = 0.1;   // mic loudness: above VT1 you can be heard nearby, above VT2 you're shouting
 try { voice.want = localStorage.getItem('lvl0_voice') === '1'; } catch(e){}
-function showVoice(){ const t = 'VOICE CHAT: ' + (!voice.want ? 'OFF' : !voice.stream ? 'TAP TO ALLOW MIC' : voice.muted ? 'MUTED' : 'ON'); for (const id of ['bVoice','bVoice2']) if ($(id).textContent !== t) $(id).textContent = t; }
+function showVoice(){ const m = 'MIC: ' + (!voice.stream ? '—' : voice.muted ? 'MUTED' : 'ON'); if ($('bMute').textContent !== m) $('bMute').textContent = m;
+  const t = 'VOICE CHAT: ' + (!voice.want ? 'OFF' : !voice.stream ? 'TAP TO ALLOW MIC' : voice.muted ? 'MUTED' : 'ON'); for (const id of ['bVoice','bVoice2','bVoice3']) if ($(id).textContent !== t) $(id).textContent = t; }
 async function voiceEnable(on){
   if (on && !voice.stream){
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ $('netnote').textContent = "This browser can't use a microphone here."; voice.want = false; showVoice(); return false; }
@@ -1612,7 +1672,7 @@ function updateVoice(dt){
       else if (rGone) g = iAmDead ? 1 : 0;
       else { const d = Math.hypot(r.x-cx, r.z-cz); g = clamp(1 - (d-2)/18, 0, 1); if (g > 0 && !losClear(cx, cz, r.x, r.z)) g *= 0.55; px = r.x; pz = r.z; }
     }
-    c.g.gain.value = lerp(c.g.gain.value, g*1.5, k);
+    c.g.gain.value = lerp(c.g.gain.value, g*1.5*SET.vv/100, k);
     if (c.pan.positionX){ c.pan.positionX.value = px; c.pan.positionY.value = 1.6; c.pan.positionZ.value = pz; } else c.pan.setPosition(px, 1.6, pz);
   }
 }
@@ -1725,7 +1785,7 @@ function enterLevel(){
   const b = $('black'); b.style.transition = 'none'; b.style.opacity = 1;
   $('blacktext').textContent = 'LEVEL 1'; $('blacksub').textContent = 'THE PARKING GARAGE · start all 3 generators, then find the exit';
   if (role === 'monster'){ me.x = level.mspawn[0]; me.z = level.mspawn[1]; me.yaw = Math.random()*6; abCD.dash = Math.max(abCD.dash, 6); mode = 'play'; }
-  else if (!isDead(myPid)){ const k = hashStr(myPid)%4; me.x = cc(1) + [-0.8,0.8,-0.8,0.8][k]; me.z = cc(1) + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; me.pitch = 0;
+  else { const k = hashStr(myPid)%4; me.x = cc(1) + [-0.8,0.8,-0.8,0.8][k]; me.z = cc(1) + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; me.pitch = 0;
     me.alive = true; me.esc = false; me.light = false; me.stam = 100; me.bat = Math.max(me.bat, 60); me.crouch = false; me.breath = 100; mode = 'play'; $('bat').style.display = ''; }
   if (role === 'monster') canvas.style.filter = monFilter();
   $('hud').style.display = 'block'; setTouchUI(mode === 'play' || isTouch); if (mode !== 'play') $('btns').style.display = 'none'; setButtons();
@@ -1785,7 +1845,7 @@ const sfx = {
     if (this.ctx){ this.ctx.resume && this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     const c = this.ctx = new AC();
-    this.master = c.createGain(); this.master.gain.value = 0.9;
+    this.master = c.createGain(); this.master.gain.value = 0.9 * SET.vol/100;
     const comp = c.createDynamicsCompressor(); this.master.connect(comp); comp.connect(c.destination);
     const len = c.sampleRate*2;
     this.white = c.createBuffer(1,len,c.sampleRate); let d = this.white.getChannelData(0); for (let i=0;i<len;i++) d[i]=Math.random()*2-1;
@@ -1974,7 +2034,8 @@ function playEventSound(k, x, z){
 /* ================= input ================= */
 const keys = new Set();
 addEventListener('keydown', e=>{
-  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Escape'){ if (settingsOpen) closeSettings(); else if (mode === 'play' || mode === 'spect' || mode === 'lobby' || mode === 'menu') openSettings(); return; }
+  if (e.target.tagName === 'INPUT' || settingsOpen) return;
   keys.add(e.code);
   if (mode==='play' && role==='survivor'){
     if (e.code==='KeyF' && me.hidden<0){ me.light=!me.light; sfx.click(); }
@@ -2007,7 +2068,7 @@ canvas.addEventListener('mousedown', e=>{
 addEventListener('contextmenu', e=>{ if (document.pointerLockElement === canvas || e.target === canvas) e.preventDefault(); });
 addEventListener('mousemove', e=>{
   if (document.pointerLockElement !== canvas || mode!=='play') return;
-  me.yaw -= e.movementX*0.0022; me.pitch = clamp(me.pitch - e.movementY*0.0022, -1.35, 1.35);
+  const sv = 0.0022*SET.sens/100; me.yaw -= e.movementX*sv; me.pitch = clamp(me.pitch - e.movementY*sv, -1.35, 1.35);
 });
 const touch = $('touch'), stick = $('stick'), knob = $('knob');
 let stickId=null, stickO=[0,0], stickV=[0,0], lookId=null, lookL=[0,0], runHeld=false;
@@ -2028,7 +2089,7 @@ touch.addEventListener('touchmove', e=>{
       if (l>m){ dx*=m/l; dy*=m/l; }
       stickV=[dx/m, dy/m]; knob.style.transform=`translate(${dx}px,${dy}px)`;
     } else if (t.identifier===lookId && mode==='play'){
-      me.yaw -= (t.clientX-lookL[0])*0.0065; me.pitch = clamp(me.pitch-(t.clientY-lookL[1])*0.0065, -1.35, 1.35);
+      const sv = 0.0065*SET.sens/100; me.yaw -= (t.clientX-lookL[0])*sv; me.pitch = clamp(me.pitch-(t.clientY-lookL[1])*sv, -1.35, 1.35);
       lookL=[t.clientX,t.clientY];
     }
   }
@@ -2155,6 +2216,7 @@ function breakerClunk(){
   if (sfx.ctx){ const o = sfx.panner(level.breaker[0], 1.3, level.breaker[1], 10); sfx.noise(o,{dur:0.2,freq:600,gain:1}); sfx.tone(o,{f:90,dur:0.3,gain:0.6}); }
 }
 function moveInput(){
+  if (settingsOpen) return [0, 0, false];
   let fx=0, fz=0;
   if (keys.has('KeyW')||keys.has('ArrowUp')) fz-=1;
   if (keys.has('KeyS')||keys.has('ArrowDown')) fz+=1;
@@ -2622,7 +2684,7 @@ function placeCamera(dt){
     VM.position.set(0.28 + Math.sin(me.bob*0.5)*0.012, -0.3 + Math.abs(Math.cos(me.bob*0.5))*0.012 - me.vmRun*0.03, -0.5);
     VM.userData.lens.material.color.setHex(lightOn() ? 0xfff6d8 : 0x333333);
     camera.rotation.set(me.pitch, me.yaw, Math.sin(me.bob*0.5)*(role==='monster'?0.02:0.006));
-    { const fv = lerp(camera.fov, dashT > 0 ? 90 : 74, 1-Math.exp(-14*dt)); if (Math.abs(fv-camera.fov) > 0.01){ camera.fov = fv; camera.updateProjectionMatrix(); } }
+    { const fv = lerp(camera.fov, dashT > 0 ? SET.fov + 16 : SET.fov, 1-Math.exp(-14*dt)); if (Math.abs(fv-camera.fov) > 0.01){ camera.fov = fv; camera.updateProjectionMatrix(); } }
   } else if (mode==='deadAnim'){
     deathT += dt;
     const [lx,,lz] = lookDir(me.yaw, 0);
@@ -2688,9 +2750,9 @@ function frame(now){
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now-last)/1000); last = now;
   const t = nowS();
-  if (mode==='play' && myRound===G.r) updateMe(dt);
+  if (mode==='play' && myRound===G.r && !soloPaused()) updateMe(dt);
   if (amHost()){
-    hostTick(dt); afterState();
+    if (!soloPaused()) hostTick(dt); afterState();
     stateT -= dt; if (stateT <= 0){ stateT = G.ph==='play' ? 0.1 : 0.5; broadcastState(); }
   }
   presT -= dt; if (presT <= 0){ presT = 0.1; sendPresence(); }
@@ -2737,7 +2799,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
+window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
 </script>
 </body>
 </html>
