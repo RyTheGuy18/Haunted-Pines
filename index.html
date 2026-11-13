@@ -131,14 +131,14 @@
   #stick{position:fixed;width:116px;height:116px;margin:-58px 0 0 -58px;border:2px solid rgba(241,230,180,.25);border-radius:50%;display:none;pointer-events:none;z-index:6}
   #knob{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px;border-radius:50%;background:rgba(241,230,180,.3)}
   #btns{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));display:none;z-index:7;
-    grid-template-columns:66px 66px 88px;grid-template-rows:66px 66px 88px;gap:9px;grid-template-areas:". . u" ". d c" "e a b"}
+    grid-template-columns:66px 66px 88px;grid-template-rows:66px 66px 88px;gap:9px;grid-template-areas:". . u" "f d c" "e a b"}
   #btns button{border-radius:50%;padding:0;background:rgba(14,12,5,.5);border:1.5px solid rgba(241,230,180,.32);font-size:16px;letter-spacing:.06em;line-height:1;position:relative;overflow:hidden;color:var(--ink)}
   #btns button svg{width:24px;height:24px;display:block;margin:0 auto 3px;fill:none;stroke:currentColor;stroke-width:2}
   #btns button.on{border-color:var(--hot);color:var(--hot);background:rgba(233,210,124,.15)}
   #btns button.m{border-color:rgba(231,138,118,.55);color:var(--mon)}
   #btns button.cd{opacity:.55}
   #btns button.cd::before{content:'';position:absolute;inset:0;background:conic-gradient(rgba(0,0,0,.6) calc(var(--p)*1%),transparent 0)}
-  #bA{grid-area:a} #bB{grid-area:b;font-size:19px} #bC{grid-area:c} #bD{grid-area:d} #bE{grid-area:e}
+  #bA{grid-area:a} #bB{grid-area:b;font-size:19px} #bC{grid-area:c} #bD{grid-area:d} #bE{grid-area:e} #bF{grid-area:f}
   #bUse{grid-area:u;width:66px;justify-self:center;font-size:17px;border-color:var(--ink)!important;background:rgba(241,230,180,.18)!important;display:none}
   body.touch #cross{display:none}
 </style>
@@ -156,7 +156,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.13.0</div>
+<div class="osd" id="ver">v0.14.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -175,7 +175,7 @@
 <div id="touch"></div>
 <div id="stick"><div id="knob"></div></div>
 <div id="btns">
-  <button id="bA"></button><button id="bB"></button><button id="bC"></button><button id="bD"></button><button id="bE"></button><button id="bUse">USE</button>
+  <button id="bA"></button><button id="bB"></button><button id="bC"></button><button id="bD"></button><button id="bE"></button><button id="bF"></button><button id="bUse">USE</button>
 </div>
 
 <div class="screen show" id="menu"><div class="col">
@@ -205,6 +205,7 @@
     <span id="controls"></span>
   </details>
   <div class="foot">Headphones on. Listen to the hum.</div>
+  <div class="foot" style="font-size:15px;opacity:.7">The Crawler: <a href="https://sketchfab.com/3d-models/goose-c0cf164370124d81b2737e864bf38205" target="_blank" rel="noopener" style="color:inherit">"Goose" by nodoxi</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (re-textured smaller, rigged in code)</div>
 </div></div>
 
 <div class="screen" id="lobby"><div class="col">
@@ -253,7 +254,7 @@ const isTouch = ('ontouchstart' in window) || matchMedia('(pointer:coarse)').mat
 document.body.classList.toggle('touch', isTouch);
 $('controls').textContent = isTouch
   ? 'Left thumb moves, right thumb looks. USE pops up next to lockers.'
-  : 'Click to look · WASD move · Shift run · C crouch · F flashlight · E hide/vent · G throw can · Occupant: 1 blackout, 2 shift walls, 3 lure, 4 disguise, 5 dash.';
+  : 'Click to look · WASD move · Shift run · C crouch · F flashlight · E hide/vent · G throw can · Shift sprint (short) · Occupant: 1 blackout, 2 shift walls, 3 lure, 4 disguise, 5 dash.';
 function vibrate(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
 
 /* ================= constants ================= */
@@ -390,7 +391,7 @@ function edgeCells(e){ if (e < VN){ const i=Math.floor(e/N), j=e%N; return [[i-1
 function edgeZoneOf(e){ const cs = edgeCells(e).filter(([i,j])=>inGrid(i,j)); if (cs.some(([i,j])=>zoneOf(i,j)===2)) return 2; if (cs.some(([i,j])=>zoneOf(i,j)===1)) return 1; return 0; }
 const ZH = [WH, WH, 3.8];
 const ZFOG = [new THREE.Color(0x15120a), new THREE.Color(0x0a0c0d), new THREE.Color(0x1a170c)];
-const ZDENS = [0.075, 0.08, 0.05];
+const ZDENS = [0.1, 0.12, 0.07];
 const ZSKY = [new THREE.Color(0x8a7a40), new THREE.Color(0x56626a), new THREE.Color(0x9a8c58)];
 const ZGND = [new THREE.Color(0x1a1608), new THREE.Color(0x101214), new THREE.Color(0x221c0c)];
 const ZNAME = ['', 'PARKING LEVEL', 'THE PITFALLS'];
@@ -894,7 +895,7 @@ function buildMonster(){
 }
 let MON = null, PHANTOM = null;
 function animMonster(M, t, moving, speed, stunned, dash){
-  if (M.gltf){ animSnatcher(M, t, moving, speed, stunned, dash); return; }
+  if (M.anim){ M.anim(M, t, moving, speed, stunned, dash); return; }
   const P = M.P;
   if (dash && !stunned){ M.crawl = 0; P.armL.rotation.set(-1.62, 0, 0.18); P.armR.rotation.set(-1.62, 0, -0.18); P.torso.rotation.x = 0.7; P.head.rotation.set(-0.55, 0, 0);
     const sw = Math.sin(t*24); P.legL.rotation.x = sw*0.9 - 0.2; P.legR.rotation.x = -sw*0.9 - 0.2; M.g.position.y = 0.04; return; }
@@ -1008,8 +1009,8 @@ const VM = new THREE.Group(); camera.add(VM); VM.position.set(0.28,-0.3,-0.5); V
 VM.visible = false;
 
 /* ================= Occupant skins (all original designs) ================= */
-const SKIN_NAMES = ['THE OCCUPANT', 'THE MANNEQUIN', 'THE WALLPAPER MAN', 'THE SNATCHER'];
-const SKN = SKIN_NAMES.length, SNATCHER = 3;
+const SKIN_NAMES = ['THE OCCUPANT', 'THE MANNEQUIN', 'THE WALLPAPER MAN', 'THE SNATCHER', 'THE CRAWLER'];
+const SKN = SKIN_NAMES.length, SNATCHER = 3, CRAWLER = 4;
 const ST = {
   occBody: px(16,16,(p,r,w,h)=>{ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y, prnd()<.2?'#1e1c1a':prnd()<.1?'#060606':'#0f0e0d'); }),
   man: px(16,16,(p,r,w,h)=>{ for(let y=0;y<h;y++) for(let x=0;x<w;x++) p(x,y, prnd()<.12?'#c8b89c':prnd()<.06?'#e6d8c0':'#d8c8ae'); let x=3,y=0; for(let k=0;k<10;k++){ p(x,y,'#5a4a3a'); x+=prnd()<.5?1:0; y++; } r(10,9,2,1,'#8a7a64'); }),
@@ -1075,7 +1076,7 @@ function makeSnatcher(){
   const dummy = () => new THREE.Object3D();
   const P = { legL:dummy(), legR:dummy(), torso:dummy(), armL:dummy(), armR:dummy(), head:dummy() };
   g.visible = false; scene.add(g);
-  return { g, P, gltf:{ mixer, B, saved:new Map(), last:nowS() }, headH: 2.15 };
+  return { g, P, gltf:{ mixer, B, saved:new Map(), last:nowS() }, headH: 2.15, anim: animSnatcher };
 }
 const _q = new THREE.Quaternion(), _ax = { x:new THREE.Vector3(1,0,0), y:new THREE.Vector3(0,1,0), z:new THREE.Vector3(0,0,1) };
 function animSnatcher(M, t, moving, speed, stunned, dash){
@@ -1093,8 +1094,62 @@ function animSnatcher(M, t, moving, speed, stunned, dash){
 new GLTFLoader().load('models/snatcher.glb', gl=>{
   snatcherSrc = gl; MONS[SNATCHER] = makeSnatcher(); PHANS[SNATCHER] = makeSnatcher();
 }, undefined, e=>console.warn('snatcher model failed to load', e));
+// ---- the Crawler: a static model, rigged here by splitting the mesh into body / head / 4 limbs ----
+function rigCrawler(gl){
+  let src = null; gl.scene.updateMatrixWorld(true); gl.scene.traverse(o=>{ if (o.isMesh && !src) src = o; });
+  const geo = src.geometry.clone(); geo.applyMatrix4(src.matrixWorld);   // raw model units, y up, facing +z
+  const pos = geo.attributes.position, n = pos.count, v = new THREE.Vector3();
+  // regions (thresholds from the model's own proportions): 0 body, 1 armL, 2 armR, 3 legL, 4 legR, 5 head
+  const reg = new Uint8Array(n);
+  for (let i=0;i<n;i++){ v.fromBufferAttribute(pos,i);
+    if (Math.abs(v.x) > 2.3 && v.y < -4.5) reg[i] = (v.z > -6.5 ? 1 : 3) + (v.x < 0 ? 1 : 0);
+    else if (v.y > 0.3 && Math.abs(v.x) < 2) reg[i] = 5; }
+  const joint = r => { const pts=[]; for (let i=0;i<n;i++) if (reg[i]===r){ v.fromBufferAttribute(pos,i); pts.push(v.clone()); } pts.sort((a,b)=>b.y-a.y); const top = pts.slice(0, Math.max(1, Math.floor(pts.length*0.08))); const c = new THREE.Vector3(); top.forEach(p=>c.add(p)); return c.multiplyScalar(1/top.length); };
+  const J = [new THREE.Vector3(0,-6,-4), joint(1), joint(2), joint(3), joint(4), new THREE.Vector3(0, 0.3, -0.5)];
+  // smooth the joins: weight ramps from the body to the limb over ~2.5 model units
+  const si = new Uint16Array(n*4), sw = new Float32Array(n*4);
+  for (let i=0;i<n;i++){ const r = reg[i]; if (!r){ si[i*4]=0; sw[i*4]=1; continue; } v.fromBufferAttribute(pos,i);
+    const w = Math.min(1, v.distanceTo(J[r]) / 2.5); si[i*4]=r; sw[i*4]=w; si[i*4+1]=0; sw[i*4+1]=1-w; }
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  // scale to ~1.7 m tall, feet on the floor, centered
+  geo.computeBoundingBox(); const bb = geo.boundingBox, S = 1.7/(bb.max.y-bb.min.y), zc = (bb.min.z+bb.max.z)/2;
+  const m4 = new THREE.Matrix4().makeScale(S,S,S).premultiply(new THREE.Matrix4().makeTranslation(0, -bb.min.y*S, -zc*S));
+  geo.applyMatrix4(m4); J.forEach(j=>j.applyMatrix4(m4));
+  return { geo, J, map: src.material.map, reg };
+}
+function crawlerInstance(T, mat){
+  const bones = T.J.map(()=>new THREE.Bone());
+  bones[0].position.copy(T.J[0]);
+  for (let k=1;k<bones.length;k++){ bones[k].position.copy(T.J[k]).sub(T.J[0]); bones[0].add(bones[k]); }
+  const mesh = new THREE.SkinnedMesh(T.geo, mat); mesh.add(bones[0]); mesh.bind(new THREE.Skeleton(bones)); mesh.frustumCulled = false;
+  return { mesh, bones };
+}
+
+let crawlerT = null;
+function makeCrawler(){
+  const map = crawlerT.map; if (map){ map.magFilter = THREE.NearestFilter; map.minFilter = THREE.NearestFilter; map.colorSpace = THREE.SRGBColorSpace; }
+  const I = crawlerInstance(crawlerT, lam(0xffffff, { map, side: THREE.DoubleSide })), g = new THREE.Group(); g.add(I.mesh);
+  const dummy = () => new THREE.Object3D();
+  g.visible = false; scene.add(g);
+  return { g, P:{ legL:dummy(), legR:dummy(), torso:dummy(), armL:dummy(), armR:dummy(), head:dummy() }, bones: I.bones, headH: 1.45, anim: animCrawler };
+}
+// bones: 0 body, 1 arm L, 2 arm R, 3 leg L, 4 leg R, 5 head. Body tips forward; limbs swing in diagonal pairs.
+function animCrawler(M, t, moving, speed, stunned, dash){
+  const b = M.bones, lean = 0.55, fast = speed > 3, ph = t*(fast ? 10 : 6.5), sw = moving ? Math.sin(ph) : 0;
+  b[0].rotation.set(lean, 0, moving ? Math.sin(ph)*0.06 : 0); b[5].rotation.set(-0.35, 0, 0);
+  M.g.position.y = moving ? Math.abs(Math.cos(ph))*0.05 - 0.06 : -0.06;
+  if (stunned){ b[0].rotation.x = 0.15; b[1].rotation.set(-lean-1.5, 0, 0.3); b[2].rotation.set(-lean-1.5, 0, -0.3); b[3].rotation.set(-0.15, 0, 0); b[4].rotation.set(-0.15, 0, 0); b[5].rotation.y = Math.sin(t*25)*0.45; return; }
+  if (dash){ const q = Math.sin(t*26); b[0].rotation.x = lean + 0.35; b[1].rotation.set(-lean-1.1, 0, 0); b[2].rotation.set(-lean-1.1, 0, 0); b[3].rotation.set(-lean-0.2 + q*0.6, 0, 0); b[4].rotation.set(-lean-0.2 - q*0.6, 0, 0); b[5].rotation.x = -0.6; return; }
+  // front-left with back-right, then front-right with back-left
+  b[1].rotation.set(-lean - sw*0.42, 0, 0); b[4].rotation.set(-lean - sw*0.35, 0, 0);
+  b[2].rotation.set(-lean + sw*0.42, 0, 0); b[3].rotation.set(-lean + sw*0.35, 0, 0);
+  if (h01(Math.floor(t*3)+M.g.id) < 0.12) b[5].rotation.z = (h01(Math.floor(t*3)*7)-0.5)*1.2;   // head twitch
+}
+new GLTFLoader().load('models/crawler.glb', gl=>{
+  crawlerT = rigCrawler(gl); MONS[CRAWLER] = makeCrawler(); PHANS[CRAWLER] = makeCrawler();
+}, undefined, e=>console.warn('crawler model failed to load', e));
 function useSkin(k){
-  k = ((k|0)%SKN+SKN)%SKN; if (!MONS[k]) k = 0;   // the Snatcher falls back to the Occupant until its model has loaded
+  k = ((k|0)%SKN+SKN)%SKN; if (!MONS[k]) k = 0;   // model skins fall back to the Occupant until its model has loaded
   if (MON !== MONS[k]){ const v = MON.g.visible; MON.g.visible = false; MON = MONS[k]; MON.g.visible = v; }
   if (PHANTOM !== PHANS[k]){ const v = PHANTOM.g.visible; PHANTOM.g.visible = false; PHANTOM.g.position.copy(PHANTOM.g.position); const old = PHANTOM; PHANTOM = PHANS[k]; PHANTOM.g.position.copy(old.g.position); PHANTOM.g.rotation.y = old.g.rotation.y; PHANTOM.g.visible = v; }
 }
@@ -1106,7 +1161,7 @@ let G = freshState();
 const H = { ai:{}, shiftT:30, ringT:25, ringEnd:0 };
 let mode = 'menu';
 let seenLv = 0, genSeen = [], crankK = -1, crankT = 0, crankS = 0, dashT = 0, dashYaw = 0;
-const GEN_T = 3, DASH_SPEED = 17, DASH_T = 0.35, DASH_CD = 28;
+const GEN_T = 3, DASH_SPEED = 17, DASH_T = 0.17, DASH_CD = 28;
 let seenStun = false, myRound = -1, seenPl = 0, seenOpen = 0, seenWv = -1, pendingEnd = false, monChoice = 'random';
 const net = { room:null, solo:true, code:'', hostFlag:false, emitErr:false };
 const amHost = () => net.solo || net.hostFlag;
@@ -1248,11 +1303,13 @@ function aiTick(dt, alive){
   A.dashCD = (A.dashCD||0) - dt;
   if (A.dashT > 0){ A.dashT -= dt; [G.ax, G.az] = collide(ax + A.ddx*DASH_SPEED*dt, az + A.ddz*DASH_SPEED*dt, 0.35); G.ay = Math.atan2(A.ddx, A.ddz); G.amv = 1; G.ads = 1; return; }
   G.ads = 0;
-  if (seen && sd > 2 && sd < 7 && A.dashCD <= 0){ const l = Math.hypot(seen.x-ax, seen.z-az)||1; A.ddx = (seen.x-ax)/l; A.ddz = (seen.z-az)/l; A.dashT = DASH_T; A.dashCD = DASH_CD; dashSound(ax, az); }
+  if (seen && sd > 1.5 && sd < 4.2 && A.dashCD <= 0){ const l = Math.hypot(seen.x-ax, seen.z-az)||1; A.ddx = (seen.x-ax)/l; A.ddz = (seen.z-az)/l; A.dashT = DASH_T; A.dashCD = DASH_CD; dashSound(ax, az); }
   else if (A.mode==='chase') A.mode='hunt';
   A.lt -= dt; if (A.mode==='hunt' && A.lt<=0) A.mode='wander';
   let tx, tz, sp;
-  if (A.mode==='chase'){ tx=A.lx; tz=A.lz; sp=MON_SPEED; }
+  A.sprCD = Math.max(0, (A.sprCD||0) - dt);
+  if (A.mode==='chase'){ tx=A.lx; tz=A.lz; sp=MON_SPEED;
+    if (A.sprT > 0){ A.sprT -= dt; sp = MON_SPEED*1.05; if (A.sprT <= 0) A.sprCD = 4; } else if (A.sprCD <= 0) A.sprT = 3; }
   else if (A.mode==='hunt'){ tx=A.lx; tz=A.lz; sp=MON_SPEED; if (Math.hypot(tx-ax,tz-az)<1.2){ A.mode='wander'; A.wp=null; } }
   else {
     if (!A.wp || Math.hypot(A.wp[0]-ax,A.wp[1]-az) < 1.5){
@@ -1273,7 +1330,7 @@ function aiTick(dt, alive){
   }
   const dx=gx-ax, dz=gz-az, d=Math.hypot(dx,dz)||1;
   [G.ax, G.az] = collide(ax+dx/d*sp*dt, az+dz/d*sp*dt, 0.35);
-  G.ay = Math.atan2(dx, dz); G.amv = 1;
+  G.ay = Math.atan2(dx, dz); G.amv = sp > MON_SPEED ? 2 : 1;
   A.boT -= dt;
   if (A.mode!=='wander' && A.boT <= 0){ A.boT = 45+Math.random()*30; G.bo.push([ax,az,15]); }
 }
@@ -1551,7 +1608,7 @@ function startRoundLocal(){
   $('hud').style.display = 'block'; $('black').style.opacity = 0; $('white').style.opacity = 0; $('spec').style.display = 'none';
   $('bat').style.display = role==='survivor' ? '' : 'none';
   $('abil').style.display = role==='monster' && !isTouch ? 'flex' : 'none';
-  canvas.style.filter = role==='monster' ? 'sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(.72)' : '';
+  canvas.style.filter = monFilter();
   amb.intensity = role==='monster' ? 0.42 : 0.16;
   seenZones.clear(); curZone = -1; VM.visible = false;
   for (const r of remotes.values()) r.ping = 0;
@@ -1563,6 +1620,7 @@ function startRoundLocal(){
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
   } else msg('Find 3 fuses. Something else is awake.', 5);
 }
+function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? 1.05 : .72})` : ''; }
 function enterLevel(){
   seenLv = G.lv|0; seenOpen = G.open; seenPl = G.pl; genSeen = []; knownBo.clear(); crankK = -1; dashT = 0; ventT = 0; ventCD = 8; pendingEnd = false;
   PHANTOM.g.visible = false; seenZones.add(1); seenZones.add(2); for (const s of spots) s.intensity = 0;
@@ -1573,6 +1631,7 @@ function enterLevel(){
   if (role === 'monster'){ me.x = level.mspawn[0]; me.z = level.mspawn[1]; me.yaw = Math.random()*6; abCD.dash = Math.max(abCD.dash, 6); mode = 'play'; }
   else if (!isDead(myPid)){ const k = hashStr(myPid)%4; me.x = cc(1) + [-0.8,0.8,-0.8,0.8][k]; me.z = cc(1) + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; me.pitch = 0;
     me.alive = true; me.esc = false; me.light = false; me.stam = 100; me.bat = Math.max(me.bat, 60); me.crouch = false; me.breath = 100; mode = 'play'; $('bat').style.display = ''; }
+  if (role === 'monster') canvas.style.filter = monFilter();
   $('hud').style.display = 'block'; setTouchUI(mode === 'play' || isTouch); if (mode !== 'play') $('btns').style.display = 'none'; setButtons();
   setTimeout(()=>{ b.style.transition = ''; if (role !== 'monster') b.style.opacity = 0; }, 2800);
 }
@@ -1821,7 +1880,7 @@ touch.addEventListener('touchmove', e=>{
 },{passive:false});
 const endTouch = e=>{ for (const t of e.changedTouches){ if (t.identifier===stickId){ stickId=null; stickV=[0,0]; stick.style.display='none'; } if (t.identifier===lookId) lookId=null; } };
 touch.addEventListener('touchend', endTouch); touch.addEventListener('touchcancel', endTouch);
-const BTN = { bA:null, bB:null, bC:null, bD:null, bE:null, bUse:null };
+const BTN = { bA:null, bB:null, bC:null, bD:null, bE:null, bF:null, bUse:null };
 for (const id of Object.keys(BTN)){
   const b = $(id);
   const down = e=>{ e.preventDefault(); e.stopPropagation(); BTN[id] && BTN[id].down && BTN[id].down(); };
@@ -1848,13 +1907,13 @@ function setButtons(){
     { label:'LIGHT', icon:'light', down:()=>{ if(mode==='play' && me.hidden<0){ me.light=!me.light; sfx.click(); } }, on:()=>lightOn() }, run,
     { label:'CROUCH', icon:'crouch', down:()=>{ me.crouch=!me.crouch; }, on:()=>me.crouch },
     { label:'THROW', icon:'can', down:()=>throwCan(), cnt:()=>me.cans } ];
-  else cfg = [ { label:'DARK', icon:'dark', m:1, down:()=>ability('blackout'), cd:'blackout' }, { label:'DISGUISE', icon:'mask', m:1, down:()=>ability('disguise'), cd:'disguise' }, { label:'SHIFT', icon:'walls', m:1, down:()=>ability('shift'), cd:'shift' }, { label:'LURE', icon:'lure', m:1, down:()=>ability('lure'), cd:'lure' }, { label:'DASH', icon:'dash', m:1, down:()=>ability('dash'), cd:'dash' } ];
-  ['bA','bB','bC','bD','bE'].forEach((id,k)=>{ const c=cfg[k]; BTN[id]=c; const b=$(id); b.style.display = c ? '' : 'none'; if (c){ b.innerHTML = ICON[c.icon] + c.label; b.classList.toggle('m', !!c.m); } });
+  else cfg = [ { label:'DARK', icon:'dark', m:1, down:()=>ability('blackout'), cd:'blackout' }, { label:'DISGUISE', icon:'mask', m:1, down:()=>ability('disguise'), cd:'disguise' }, { label:'SHIFT', icon:'walls', m:1, down:()=>ability('shift'), cd:'shift' }, { label:'LURE', icon:'lure', m:1, down:()=>ability('lure'), cd:'lure' }, { label:'DASH', icon:'dash', m:1, down:()=>ability('dash'), cd:'dash' }, run ];
+  ['bA','bB','bC','bD','bE','bF'].forEach((id,k)=>{ const c=cfg[k]; BTN[id]=c; const b=$(id); b.style.display = c ? '' : 'none'; if (c){ b.innerHTML = ICON[c.icon] + c.label; b.classList.toggle('m', !!c.m); } });
   BTN.bUse = { down:()=>{ const a=contextAction(); if (a) a.fn(); } };
   $('abil').innerHTML = role==='monster' ? ['blackout','shift','lure','disguise','dash'].map((k,i)=>`<div class="ab" id="ab_${k}"><div class="k">[${i+1}]</div><div class="n">${['BLACKOUT','SHIFT WALLS','LURE','DISGUISE','DASH'][i]}</div><div class="cdf"></div></div>`).join('') : '';
 }
 function updateButtons(){
-  for (const id of ['bA','bB','bC','bD','bE']){ const c=BTN[id]; if (!c) continue; const b=$(id);
+  for (const id of ['bA','bB','bC','bD','bE','bF']){ const c=BTN[id]; if (!c) continue; const b=$(id);
     if (c.on) b.classList.toggle('on', !!c.on());
     if (c.cd){ const v=abCD[c.cd]; b.classList.toggle('cd', v>0); b.style.setProperty('--p', (v/AB_CD[c.cd]*100).toFixed(0)); }
     if (c.cnt){ const n=c.cnt(); b.classList.toggle('cd', n<=0); b.style.setProperty('--p', n>0?0:100); const lbl = c.label+' '+n; if (b.dataset.l!==lbl){ b.dataset.l=lbl; b.innerHTML = ICON[c.icon] + lbl; } } }
@@ -1960,11 +2019,12 @@ function updateMe(dt){
   const md = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
   me.adren = role==='survivor' && G.grace <= 0 && md < 10 && !disguisedFrom(me.x, me.z);
   if (me.stam <= 0.5) me.winded = true;
-  if (me.winded && (me.stam >= 35 || (!runReq && me.stam >= 12))) me.winded = false;
-  me.running = role !== 'monster' && runReq && !me.winded && me.stam > 0.5;
-  me.stam = clamp(me.stam + (me.running ? (me.adren ? -8 : -14) : 16)*dt, 0, 100);   // ~7s of sprint (~12s with adrenaline)
+  if (me.winded && (role === 'monster' ? me.stam >= 100 : (me.stam >= 35 || (!runReq && me.stam >= 12)))) me.winded = false;
+  me.running = runReq && !me.winded && me.stam > 0.5;
+  if (role === 'monster') me.stam = clamp(me.stam + (me.running ? -34 : 24)*dt, 0, 100);   // ~3s sprint, ~4s to recharge
+  else me.stam = clamp(me.stam + (me.running ? (me.adren ? -8 : -14) : 16)*dt, 0, 100);   // ~7s of sprint (~12s with adrenaline)
   let sp;
-  if (role === 'monster') sp = MON_SPEED;
+  if (role === 'monster') sp = me.running ? MON_SPEED*1.05 : MON_SPEED;
   else sp = me.crouch ? 1.35 : me.running ? (me.adren ? 5.6 : 5.0) : 2.6;
   const sn = Math.sin(me.yaw), cs = Math.cos(me.yaw);
   const vx = (fx*cs + fz*sn)*sp, vz = (-fx*sn + fz*cs)*sp;
@@ -2207,9 +2267,10 @@ function updateZoneEnv(dt){
   const z = zoneAt(camera.position.x, camera.position.z);
   if (z !== curZone){ curZone = z; if (mode==='play' && role==='survivor' && z && !seenZones.has(z)){ seenZones.add(z); msg('— ' + ZNAME[z] + ' —', 3); } }
   const k = 1 - Math.exp(-2.5*dt);
-  _fogT.copy(ZFOG[z]); if (role==='monster') _fogT.multiplyScalar(0.8);
+  _fogT.copy(ZFOG[z]); if (role==='monster') _fogT.multiplyScalar(LK === 1 ? 2.2 : 0.8);
   scene.fog.color.lerp(_fogT, k); scene.background.copy(scene.fog.color);
-  scene.fog.density = lerp(scene.fog.density, role==='monster' ? 0.085 : ZDENS[z], k);
+  scene.fog.density = lerp(scene.fog.density, role==='monster' ? (LK === 1 ? 0.03 : 0.1) : ZDENS[z], k);
+  amb.intensity = lerp(amb.intensity, role==='monster' ? (LK === 1 ? 2.8 : 0.42) : 0.16, k);
   amb.color.lerp(ZSKY[z], k); amb.groundColor.lerp(ZGND[z], k);
 }
 function survivorSeesMonster(){
@@ -2372,6 +2433,7 @@ function updateHUD(dt){
     obj.textContent = G.grace > 0 ? `They wake in ${Math.ceil(G.grace)}…` : G.stun > 0 ? 'Blinded…' : ventT > 0 ? 'In the vents…' : G.dg > 0 ? `Disguised · ${Math.ceil(G.dg)}s · ${left} left` : G.open ? `The exit is open. ${left} left.` : (G.lv === 1 ? `Listen for them. ${left} left · generators ${(G.gen||[]).filter(Boolean).length}/${(G.gen||[]).length}` : `Listen for them. ${left} left · fuses ${G.pl}/${FUSES}`);
     if (G.grace <= 0 && $('black').style.opacity === '1' && mode==='play') $('black').style.opacity = 0;
     $('kit').style.display = 'none';
+    { const st = $('stam'); st.style.opacity = me.stam < 99 ? 1 : 0; $('stamf').style.width = me.stam+'%'; st.classList.toggle('adr', false); st.classList.toggle('winded', !!me.winded); }
   } else if (role === 'survivor'){
     const found = G.fz.filter(f=>f[0]>=1).length, mine = G.fz.filter(f=>f[0]===1 && f[3]===myPid).length;
     $('objLbl').textContent = me.hidden >= 0 ? 'HIDING' : 'OBJECTIVE';
@@ -2408,7 +2470,7 @@ function placeCamera(dt){
     deathT += dt;
     const [lx,,lz] = lookDir(me.yaw, 0);
     MON.g.position.set(me.x + lx*0.75, EYE - (MON.headH||2.55) + Math.sin(deathT*40)*0.02, me.z + lz*0.75);
-    if (MON.gltf) animSnatcher(MON, nowS(), false, 0, false, true);
+    if (MON.anim) MON.anim(MON, nowS(), false, 0, false, true);
     MON.g.rotation.y = Math.atan2(-lx, -lz);
     MON.P.head.rotation.z = Math.sin(deathT*30)*0.2;
     MON.P.torso.rotation.x = 0.1;
