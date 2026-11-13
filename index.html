@@ -170,6 +170,8 @@
   #settings select:disabled{opacity:.55}
   .devnote{font-size:16px;color:#a99f7c;line-height:1.25}
   .smeter{height:8px;background:rgba(241,230,180,.12);position:relative} .smeter i{position:absolute;left:0;top:0;bottom:0;width:0;background:#9fd88a}
+  #micHelp{position:fixed;inset:0;z-index:50;display:none;touch-action:pan-y;-webkit-overflow-scrolling:touch;align-items:flex-start;justify-content:center;background:rgba(4,3,1,.92);padding:16px;overflow:auto}
+  #micHelp .card{max-width:460px;font-size:18px;line-height:1.25;margin:auto} #micHelp .btn{font-size:20px;padding:8px 12px} #micHelp ol{margin:4px 0 0 18px;padding:0} #micHelp li{margin:4px 0} #micHelp h2{margin:0;font-size:28px;letter-spacing:.1em;color:var(--hot)}
   #iosHint{display:none;font-size:17px;color:#cfc49e;border:1px dashed var(--line);padding:8px 10px;line-height:1.3}
 </style>
 <script type="importmap">{"imports":{"three":"./three.module.min.js"}}</script>
@@ -187,7 +189,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.28.5</div>
+<div class="osd" id="ver">v0.28.6</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -206,6 +208,12 @@
 <div id="black"><h2 id="blacktext"></h2><div id="blackcount"></div><p id="blacksub"></p></div>
 
 <div id="touch"></div>
+<div id="micHelp"><div class="card">
+  <h2>TURN ON YOUR MIC</h2><div id="mhWhy"></div><div id="mhSteps"></div>
+  <button class="btn primary" id="mhTry">ASK FOR THE MIC AGAIN</button>
+  <button class="btn" id="mhReload">RELOAD &amp; ASK AGAIN</button>
+  <button class="btn ghost" id="mhClose">NOT NOW</button>
+</div></div>
 <div id="rotate"><div>⟲</div><div>TURN YOUR PHONE SIDEWAYS</div></div>
 <div id="stick"><div class="rl">RUN</div><div id="knob"></div></div>
 <div id="btns">
@@ -3280,10 +3288,32 @@ function showVoice(){ const m = 'MIC: ' + (!voice.stream ? '—' : voice.muted ?
    - iPhone: navigator.audioSession 'play-and-record' while the mic is on (speaker, no ducking), 'playback' otherwise (plays with the silent switch on)
    - the audio engine is resumed whenever iOS suspends/interrupts it; a mic track that iOS ends is re-acquired
    - calls: Opus with in-band FEC and a higher bitrate, a watchdog closes dead calls so voiceSync re-dials them */
+/* v0.28.6 (Ryan: "mic blocked", wanted the phone to actually ask): the mic request always comes straight from a tap
+   (that's what makes iPhone show its Allow prompt). If the phone says no without asking (it remembers an earlier
+   "Don't Allow"), #micHelp explains exactly where to switch it back on and can ask again / reload and ask again. */
+function micHelp(e){
+  const n = (e && e.name) || '', ios = isIOS, app = !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches);
+  let why, steps = '';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') why = "Your phone didn't find a microphone. If you use Bluetooth headphones, connect them first, then try again.";
+  else if (n === 'NotReadableError' || n === 'AbortError') why = 'Another app is using the microphone right now (a call, FaceTime, a voice memo, another tab). Close it, then try again.';
+  else { why = 'Your phone said no without asking. That happens when "Don\'t Allow" was picked once before: it remembers that.';
+    steps = ios ? (app
+      ? '<ol><li>Open the <b>Settings</b> app → <b>Apps</b> → <b>Safari</b> → <b>Microphone</b> → pick <b>Ask</b> (or Allow).</li><li>Swipe this app fully closed and open it again.</li><li>Tap <b>VOICE CHAT</b> and pick <b>Allow</b>.</li></ol>'
+      : '<ol><li>Tap <b>aA</b> (or the ⋯ / page icon) next to the web address.</li><li><b>Website Settings</b> → <b>Microphone</b> → <b>Allow</b> (or Ask).</li><li>Tap <b>RELOAD &amp; ASK AGAIN</b> below and pick <b>Allow</b>.</li></ol><div class="devnote">If that list isn\'t there: Settings app → Apps → Safari → Microphone → Ask.</div>')
+      : '<ol><li>Tap the lock / settings icon next to the web address.</li><li>Set <b>Microphone</b> to <b>Allow</b>.</li><li>Tap <b>RELOAD &amp; ASK AGAIN</b>.</li></ol>'; }
+  $('mhWhy').textContent = why; $('mhSteps').innerHTML = steps; $('micHelp').style.display = 'flex';
+  $('netnote').textContent = 'The microphone is off. Voice chat needs it.';
+}
+$('mhTry').onclick = ()=>{ $('micHelp').style.display = 'none'; sfx.init(); voiceEnable(true); };   // straight from the tap, so the phone can show its prompt
+$('mhReload').onclick = ()=>{ try { localStorage.setItem('lvl0_voice','1'); localStorage.setItem('lvl0_askmic','1'); } catch(e){} location.reload(); };
+$('mhClose').onclick = ()=>{ $('micHelp').style.display = 'none'; };
+// after "reload & ask again": the very first tap anywhere asks for the mic (the phone only shows its prompt after a tap)
+try { if (localStorage.getItem('lvl0_askmic') === '1'){ localStorage.removeItem('lvl0_askmic'); const ask = ()=>{ removeEventListener('pointerdown', ask, true); sfx.init(); voiceEnable(true); }; addEventListener('pointerdown', ask, true); queueMicrotask(()=>{ $('netnote').textContent = 'Tap anywhere and your phone will ask to use the microphone.'; }); } } catch(e){}
 const micConstraints = id => ({ audio:{ deviceId: id ? { exact:id } : undefined, echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 }, video:false });
 async function getMic(){
   try { return await navigator.mediaDevices.getUserMedia(micConstraints(SET.mic)); }
-  catch(e){ if (SET.mic){ SET.mic = ''; saveSet(); return await navigator.mediaDevices.getUserMedia(micConstraints('')); } throw e; }
+  catch(e){ if (SET.mic){ SET.mic = ''; saveSet(); return await navigator.mediaDevices.getUserMedia(micConstraints('')); }
+    if (e && (e.name === 'OverconstrainedError' || e.name === 'TypeError')) return await navigator.mediaDevices.getUserMedia({ audio:true }); throw e; }
 }
 function setAudioSession(){ try { if (navigator.audioSession) navigator.audioSession.type = voice.raw ? 'play-and-record' : 'playback'; } catch(e){} }
 function micChain(){
@@ -3320,7 +3350,7 @@ async function voiceEnable(on){
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ $('netnote').textContent = "This browser can't use a microphone here."; voice.want = false; showVoice(); return false; }
     sfx.init();
     let raw; try { raw = await getMic(); }
-    catch(e){ $('netnote').textContent = 'Microphone blocked. Allow mic access in your browser to use voice chat.'; voice.want = false; try { localStorage.setItem('lvl0_voice','0'); } catch(_){} showVoice(); return false; }
+    catch(e){ voice.want = false; try { localStorage.setItem('lvl0_voice','0'); } catch(_){} showVoice(); micHelp(e); return false; }
     plugMic(raw); fillDevices();
   }
   voice.want = on; try { localStorage.setItem('lvl0_voice', on ? '1' : '0'); } catch(e){}
