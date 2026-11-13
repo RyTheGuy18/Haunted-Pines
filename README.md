@@ -45,3 +45,5 @@ v0.28.5: UPDATE GAME button in settings (shows if a newer version is out and rel
 v0.28.6: if your mic is blocked, the game shows why and exactly where to turn it on, with buttons to ask again.
 v0.28.7: all sound and the mic turn off when you leave the app or your phone sleeps, and come back when you return.
 v0.28.8: fixed the iPhone mic being blocked even when Safari allows it.
+v0.29.0: quieter footsteps (one clean step each), blackouts are pitch black then flicker back on, the lure is just thumping footsteps behind you, and the random breathing sounds are gone.
+v0.29.1: the Lurker comes at you a bit faster during blackouts.
