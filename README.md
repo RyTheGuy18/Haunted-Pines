@@ -23,3 +23,4 @@ v0.20.0: Level 37 Poolrooms, computer difficulty, VHS look, new monster sounds.
 v0.20.1: level selector (start at Level 0, 1 or 37).
 v0.20.2: removed the always-on VHS overlay.
 v0.21.0: new free-form Level 37 with the eel, day/night and a staircase exit; no moving walls on Level 1.
+v0.22.0: exact round pool railings, much bigger Level 37, pool sounds instead of Backrooms ones.
