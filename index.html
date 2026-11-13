@@ -171,7 +171,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.26.4</div>
+<div class="osd" id="ver">v0.26.6</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -719,6 +719,9 @@ function buildLevel(seed, kind=0){
     return true; };
   let ex = takeSlot(p => exitOk(p) && dist0[p.i*N+p.j] >= far*0.8) || takeSlot(p => exitOk(p) && dist0[p.i*N+p.j] >= far*0.5) || takeSlot(exitOk) || takeSlot();
   L.exitCell = ex.i*N+ex.j;
+  // keep the exit cell open on every inner side, and never let shifting walls touch it, so the door is always reachable (v0.26.5)
+  for (const [a,b] of nbr4){ const ni = ex.i+a, nj = ex.j+b; if (!inGrid(ni,nj) || gen.kind[ni*N+nj] === 2) continue;
+    const e = edgeBetween(ex.i, ex.j, ni, nj); walls[e] = 0; gen.w[e] = 0; L.fixed[e] = 1; }
   L.exit = ex; L.exitPos = [ex.x + ex.nx*0.6, ex.z + ex.nz*0.6];
   const door = new THREE.Group(); door.position.set(ex.x + ex.nx*0.11, 0, ex.z + ex.nz*0.11); door.rotation.y = ex.ry; g.add(door);
   const frame = new THREE.Mesh(new THREE.BoxGeometry(1.4,2.35,0.06), lam(0x3a3020)); frame.position.y=1.17; door.add(frame);
@@ -1743,6 +1746,13 @@ function losClear(ax,az,bx,bz){
   }
   return true;
 }
+// which recorded footstep plays where (v0.26.6): carpet on Level 0, concrete on Level 1, tile on the dry Poolrooms floor (water uses the wading loops)
+const STEP_SLOT = 0.42, STEP_GAIN = { stepC:0.5, stepK:0.8, stepT:0.5 };
+function stepSurf(x, z){
+  if (LK === 0) return 'stepC';
+  if (LK === 1) return 'stepK';
+  if (LK === 2 && M37){ const k = k37(x, z); return (k === K37.WATER || k === K37.DEEP) ? null : 'stepT'; }
+  return null; }
 function onWet(x,z){ for (const w of level.wet) if ((x-w.x)**2+(z-w.z)**2 < w.r*w.r) return true; return false; }
 function lookDir(yaw, pitch){ return [ -Math.sin(yaw)*Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw)*Math.cos(pitch) ]; }
 
@@ -2921,7 +2931,7 @@ const sfx = {
   },
   samples:{},
   loadSamples(){
-    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', genStart:'sfx/gen-start.mp3', genRun:'sfx/gen-run.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3' };
+    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', genStart:'sfx/gen-start.mp3', genRun:'sfx/gen-run.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3', stepC:'sfx/steps-carpet.mp3', stepK:'sfx/steps-concrete.mp3', stepT:'sfx/steps-tile.mp3' };
     for (const [k, url] of Object.entries(files)) fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(buf=>{ this.samples[k] = buf; if (k==='crawl' || k==='heavy' || k==='groan') this.startLoop(k); }).catch(e=>console.warn('sound failed', url, e));
   },
   loops:{},
@@ -2972,7 +2982,16 @@ const sfx = {
     const g=c.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(gain,t+attack); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
     o.connect(g).connect(dest); o.start(t); o.stop(t+dur+0.05);
   },
-  step(vol, wet, pos, ref){ if(!this.ctx) return; const o=pos ? this.panner(pos.x, pos.y ?? 0.3, pos.z, ref||1.5) : this.master; this.noise(o,{dur:0.13,freq:360+Math.random()*160,gain:vol}); if (wet) this.noise(o,{dur:0.16,type:'bandpass',freq:900+Math.random()*400,q:2,gain:vol*0.9,at:0.02}); },
+  step(vol, wet, pos, ref){ if(!this.ctx) return; const o=pos ? this.panner(pos.x, pos.y ?? 0.3, pos.z, ref||1.5) : this.master;
+    { const sk = stepSurf(pos ? pos.x : me.x, pos ? pos.z : me.z), buf = sk && this.samples[sk]; if (buf){ this.stepSample(o, buf, vol*STEP_GAIN[sk], sk === 'stepT'); return; } }
+    this.noise(o,{dur:0.13,freq:360+Math.random()*160,gain:vol}); if (wet) this.noise(o,{dur:0.16,type:'bandpass',freq:900+Math.random()*400,q:2,gain:vol*0.9,at:0.02}); },
+  // recorded footsteps (v0.26.6): each file is single steps in 0.42 s slots; play a random one, never the same twice running
+  stepSample(o, buf, v, echo){
+    const c = this.ctx, n = Math.max(1, Math.floor(buf.duration/STEP_SLOT + 0.01)); let k = Math.floor(Math.random()*n); if (n > 1 && k === this.lastStep) k = (k+1)%n; this.lastStep = k;
+    const src = c.createBufferSource(); src.buffer = buf; src.playbackRate.value = 0.93 + Math.random()*0.14;
+    const g = c.createGain(); g.gain.value = v; src.connect(g).connect(o);
+    if (echo && this.verbG){ const e = c.createGain(); e.gain.value = 1.4; g.connect(e).connect(this.verbG); }   // extra send into the poolrooms echo
+    src.start(c.currentTime, k*STEP_SLOT, STEP_SLOT - 0.01); },
   stomp(pos, run){ if(!this.ctx) return; const o=pos ? this.panner(pos.x, pos.y ?? 0.1, pos.z, 7) : this.master;
     this.noise(o,{dur:0.34,freq:110,gain:run?1.6:1.35,buf:this.brown,attack:0.003}); this.tone(o,{f:44,to:24,dur:0.38,gain:run?1.1:0.95}); this.tone(o,{f:88,to:50,dur:0.12,gain:0.35});
     if (Math.random()<0.35) this.noise(o,{dur:0.2,type:'bandpass',freq:420,q:3,gain:0.22,at:0.04}); },
