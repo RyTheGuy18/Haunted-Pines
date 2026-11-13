@@ -15,3 +15,4 @@ v0.14.0: the Crawler, Occupant sprint, shorter dash, more fog.
 v0.15.0: darker Occupant view, stomping footsteps, quieter ambience.
 v0.16.0: recorded footsteps and attack sounds, mouse flashlight/throw.
 v0.17.0: proximity voice chat with a mic meter.
+v0.18.0: settings menu, caught players come back on Level 1.
