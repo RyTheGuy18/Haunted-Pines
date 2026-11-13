@@ -37,3 +37,4 @@ v0.26.6: new footsteps: carpet on Level 0, concrete on Level 1, echoing tile on 
 v0.27.0: Level 188, the Hotel. 5 floors around a courtyard you can see across, working elevators, find the keycard and the room it opens. The Occupant rides the elevators too.
 v0.27.1: soda vending machines in the hotel, wood footsteps on Level 188, the Crawler's steps are quieter and only heard up close.
 v0.28.0: the Lurker stalks Level 0 and the hotel (don't stare at it, use your light, it comes in blackouts), new wallpaper and carpet, bigger Level 0 without the clean office, darker hotel halls with a bright courtyard.
+v0.28.1: better iPhone controls (push the stick all the way to run, smoother look, no zooming), louder and more reliable voice chat, mic boost and microphone/speaker pickers in settings.
