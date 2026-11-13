@@ -41,3 +41,4 @@ v0.28.1: better iPhone controls (push the stick all the way to run, smoother loo
 v0.28.2: touch buttons are all the same size in one line on the right edge, and the joystick stays locked where your thumb lands.
 v0.28.3: smaller touch buttons.
 v0.28.4: the settings button works on phones again.
+v0.28.5: UPDATE GAME button in settings (shows if a newer version is out and reloads the app fresh, handy for the iPhone home-screen app).
