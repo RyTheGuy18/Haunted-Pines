@@ -6,7 +6,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 - Live: https://rytheguy18.github.io/Haunted-Pines/ (GitHub Pages, `main` branch, repo root)
 - Owner: Ryan (GitHub `rytheguy18` / `RyTheGuy18`). Plays it with friends and younger brothers, mostly on phones.
-- Current version: **v0.28.0** (shown bottom-right of the menu, `#ver`)
+- Current version: **v0.28.1** (shown bottom-right of the menu, `#ver`)
 
 ## Files
 
@@ -116,12 +116,16 @@ PeerJS, host's browser is the hub (star). Room code = 4 letters, peer id `level0
 - `#localnet` in the URL swaps PeerJS for a BroadcastChannel transport (same-browser tabs) — used for automated tests. It has **no voice calls**.
 
 **Proximity voice chat** (`voice` object): PeerJS audio calls, one per pair (lower peer id calls). Opt-in via VOICE CHAT button (menu, lobby, settings). Rules: lobby/end = everyone full volume; in a round survivors fade out by ~12 m (muffled through walls); the Occupant hears survivors; **nobody hears the Occupant** unless the host turned on **OCCUPANT VOICE: MONSTER** — then survivors within ~10 m hear it through `monsterVoice()` (delay-line pitch shifter ~10 semitones down + 38 Hz growl ring-mod + distortion + echo, applied on the receiving side); dead players only talk to dead players. Mic meter under the objective (quiet / HEARD / LOUD). V mutes. Confirmed working by Ryan with real players.
+- **v0.28.1 (Ryan: iPhone voice unreliable, others could barely hear him):** the raw mic (`voice.raw`, from `getMic()` with `SET.mic` as deviceId, falls back to default) feeds a Web Audio chain `micChain()` = high-pass 85 Hz → **MIC BOOST** gain (`SET.mg`, default 220% on iOS / 160% elsewhere) → compressor → ×2 make-up → limiter → `MediaStreamDestination`; **that** stream (`voice.stream`) is what calls send, so switching mics (`switchMic` → `plugMic`) only swaps the source node, no renegotiation. The mic meter / noise detection still reads the raw mic (`voice.an`), so boosting doesn't make you louder to the Occupant. iPhone: `navigator.audioSession.type` = 'play-and-record' while the mic is on, 'playback' otherwise (game audio also plays with the silent switch on). `wakeAudio()` resumes a suspended/interrupted AudioContext on any touch/click/visibility and re-acquires a mic track iOS ended (`micLost`). Calls: `opusTweak` sdpTransform (in-band FEC, 40 kbps, mono) on call + answer; `voiceWatchdog` (2 s) closes calls with no stream after 12 s or ICE failed/disconnected ~8 s, and re-dials are spaced 3 s (`voice.retry`); if a remote's inbound `totalAudioEnergy` rises while our analyser on that call is pure silence 3 times, the call switches to direct `<audio>` playback (`c.direct`, volume via `el.volume`, no 3D). Untested on a real iPhone (sandbox can't reach PeerJS).
+- **Devices** (settings, v0.28.1): MICROPHONE select (`#sMic`, `SET.mic`), SPEAKER/HEADPHONES select (`#sSpk`, `SET.spk`, `AudioContext.setSinkId`, only where supported — Chrome/Edge desktop; disabled with a note on iPhone/Safari/Firefox), MIC BOOST slider + a live level meter. `fillDevices()` runs when settings open, after the mic is allowed and on `devicechange`.
 
 ## Settings
 
 Esc (desktop), ⚙ button (phones), or SETTINGS in menu/lobby. Volume, voice volume, voice on/off, mic mute, look sensitivity, FOV (60–100), resume, leave. Saved in `localStorage['lvl0_set']`. Solo pauses; online keeps running.
 
 Other localStorage keys: `lvl0_name`, `lvl0_skin2` (skin), `lvl0_voice`, `lvl0_monvoice`, `lvl0_diff`, `lvl0_start`.
+
+**Touch controls (v0.28.1, Ryan: better iPhone controls):** floating stick on the left 42% (`STICK_R 50`, dead zone 0.14, follows your thumb if you drag past 1.75× the ring); **push the stick past the ring = run** (`stickRun`, "RUN" lights over the stick; RUN button still works); touch look has mild acceleration (slow = precise, flicks turn fast; vertical ×0.85). Buttons release on `touchcancel`. Pinch/double-tap zoom blocked in play. Portrait while playing shows a "turn your phone sideways" cover (`#rotate`, `body.playing`). iPhone in Safari (not installed) gets a menu hint to Add to Home Screen (iPhone has no fullscreen API).
 
 Controls (desktop): WASD, Shift sprint, C crouch, Left click / F flashlight, E hide / vent / start generator / call elevator, 1–5 elevator floor (inside a car), V mute, Esc settings, Occupant 1–4. Phones: left thumb move, right thumb look, buttons bottom-right (Occupant gets 6 buttons incl. RUN and DASH), USE pops up near things.
 

@@ -160,6 +160,15 @@
   #elev button{width:46px;height:46px;border-radius:50%;border:2px solid rgba(241,230,180,.4);background:rgba(40,36,28,.85);color:var(--ink);font-size:22px;padding:0}
   #elev button.lit{border-color:#ffb040;color:#ffb040;box-shadow:0 0 10px rgba(255,176,64,.55)} #elev button.here{background:rgba(255,176,64,.28)}
   body.touch #elev .eh{display:none}
+  #stick.run{border-color:rgba(233,210,124,.75);box-shadow:0 0 14px rgba(233,210,124,.35)} #stick.run #knob{background:rgba(233,210,124,.7)}
+  #stick .rl{position:absolute;left:50%;top:-24px;transform:translateX(-50%);font-size:15px;letter-spacing:.2em;color:var(--hot);opacity:0} #stick.run .rl{opacity:1}
+  #rotate{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:#000;font-size:26px;letter-spacing:.12em;text-align:center;padding:20px}
+  @media (orientation:portrait){ body.touch.playing #rotate{display:flex} }
+  #settings select{width:100%;font:inherit;font-size:20px;color:var(--ink);background:rgba(20,18,10,.9);border:1px solid var(--line);padding:8px 10px;border-radius:0;-webkit-appearance:none;appearance:none}
+  #settings select:disabled{opacity:.55}
+  .devnote{font-size:16px;color:#a99f7c;line-height:1.25}
+  .smeter{height:8px;background:rgba(241,230,180,.12);position:relative} .smeter i{position:absolute;left:0;top:0;bottom:0;width:0;background:#9fd88a}
+  #iosHint{display:none;font-size:17px;color:#cfc49e;border:1px dashed var(--line);padding:8px 10px;line-height:1.3}
 </style>
 <script type="importmap">{"imports":{"three":"./three.module.min.js"}}</script>
 </head>
@@ -176,7 +185,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.28.0</div>
+<div class="osd" id="ver">v0.28.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -195,7 +204,8 @@
 <div id="black"><h2 id="blacktext"></h2><div id="blackcount"></div><p id="blacksub"></p></div>
 
 <div id="touch"></div>
-<div id="stick"><div id="knob"></div></div>
+<div id="rotate"><div>⟲</div><div>TURN YOUR PHONE SIDEWAYS</div></div>
+<div id="stick"><div class="rl">RUN</div><div id="knob"></div></div>
 <div id="btns">
   <button id="bA"></button><button id="bB"></button><button id="bC"></button><button id="bD"></button><button id="bE"></button><button id="bF"></button><button id="bUse">USE</button>
 </div>
@@ -232,6 +242,7 @@
     When the computer hunts you, pick how smart it is: <b>EASY</b> barely listens, <b>IMPOSSIBLE</b> reads where you're going and cuts you off, but it still can't outrun you and your flashlight still works on it.<br><br>
     <span id="controls"></span>
   </details>
+  <div id="iosHint">iPhone: tap Share → <b>Add to Home Screen</b> and play from there. It runs fullscreen with no browser bars and the controls work much better.</div>
   <div class="foot">Headphones on. Listen to the hum.</div>
   <div class="foot" style="font-size:15px;opacity:.7">The Crawler: <a href="https://sketchfab.com/3d-models/goose-c0cf164370124d81b2737e864bf38205" target="_blank" rel="noopener" style="color:inherit">"Goose" by nodoxi</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (re-textured smaller, rigged in code) · The Lurker: <a href="https://sketchfab.com/3d-models/a-terrifying-creature-monster-8d509a2a7e4d4fb7972fd7016c53a234" target="_blank" rel="noopener" style="color:inherit">"A Terrifying Creature (Monster)" by Dester</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (textures shrunk) · Flashlight: <a href="https://sketchfab.com/3d-models/pro-flashlight-4c421693ab9d4d24af19cf151f4569a0" target="_blank" rel="noopener" style="color:inherit">"Pro Flashlight" by Chancleto870</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (simplified, smaller texture)</div>
 </div></div>
@@ -265,6 +276,11 @@
     <div class="srow"><span class="lbl">VOLUME</span><span id="vVol"></span></div><input type="range" id="sVol" min="0" max="100">
     <div class="srow"><span class="lbl">VOICE CHAT VOLUME</span><span id="vVv"></span></div><input type="range" id="sVv" min="0" max="200">
     <div class="row"><button class="btn" id="bVoice3">VOICE CHAT: OFF</button><button class="btn" id="bMute">MIC: ON</button></div>
+    <div class="srow"><span class="lbl">MIC BOOST</span><span id="vMg"></span></div><input type="range" id="sMg" min="50" max="400" step="10">
+    <div class="smeter"><i id="setMicFill"></i></div>
+    <div class="srow"><span class="lbl">MICROPHONE</span></div><select id="sMic"></select>
+    <div class="srow"><span class="lbl">SPEAKER / HEADPHONES</span></div><select id="sSpk"></select>
+    <div class="devnote" id="devnote"></div>
   </div>
   <div class="card">
     <div class="srow"><span class="lbl">LOOK SENSITIVITY</span><span id="vSens"></span></div><input type="range" id="sSens" min="30" max="250">
@@ -302,6 +318,7 @@ function hashStr(s){ let h = 2166136261; for (let i=0;i<s.length;i++){ h ^= s.ch
 const h01 = n => { const x = Math.sin(n*12.9898+78.233)*43758.5453; return x - Math.floor(x); };
 const nowS = () => performance.now()/1000;
 const isTouch = ('ontouchstart' in window) || matchMedia('(pointer:coarse)').matches;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 document.body.classList.toggle('touch', isTouch);
 $('controls').textContent = isTouch
   ? 'Left thumb moves, right thumb looks. USE pops up next to lockers.'
@@ -3194,16 +3211,16 @@ async function connect(code, host){
   return true;
 }
 /* ================= settings ================= */
-const SET = { vol:100, vv:100, sens:100, fov:74 };
+const SET = { vol:100, vv:100, sens:100, fov:74, mg:isIOS ? 220 : 160, mic:'', spk:'' };
 try { Object.assign(SET, JSON.parse(localStorage.getItem('lvl0_set') || '{}')); } catch(e){}
 let settingsOpen = false;
 function saveSet(){ try { localStorage.setItem('lvl0_set', JSON.stringify(SET)); } catch(e){} }
 function applySet(){
   if (sfx.master) sfx.master.gain.value = 0.9 * SET.vol/100;
-  $('vVol').textContent = SET.vol + '%'; $('vVv').textContent = SET.vv + '%'; $('vSens').textContent = (SET.sens/100).toFixed(2) + 'x'; $('vFov').textContent = SET.fov + '°';
+  $('vVol').textContent = SET.vol + '%'; $('vVv').textContent = SET.vv + '%'; $('vMg').textContent = SET.mg + '%'; if (voice.chain) voice.chain.g.gain.value = SET.mg/100; $('vSens').textContent = (SET.sens/100).toFixed(2) + 'x'; $('vFov').textContent = SET.fov + '°';
   if (!dashT){ camera.fov = SET.fov; camera.updateProjectionMatrix(); }
 }
-for (const [id, key] of [['sVol','vol'],['sVv','vv'],['sSens','sens'],['sFov','fov']]){ const el = $(id); el.value = SET[key]; el.addEventListener('input', ()=>{ SET[key] = +el.value; applySet(); saveSet(); }); }
+for (const [id, key] of [['sVol','vol'],['sVv','vv'],['sSens','sens'],['sFov','fov'],['sMg','mg']]){ const el = $(id); el.value = SET[key]; el.addEventListener('input', ()=>{ SET[key] = +el.value; applySet(); saveSet(); }); }
 const soloPaused = () => settingsOpen && net.solo && (mode === 'play' || mode === 'spect');
 function openSettings(){
   if (settingsOpen) return; settingsOpen = true;
@@ -3211,8 +3228,8 @@ function openSettings(){
   $('pausenote').textContent = inGame ? (net.solo ? 'PAUSED' : 'The game keeps going while you\'re in here.') : '';
   $('bResume').textContent = inGame ? 'RESUME' : 'BACK';
   $('bQuit').style.display = inGame || mode === 'lobby' ? '' : 'none'; $('bQuit').textContent = inGame ? 'LEAVE GAME' : 'LEAVE ROOM';
-  keys.clear(); runHeld = false; stickV = [0,0];
-  $('settings').classList.add('show'); showVoice(); applySet();
+  keys.clear(); runHeld = false; stickV = [0,0]; stickRun = false;
+  $('settings').classList.add('show'); showVoice(); applySet(); fillDevices();
   try { document.exitPointerLock && document.exitPointerLock(); } catch(e){}
 }
 function closeSettings(){
@@ -3230,45 +3247,116 @@ queueMicrotask(applySet);   // after the audio engine below has been defined
 /* ================= proximity voice chat (PeerJS audio calls, one per pair) =================
    lobby / end screen: everyone hears everyone. In a round: survivors hear each other by distance (~20 m),
    the Occupant hears survivors near it, nobody hears the Occupant's mic, and the dead only talk to the dead. */
-const voice = { want:false, stream:null, calls:new Map(), muted:false, an:null, buf:null, level:0, talkT:0, loudT:0 };
+const voice = { want:false, stream:null, raw:null, chain:null, srcNode:null, lost:false, calls:new Map(), retry:new Map(), muted:false, an:null, buf:null, level:0, talkT:0, loudT:0, wdT:0 };
 const VT1 = 0.025, VT2 = 0.1;   // mic loudness: above VT1 you can be heard nearby, above VT2 you're shouting
 try { voice.want = localStorage.getItem('lvl0_voice') === '1'; } catch(e){}
 function showVoice(){ const m = 'MIC: ' + (!voice.stream ? '—' : voice.muted ? 'MUTED' : 'ON'); if ($('bMute').textContent !== m) $('bMute').textContent = m;
   const t = 'VOICE CHAT: ' + (!voice.want ? 'OFF' : !voice.stream ? 'TAP TO ALLOW MIC' : voice.muted ? 'MUTED' : 'ON'); for (const id of ['bVoice','bVoice2','bVoice3']) if ($(id).textContent !== t) $(id).textContent = t; }
+/* v0.28.1 voice fixes (Ryan: iPhone voice unreliable, people could barely hear him):
+   - the mic goes through a Web Audio chain (high-pass → MIC BOOST gain → compressor → limiter) and THAT stream is what's sent,
+     so quiet phone mics come through loud and even; switching microphones just swaps the source node (no call renegotiation)
+   - iPhone: navigator.audioSession 'play-and-record' while the mic is on (speaker, no ducking), 'playback' otherwise (plays with the silent switch on)
+   - the audio engine is resumed whenever iOS suspends/interrupts it; a mic track that iOS ends is re-acquired
+   - calls: Opus with in-band FEC and a higher bitrate, a watchdog closes dead calls so voiceSync re-dials them */
+const micConstraints = id => ({ audio:{ deviceId: id ? { exact:id } : undefined, echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:1 }, video:false });
+async function getMic(){
+  try { return await navigator.mediaDevices.getUserMedia(micConstraints(SET.mic)); }
+  catch(e){ if (SET.mic){ SET.mic = ''; saveSet(); return await navigator.mediaDevices.getUserMedia(micConstraints('')); } throw e; }
+}
+function setAudioSession(){ try { if (navigator.audioSession) navigator.audioSession.type = voice.raw ? 'play-and-record' : 'playback'; } catch(e){} }
+function micChain(){
+  const ctx = sfx.ctx; if (!ctx || !ctx.createMediaStreamDestination) return null;
+  if (!voice.chain) try {
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 85;
+    const g = ctx.createGain(); g.gain.value = SET.mg/100;
+    const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -26; comp.knee.value = 10; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.18;
+    const mk = ctx.createGain(); mk.gain.value = 2.0;   // make-up gain after the compressor
+    const lim = ctx.createDynamicsCompressor(); lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.08;
+    const dest = ctx.createMediaStreamDestination();
+    hp.connect(g).connect(comp).connect(mk).connect(lim).connect(dest);
+    voice.chain = { hp, g, dest };
+  } catch(e){ return null; }
+  return voice.chain;
+}
+function plugMic(raw){
+  const old = voice.raw; voice.raw = raw;
+  if (voice.srcNode){ try { voice.srcNode.disconnect(); } catch(e){} voice.srcNode = null; }
+  if (old && old !== raw) old.getTracks().forEach(t=>t.stop());
+  const ch = micChain();
+  if (ch){ voice.srcNode = sfx.ctx.createMediaStreamSource(raw); voice.srcNode.connect(ch.hp);
+    if (!voice.an){ voice.an = sfx.ctx.createAnalyser(); voice.an.fftSize = 512; voice.buf = new Float32Array(voice.an.fftSize); }
+    voice.srcNode.connect(voice.an); voice.stream = ch.dest.stream; }
+  else voice.stream = raw;
+  for (const t of raw.getAudioTracks()) t.onended = ()=>{ if (voice.raw === raw && voice.want) micLost(); };
+  applyMute(); setAudioSession();
+}
+async function micLost(){ voice.lost = true; try { const raw = await getMic(); voice.lost = false; plugMic(raw); msg('Mic reconnected.', 1.5); } catch(e){ showVoice(); } }
+async function switchMic(){ if (!voice.raw) return; try { plugMic(await getMic()); msg('Microphone changed.', 1.5); } catch(e){ msg("Couldn't open that microphone.", 2.5); } fillDevices(); }
+function applyMute(){ for (const st of [voice.raw, voice.stream]) if (st) st.getAudioTracks().forEach(t=>t.enabled = !voice.muted); }
 async function voiceEnable(on){
   if (on && !voice.stream){
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ $('netnote').textContent = "This browser can't use a microphone here."; voice.want = false; showVoice(); return false; }
-    try { voice.stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true }, video:false }); }
-    catch(e){ $('netnote').textContent = 'Microphone blocked. Allow mic access in your browser to use voice chat.'; voice.want = false; try { localStorage.setItem('lvl0_voice','0'); } catch(_){} showVoice(); return false; }
     sfx.init();
-    if (sfx.ctx){ const src = sfx.ctx.createMediaStreamSource(voice.stream); voice.an = sfx.ctx.createAnalyser(); voice.an.fftSize = 512; src.connect(voice.an); voice.buf = new Float32Array(voice.an.fftSize); }
+    let raw; try { raw = await getMic(); }
+    catch(e){ $('netnote').textContent = 'Microphone blocked. Allow mic access in your browser to use voice chat.'; voice.want = false; try { localStorage.setItem('lvl0_voice','0'); } catch(_){} showVoice(); return false; }
+    plugMic(raw); fillDevices();
   }
   voice.want = on; try { localStorage.setItem('lvl0_voice', on ? '1' : '0'); } catch(e){}
-  if (!on){ for (const id of [...voice.calls.keys()]) closeCall(id); if (voice.stream) voice.stream.getTracks().forEach(t=>t.stop()); voice.stream = null; voice.an = null; voice.level = 0; }
-  else voice.stream.getAudioTracks().forEach(t=>t.enabled = !voice.muted);
+  if (!on){ for (const id of [...voice.calls.keys()]) closeCall(id); if (voice.raw) voice.raw.getTracks().forEach(t=>t.stop()); if (voice.srcNode){ try { voice.srcNode.disconnect(); } catch(e){} voice.srcNode = null; }
+    voice.raw = null; voice.stream = null; voice.level = 0; setAudioSession(); }
+  else applyMute();
   showVoice(); sendPresence(); voiceSync();
   return true;
 }
-function toggleMute(){ if (!voice.stream) return; voice.muted = !voice.muted; voice.stream.getAudioTracks().forEach(t=>t.enabled = !voice.muted); showVoice(); msg(voice.muted ? 'Mic muted.' : 'Mic on.', 1.5); }
+function toggleMute(){ if (!voice.stream) return; voice.muted = !voice.muted; applyMute(); showVoice(); msg(voice.muted ? 'Mic muted.' : 'Mic on.', 1.5); }
+// keep the audio engine running: iOS suspends it when you switch apps, lock the phone or get a call
+function wakeAudio(){ const c = sfx.ctx; if (c && c.state !== 'running' && c.state !== 'closed'){ try { c.resume(); } catch(e){} }
+  if (voice.want && voice.lost) micLost(); }
+for (const ev of ['touchend','click','keydown']) addEventListener(ev, wakeAudio, { passive:true, capture:true });
+document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) setTimeout(wakeAudio, 200); });
+// Opus: in-band FEC (survives packet loss), a bit more bitrate, mono
+const opusTweak = sdp => { try {
+  const m = sdp.match(/a=rtpmap:(\d+) opus\/48000/i); if (!m) return sdp; const pt = m[1];
+  return sdp.replace(new RegExp('a=fmtp:' + pt + ' ([^\\r\\n]*)'), (all, p) => 'a=fmtp:' + pt + ' ' + p.split(';').filter(x=>x && !/^(useinbandfec|maxaveragebitrate|stereo)=/.test(x)).concat(['useinbandfec=1','maxaveragebitrate=40000','stereo=0']).join(';'));
+} catch(e){ return sdp; } };
+/* ---- devices (settings) ---- */
+const canSink = !!(window.AudioContext && AudioContext.prototype.setSinkId);
+async function fillDevices(){
+  const mic = $('sMic'), spk = $('sSpk'); let list = [];
+  try { list = await navigator.mediaDevices.enumerateDevices(); } catch(e){}
+  const ins = list.filter(d=>d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications'), outs = list.filter(d=>d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
+  const named = ins.some(d=>d.label);
+  const cur = voice.raw && voice.raw.getAudioTracks()[0] && voice.raw.getAudioTracks()[0].getSettings ? voice.raw.getAudioTracks()[0].getSettings().deviceId : '';
+  mic.innerHTML = '<option value="">Default microphone</option>' + ins.map((d,k)=>`<option value="${d.deviceId.replace(/"/g,'')}">${(d.label || 'Microphone ' + (k+1)).replace(/</g,'')}</option>`).join('');
+  mic.value = SET.mic && ins.some(d=>d.deviceId === SET.mic) ? SET.mic : ''; if (!SET.mic && cur && ins.some(d=>d.deviceId === cur) && ins.length > 1) mic.value = '';
+  spk.innerHTML = '<option value="">Default output</option>' + (canSink ? outs.map((d,k)=>`<option value="${d.deviceId.replace(/"/g,'')}">${(d.label || 'Output ' + (k+1)).replace(/</g,'')}</option>`).join('') : '');
+  spk.value = canSink && SET.spk && outs.some(d=>d.deviceId === SET.spk) ? SET.spk : ''; spk.disabled = !canSink;
+  $('devnote').textContent = !named ? 'Turn voice chat on to see your microphones by name.' : !canSink ? (isIOS ? 'iPhone picks the speaker: plug in headphones, or use Control Center → the AirPlay icon to switch to Bluetooth.' : "This browser picks the speaker itself (use your system's sound settings).") : '';
+}
+$('sMic').onchange = ()=>{ SET.mic = $('sMic').value; saveSet(); if (voice.raw) switchMic(); };
+$('sSpk').onchange = ()=>{ SET.spk = $('sSpk').value; saveSet(); applySink(); };
+function applySink(){ if (!canSink || !sfx.ctx) return; sfx.ctx.setSinkId(SET.spk || '').catch(()=>{ SET.spk = ''; saveSet(); fillDevices(); }); }
+try { navigator.mediaDevices && navigator.mediaDevices.addEventListener && navigator.mediaDevices.addEventListener('devicechange', ()=>{ if (settingsOpen) fillDevices(); }); } catch(e){}
 function voiceSync(){
   const peer = net.room && net.room.peer; if (!peer || typeof peer.call !== 'function' || net.solo) return;
   const want = new Set();
   if (voice.stream) for (const r of remotes.values()){ if (!r.vid || !r.vo) continue; want.add(r.vid);
-    if (!voice.calls.has(r.vid) && peer.id < r.vid){ try { const call = peer.call(r.vid, voice.stream); if (call) attachCall(call); } catch(e){ console.warn(e); } } }   // the lower id calls, so each pair connects once
+    if (!voice.calls.has(r.vid) && peer.id < r.vid && nowS() >= (voice.retry.get(r.vid) || 0)){ voice.retry.set(r.vid, nowS() + 3); try { const call = peer.call(r.vid, voice.stream, { sdpTransform: opusTweak }); if (call) attachCall(call); } catch(e){ console.warn(e); } } }   // the lower id calls, so each pair connects once
   for (const id of [...voice.calls.keys()]) if (!want.has(id)) closeCall(id);
 }
 function onVoiceCall(call){
   if (!voice.stream){ try { call.close(); } catch(e){} return; }
-  call.answer(voice.stream); attachCall(call);
+  call.answer(voice.stream, { sdpTransform: opusTweak }); attachCall(call);
 }
 function attachCall(call){
   const id = call.peer; if (voice.calls.has(id)) closeCall(id);
-  const c = { call, el:null, src:null, g:null, pan:null }; voice.calls.set(id, c);
+  const c = { call, el:null, src:null, g:null, pan:null, t0:nowS(), bad:0 }; voice.calls.set(id, c);
   call.on('stream', s=>{ if (c.g || !sfx.ctx) return; const ctx = sfx.ctx;
-    c.el = new Audio(); c.el.srcObject = s; c.el.muted = true; c.el.play().catch(()=>{});   // Chrome only feeds WebAudio while an element plays the stream
+    c.el = new Audio(); c.el.srcObject = s; c.el.muted = true; c.el.setAttribute('playsinline', ''); c.el.play().catch(()=>{});   // Chrome only feeds WebAudio while an element plays the stream
     c.src = ctx.createMediaStreamSource(s); c.g = ctx.createGain(); c.g.gain.value = 0;
     c.pan = ctx.createPanner(); c.pan.panningModel = 'HRTF'; c.pan.distanceModel = 'linear'; c.pan.refDistance = 1; c.pan.maxDistance = 1000; c.pan.rolloffFactor = 0;   // volume is set by hand in updateVoice
-    c.dry = ctx.createGain(); c.src.connect(c.dry).connect(c.g); c.g.connect(c.pan).connect(sfx.master); });
+    c.dry = ctx.createGain(); c.src.connect(c.dry).connect(c.g); c.g.connect(c.pan).connect(sfx.master);
+    c.an = ctx.createAnalyser(); c.an.fftSize = 256; c.abuf = new Float32Array(256); c.src.connect(c.an); });
   const end = ()=>{ if (voice.calls.get(id) === c) closeCall(id); };
   call.on('close', end); call.on('error', end);
 }
@@ -3276,7 +3364,26 @@ function closeCall(id){
   const c = voice.calls.get(id); if (!c) return; voice.calls.delete(id);
   try { c.call.close(); } catch(e){} try { c.src && c.src.disconnect(); c.g && c.g.disconnect(); c.pan && c.pan.disconnect(); } catch(e){}
   if (c.el){ c.el.pause(); c.el.srcObject = null; }
+  voice.retry.set(id, Math.max(voice.retry.get(id) || 0, nowS() + 2));
 }
+// every 2 s: drop calls that never connected or whose connection died (voiceSync dials again);
+// if the other person is clearly talking but Web Audio gets silence (an old Safari bug), play that call straight through its <audio> element
+async function voiceWatchdog(){
+  for (const [id, c] of voice.calls){
+    const pc = c.call.peerConnection, st = pc ? pc.iceConnectionState : '';
+    if (!c.g && nowS() - c.t0 > 12){ closeCall(id); continue; }
+    if (st === 'failed' || st === 'closed'){ closeCall(id); continue; }
+    if (st === 'disconnected'){ if ((c.disc = (c.disc || 0) + 1) >= 4) closeCall(id); continue; } c.disc = 0;
+    if (!c.g || !pc || c.direct) continue;
+    try { let e = null; (await pc.getStats()).forEach(r=>{ if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio') && r.totalAudioEnergy != null) e = r.totalAudioEnergy; });
+      if (e == null) continue;
+      c.an.getFloatTimeDomainData(c.abuf); let pk = 0; for (const v of c.abuf) pk = Math.max(pk, Math.abs(v));
+      const talking = c.lastE != null && e - c.lastE > 0.0005; c.lastE = e;
+      if (talking && pk === 0){ if (++c.bad >= 3){ c.direct = true; c.el.muted = false; c.el.play().catch(()=>{}); c.g.gain.value = 0; } } else if (pk > 0) c.bad = 0;
+    } catch(e){}
+  }
+}
+setInterval(()=>{ if (voice.calls.size) voiceWatchdog(); }, 2000);
 /* ---- monster voice: pitch-shift down (delay-line "jungle" shifter), growl ring-mod, grit, echo ---- */
 function fadeBuf(ctx, active, fade){ const sr = ctx.sampleRate, l1 = Math.floor(active*sr), l2 = Math.floor((active-2*fade)*sr), b = ctx.createBuffer(1, l1+l2, sr), p = b.getChannelData(0), fl = fade*sr, i2 = l1-fl;
   for (let i=0;i<l1;i++) p[i] = i < fl ? Math.sqrt(i/fl) : i >= i2 ? Math.sqrt(1-(i-i2)/fl) : 1; return b; }
@@ -3321,6 +3428,7 @@ function voiceNoise(){
 function updateVoice(dt){
   if (voice.an && !voice.muted){ voice.an.getFloatTimeDomainData(voice.buf); let sum = 0; for (let i=0;i<voice.buf.length;i++) sum += voice.buf[i]*voice.buf[i]; const rms = Math.sqrt(sum/voice.buf.length); voice.level = rms > voice.level ? rms : lerp(voice.level, rms, 1-Math.exp(-8*dt)); }
   else voice.level = lerp(voice.level, 0, 0.3);
+  if (settingsOpen){ const f = $('setMicFill'); f.style.width = (Math.min(1, voice.level*SET.mg/100/0.16)*100).toFixed(1) + '%'; f.style.background = voice.muted ? '#6d6550' : '#9fd88a'; }
   voice.talkT = voice.level > VT1 ? 0.5 : Math.max(0, voice.talkT - dt); voice.loudT = voice.level > VT2 ? 0.5 : Math.max(0, voice.loudT - dt);
   const box = $('micbox'), show = !!voice.stream && $('hud').style.display === 'block';
   if (box.style.display !== (show ? 'flex' : 'none')) box.style.display = show ? 'flex' : 'none';
@@ -3343,6 +3451,7 @@ function updateVoice(dt){
     const asMon = !!(r && playing && r.pid === G.mo && G.ov);
     if (asMon && !c.mv && c.src){ c.mv = monsterVoice(sfx.ctx); c.src.connect(c.mv.inp); c.mv.out.connect(c.g); }
     if (c.dry) c.dry.gain.value = asMon ? 0 : 1; if (c.mv) c.mv.out.gain.value = asMon ? 1.1 : 0;
+    if (c.direct){ c.g.gain.value = 0; c.el.volume = clamp(g*SET.vv/100, 0, 1); c.el.muted = g <= 0.01; } else
     c.g.gain.value = lerp(c.g.gain.value, g*1.5*SET.vv/100, k);
     if (c.pan.positionX){ c.pan.positionX.value = px; c.pan.positionY.value = 1.6; c.pan.positionZ.value = pz; } else c.pan.setPosition(px, 1.6, pz);
   }
@@ -3532,7 +3641,9 @@ const sfx = {
   init(){
     if (this.ctx){ this.ctx.resume && this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    const c = this.ctx = new AC();
+    let c; try { c = new AC({ latencyHint:'interactive' }); } catch(e){ c = new AC(); } this.ctx = c;
+    try { if (navigator.audioSession && !voice.raw) navigator.audioSession.type = 'playback'; } catch(e){}
+    if (canSink && SET.spk) c.setSinkId(SET.spk).catch(()=>{});
     this.master = c.createGain(); this.master.gain.value = 0.9 * SET.vol/100;
     const comp = c.createDynamicsCompressor(); this.master.connect(comp); comp.connect(c.destination);
     // a big tiled echo, faded in on Level 37
@@ -3859,31 +3970,49 @@ addEventListener('mousemove', e=>{
   if (document.pointerLockElement !== canvas || mode!=='play') return;
   const sv = 0.0022*SET.sens/100; me.yaw -= e.movementX*sv; me.pitch = clamp(me.pitch - e.movementY*sv, -1.35, 1.35);
 });
+/* touch controls (v0.28.1, Ryan: better iPhone controls):
+   - the stick appears where your left thumb lands, has a small dead zone, and FOLLOWS your thumb if you drag past it
+   - push the stick all the way out (past the ring) to RUN, so your right thumb stays free to look (the RUN button still works)
+   - look has a little acceleration: slow drags aim precisely, quick flicks turn you around
+   - the left 40% (or more of the screen in portrait) starts the stick; touches that start on a button never steer the camera */
 const touch = $('touch'), stick = $('stick'), knob = $('knob');
-let stickId=null, stickO=[0,0], stickV=[0,0], lookId=null, lookL=[0,0], runHeld=false;
+let stickId=null, stickO=[0,0], stickV=[0,0], lookId=null, lookL=[0,0], lookT=0, runHeld=false, stickRun=false;
+const STICK_R = 50, STICK_DZ = 0.14;
 touch.addEventListener('touchstart', e=>{
   e.preventDefault();
   for (const t of e.changedTouches){
-    if (t.clientX < innerWidth*0.45 && stickId===null && mode==='play'){
-      stickId=t.identifier; stickO=[t.clientX,t.clientY]; stickV=[0,0];
-      stick.style.left=t.clientX+'px'; stick.style.top=t.clientY+'px'; stick.style.display='block'; knob.style.transform='';
-    } else if (lookId===null){ lookId=t.identifier; lookL=[t.clientX,t.clientY]; if (mode==='spect') specIdx++; }
+    if (t.clientX < innerWidth*0.42 && stickId===null && mode==='play'){
+      stickId=t.identifier; stickO=[t.clientX,t.clientY]; stickV=[0,0]; stickRun=false;
+      stick.style.left=t.clientX+'px'; stick.style.top=t.clientY+'px'; stick.style.display='block'; knob.style.transform=''; stick.classList.remove('run');
+    } else if (lookId===null){ lookId=t.identifier; lookL=[t.clientX,t.clientY]; lookT=performance.now(); if (mode==='spect') specIdx++; }
   }
 },{passive:false});
 touch.addEventListener('touchmove', e=>{
   e.preventDefault();
   for (const t of e.changedTouches){
     if (t.identifier===stickId){
-      let dx=t.clientX-stickO[0], dy=t.clientY-stickO[1]; const l=Math.hypot(dx,dy), m=48;
-      if (l>m){ dx*=m/l; dy*=m/l; }
-      stickV=[dx/m, dy/m]; knob.style.transform=`translate(${dx}px,${dy}px)`;
+      let dx=t.clientX-stickO[0], dy=t.clientY-stickO[1]; let l=Math.hypot(dx,dy); const m=STICK_R;
+      // dragged far past the ring: the stick follows your thumb
+      if (l > m*1.75){ const k = (l - m*1.75)/l; stickO[0] += dx*k; stickO[1] += dy*k; dx=t.clientX-stickO[0]; dy=t.clientY-stickO[1]; l=Math.hypot(dx,dy); stick.style.left=stickO[0]+'px'; stick.style.top=stickO[1]+'px'; }
+      // pushed out past the ring = run (a little hysteresis so it doesn't flicker)
+      if (role === 'survivor' || role === 'monster'){ if (!stickRun && l > m*1.3 && dy < l*0.35) stickRun = true; else if (stickRun && (l < m*1.1 || dy > l*0.5)) stickRun = false; }
+      stick.classList.toggle('run', stickRun);
+      const kl = Math.min(l, m), nx = l ? dx/l : 0, ny = l ? dy/l : 0, a = kl/m;
+      const v = a < STICK_DZ ? 0 : (a - STICK_DZ)/(1 - STICK_DZ);
+      stickV=[nx*v, ny*v]; knob.style.transform=`translate(${nx*kl}px,${ny*kl}px)`;
     } else if (t.identifier===lookId && mode==='play'){
-      const sv = 0.0065*SET.sens/100; me.yaw -= (t.clientX-lookL[0])*sv; me.pitch = clamp(me.pitch-(t.clientY-lookL[1])*sv, -1.35, 1.35);
+      const now = performance.now(), dt = Math.max(8, now - lookT); lookT = now;
+      const ddx = t.clientX-lookL[0], ddy = t.clientY-lookL[1], spd = Math.hypot(ddx,ddy)/dt;   // px per ms
+      const acc = 1 + Math.min(1.2, Math.max(0, spd - 0.35)*0.9);
+      const sv = 0.0062*SET.sens/100*acc; me.yaw -= ddx*sv; me.pitch = clamp(me.pitch-ddy*sv*0.85, -1.35, 1.35);
       lookL=[t.clientX,t.clientY];
     }
   }
 },{passive:false});
-const endTouch = e=>{ for (const t of e.changedTouches){ if (t.identifier===stickId){ stickId=null; stickV=[0,0]; stick.style.display='none'; } if (t.identifier===lookId) lookId=null; } };
+const endTouch = e=>{ for (const t of e.changedTouches){ if (t.identifier===stickId){ stickId=null; stickV=[0,0]; stickRun=false; stick.style.display='none'; stick.classList.remove('run'); } if (t.identifier===lookId) lookId=null; } };
+// iPhone: no pinch/double-tap page zoom mid-game
+for (const ev of ['gesturestart','gesturechange','dblclick']) document.addEventListener(ev, e=>{ if (mode === 'play' || mode === 'spect') e.preventDefault(); }, { passive:false });
+if (isIOS && !(navigator.standalone || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches)) $('iosHint').style.display = 'block';
 touch.addEventListener('touchend', endTouch); touch.addEventListener('touchcancel', endTouch);
 document.querySelectorAll('#elev button').forEach(b=>{ const go = e=>{ e.preventDefault(); e.stopPropagation(); elevPress188(+b.dataset.f); }; b.addEventListener('touchstart', go, {passive:false}); b.addEventListener('mousedown', go); });
 const BTN = { bA:null, bB:null, bC:null, bD:null, bE:null, bF:null, bUse:null };
@@ -3891,7 +4020,7 @@ for (const id of Object.keys(BTN)){
   const b = $(id);
   const down = e=>{ e.preventDefault(); e.stopPropagation(); BTN[id] && BTN[id].down && BTN[id].down(); };
   const up = e=>{ e.preventDefault(); BTN[id] && BTN[id].up && BTN[id].up(); };
-  b.addEventListener('touchstart', down, {passive:false}); b.addEventListener('touchend', up, {passive:false});
+  b.addEventListener('touchstart', down, {passive:false}); b.addEventListener('touchend', up, {passive:false}); b.addEventListener('touchcancel', up, {passive:false});
   b.addEventListener('touchmove', e=>e.stopPropagation(), {passive:false});
   b.addEventListener('mousedown', down); b.addEventListener('mouseup', up);
 }
@@ -3932,7 +4061,8 @@ function setTouchUI(on){
   const show = on && isTouch;
   touch.style.display = show ? 'block' : 'none';
   $('btns').style.display = show ? 'grid' : 'none';
-  if (!show){ stick.style.display='none'; stickId=null; lookId=null; stickV=[0,0]; runHeld=false; }
+  document.body.classList.toggle('playing', show);
+  if (!show){ stick.style.display='none'; stickId=null; lookId=null; stickV=[0,0]; runHeld=false; stickRun=false; stick.classList.remove('run'); }
 }
 let abCD = { blackout:0, shift:0, lure:0, disguise:0, dash:0 };
 const AB_CD = { blackout:45, shift:22, lure:20, disguise:40, dash:DASH_CD };
@@ -4031,7 +4161,7 @@ function moveInput(){
 }
 function updateMe(dt){
   const [fx, fz, want] = moveInput();
-  const runReq = (keys.has('ShiftLeft')||keys.has('ShiftRight')||runHeld) && want && fz < 0.3;
+  const runReq = (keys.has('ShiftLeft')||keys.has('ShiftRight')||runHeld||stickRun) && want && fz < 0.3;
   if (role === 'monster' && (G.grace > 0 || G.stun > 0 || ventT > 0)){ me.moving = false; me.running = false; dashT = 0; return; }
   if (role === 'monster' && dashT > 0){ dashT -= dt; const [fx,,fz] = lookDir(dashYaw, 0); [me.x, me.z] = collide(me.x + fx*DASH_SPEED*dt, me.z + fz*DASH_SPEED*dt, 0.38, me.x, me.z, LK === 2, true); me.moving = true; me.running = false; return; }
   if (role === 'survivor' && me.hidden >= 0){ updateHidden(dt); return; }
@@ -4644,7 +4774,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { hostLurker, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
+window.__hp = { hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
 </script>
 </body>
 </html>
