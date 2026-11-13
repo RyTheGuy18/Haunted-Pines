@@ -156,7 +156,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.15.0</div>
+<div class="osd" id="ver">v0.16.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -254,7 +254,7 @@ const isTouch = ('ontouchstart' in window) || matchMedia('(pointer:coarse)').mat
 document.body.classList.toggle('touch', isTouch);
 $('controls').textContent = isTouch
   ? 'Left thumb moves, right thumb looks. USE pops up next to lockers.'
-  : 'Click to look · WASD move · Shift run · C crouch · F flashlight · E hide/vent · G throw can · Shift sprint (short) · Occupant: 1 blackout, 2 shift walls, 3 lure, 4 disguise, 5 dash.';
+  : 'Click to look · WASD move · Shift run · C crouch · Left click / F flashlight · E hide · Right click / G throw can · Occupant: Shift sprint, E vent, 1 blackout, 2 shift walls, 3 lure, 4 disguise, 5 dash.';
 function vibrate(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
 
 /* ================= constants ================= */
@@ -1156,7 +1156,7 @@ function useSkin(k){
 function skinLabel(){ return 'OCCUPANT SKIN: ' + SKIN_NAMES[mySkin].replace('THE ',''); }
 
 /* ================= shared state ================= */
-function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0, dg:0, dgp:'', lv:0, gen:[], ads:0 }; }
+function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0, dg:0, dgp:'', lv:0, gen:[], ads:0, kl:[] }; }
 let G = freshState();
 const H = { ai:{}, shiftT:30, ringT:25, ringEnd:0 };
 let mode = 'menu';
@@ -1242,7 +1242,7 @@ function applyUse(pid, m){
 }
 function killSurvivor(p){
   if (isDead(p.pid)) return;
-  G.dead.push(p.pid);
+  G.dead.push(p.pid); G.kl.push(p.pid);
   for (const f of G.fz) if (f[0]===1 && f[3]===p.pid){ f[0]=0; f[1]=+p.x.toFixed(2); f[2]=+p.z.toFixed(2); f[3]=''; }
 }
 function survivorsAlive(){ return allPlayers().filter(p=>p.pid!==G.mo && !isDead(p.pid) && !isEsc(p.pid)); }
@@ -1586,6 +1586,8 @@ function afterState(){
     if (G.stun > 0 && !seenStun){ seenStun = true; sfx.recoil(mDisp.x, mDisp.z); if (role==='monster'){ $('white').style.transition='none'; $('white').style.opacity=0.85; setTimeout(()=>{ $('white').style.transition='opacity 3s'; $('white').style.opacity=0; },60); msg('BLINDED.', 2.5); } }
     if (G.stun <= 0) seenStun = false;
     if (me.alive && role==='survivor' && isDead(myPid) && mode==='play') triggerDeath();
+    // someone else got caught: everyone nearby (and the Occupant) hears it happen
+    const kl = G.kl || []; for (; seenKl < kl.length; seenKl++){ const pid = kl[seenKl]; if (pid === myPid) continue; const r = remotes.get(pid); const at = r ? { x:r.x, y:1.2, z:r.z } : { x:mDisp.x, y:1.2, z:mDisp.z }; sfx.sample(attackSound(), at, 1.2, 4); }
     for (const b of G.bo) if (!knownBo.has(b[0].toFixed(1)+','+b[1].toFixed(1))){ knownBo.add(b[0].toFixed(1)+','+b[1].toFixed(1)); sfx.powerDown(b[0], b[1]); }
   }
   if (G.ph === 'lobby' && !net.solo && mode !== 'lobby' && mode !== 'menu' && myRound === G.r){ toLobby(); return; }
@@ -1602,7 +1604,7 @@ function startRoundLocal(){
   else { const k = hashStr(myPid)%4; me.x = cc(1) + [-0.8,0.8,-0.8,0.8][k]; me.z = cc(1) + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; }
   me.pitch = 0; me.bat = 100; me.light = false; me.stam = 100; me.alive = true; me.esc = false; me.crouch = false; me.san = 100; me.loudT = 0; me.hidden = -1; me.cans = 2; me.breath = 100; me.winded = false; me.vmRun = 0;
   stunCharge = 0; stunCD = 0; ventCD = 8; ventT = 0; roundT0 = nowS(); creakT = 25 + Math.random()*20; silT = 0; silNext = 70 + Math.random()*50; $('locker').style.display='none';
-  seenPl = G.pl; seenOpen = G.open; seenLv = G.lv|0; genSeen = []; crankK = -1; dashT = 0; pendingEnd = false; specIdx = 0; knownBo.clear(); abCD = { blackout:8, shift:8, lure:5, disguise:20, dash:10 };
+  seenPl = G.pl; seenOpen = G.open; seenKl = (G.kl||[]).length; seenLv = G.lv|0; genSeen = []; crankK = -1; dashT = 0; pendingEnd = false; specIdx = 0; knownBo.clear(); abCD = { blackout:8, shift:8, lure:5, disguise:20, dash:10 };
   mode = 'play';
   showScreen(null);
   $('hud').style.display = 'block'; $('black').style.opacity = 0; $('white').style.opacity = 0; $('spec').style.display = 'none';
@@ -1639,10 +1641,13 @@ function startFall(){
   me.alive = false; mode = 'fallAnim'; fallT = 0; fallY = EYE; fallV = 0; PHANTOM.g.visible = false; VM.visible = false;
   useReq({ k:'fell' }); sfx.fall(); vibrate([80,40,500]);
 }
+function attackSound(){ return MON === MONS[CRAWLER] ? ['atk1','atk2','atk4'][Math.floor(Math.random()*3)] : 'atk2'; }
+let seenKl = 0;
 function triggerDeath(){
   if (me.hidden >= 0){ me.hidden = -1; $('locker').style.display='none'; }
   me.alive = false; mode = 'deadAnim'; deathT = 0; PHANTOM.g.visible = false; VM.visible = false;
-  sfx.screech(); vibrate([300,60,400]);
+  if (!sfx.sample(attackSound(), null, 1.1)) sfx.screech(); else sfx.tone(sfx.master,{f:70,to:25,dur:1.4,gain:0.6});
+  vibrate([300,60,400]);
 }
 function powerOn(){
   powerFlash = 1.5; sfx.powerUp();
@@ -1710,6 +1715,26 @@ const sfx = {
     this.breathG=c.createGain(); this.breathG.gain.value=0; this.breathG.connect(this.master);
     const bs=c.createBufferSource(); bs.buffer=this.white; bs.loop=true; const bf=c.createBiquadFilter(); bf.type='bandpass'; bf.frequency.value=420; bf.Q.value=1.2; bs.connect(bf).connect(this.breathG); bs.start();
     this.bindLevel();
+    this.loadSamples();
+  },
+  samples:{},
+  loadSamples(){
+    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', near:'sfx/near-noise.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3' };
+    for (const [k, url] of Object.entries(files)) fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(buf=>{ this.samples[k] = buf; if (k==='crawl' || k==='heavy' || k==='near') this.startLoop(k); }).catch(e=>console.warn('sound failed', url, e));
+  },
+  loops:{},
+  startLoop(k){
+    const c = this.ctx, buf = this.samples[k], src = c.createBufferSource(); src.buffer = buf; src.loop = true;
+    src.loopStart = Math.min(0.04, buf.duration/4); src.loopEnd = buf.duration - 0.04;   // skip the mp3 padding so it loops cleanly
+    const g = c.createGain(); g.gain.value = 0; let pan = null;
+    if (k === 'near') src.connect(g).connect(this.master);
+    else { pan = c.createPanner(); pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 3.5; pan.maxDistance = 60; pan.rolloffFactor = 1.15; src.connect(g).connect(pan).connect(this.master); }
+    src.start(); this.loops[k] = { src, g, pan };
+  },
+  sample(k, pos, gain=1, ref=3){
+    if (!this.ctx || !this.samples[k]) return false;
+    const src = this.ctx.createBufferSource(); src.buffer = this.samples[k]; const g = this.ctx.createGain(); g.gain.value = gain;
+    src.connect(g).connect(pos ? this.panner(pos.x, pos.y ?? 1, pos.z, ref) : this.master); src.start(); return true;
   },
   bindLevel(){
     if (!this.ctx || !level || level.soundsBound) return;
@@ -1753,6 +1778,7 @@ const sfx = {
     const n = 3 + (Math.random()*2|0);
     for (let k=0;k<n;k++){ const at = k*0.045 + Math.random()*0.02; this.noise(o,{dur:0.025,type:'bandpass',freq:2600+Math.random()*1800,q:5,gain:run?1:0.85,at}); this.noise(o,{dur:0.05,freq:260,gain:0.35,at}); } },
   monStep(pos, run){ if(!this.ctx) return; const o=pos ? this.panner(pos.x, pos.y ?? 0.1, pos.z, 4.5) : this.master; this.noise(o,{dur:0.2,freq:200,gain:run?1:0.85}); this.tone(o,{f:55,dur:0.12,gain:0.4}); if (Math.random()<0.3) this.noise(o,{dur:0.25,type:'bandpass',freq:700,q:6,gain:0.25,at:0.05}); },
+  flick(pos){ if(!this.ctx) return; const o=this.out(pos); this.noise(o,{dur:0.02,type:'highpass',freq:2800,gain:0.06}); },
   click(pos){ if(!this.ctx) return; const o=this.out(pos); this.noise(o,{dur:0.025,type:'highpass',freq:2500,gain:0.4}); this.tone(o,{f:120,type:'square',dur:0.06,gain:0.05}); },
   heart(vol){ if(!this.ctx) return; this.tone(this.master,{f:55,dur:0.16,gain:vol}); this.tone(this.master,{f:50,dur:0.2,gain:vol*0.7,at:0.2}); },
   stinger(){ if(!this.ctx) return; for (const f of [130.8,138.6,196,207.7,277.2]) this.tone(this.master,{f,type:'sawtooth',dur:2.4,gain:0.05,attack:0.015}); this.noise(this.master,{dur:1.5,type:'bandpass',freq:1400,q:0.6,gain:0.3,attack:0.01}); this.tone(this.master,{f:90,to:30,dur:1.2,gain:0.6}); },
@@ -1802,6 +1828,23 @@ const sfx = {
   escape(){ if(!this.ctx) return; for (const f of [261.6,329.6,392,523.3]) this.tone(this.master,{f,type:'sine',dur:3,gain:0.06,attack:0.8}); },
 };
 // fake Occupant footsteps that start soft far behind you and run right up to your back
+function updateOccLoops(dt, monSelf, md, fooled){
+  const L = sfx.loops; if (!L.crawl || !L.heavy) return;
+  const crawl = MON === MONS[CRAWLER], live = G.ph==='play' && (mode==='play' || mode==='spect' || mode==='deadAnim' || mode==='escAnim');
+  let moving, vol, x, z, fast;
+  if (monSelf){ moving = me.moving && ventT <= 0; vol = 0.35; x = me.x; z = me.z; fast = me.running || dashT > 0; }
+  else { moving = live && mDisp.mv > 0 && G.stun <= 0 && md < 50 && !fooled; vol = 1.25; x = mDisp.x; z = mDisp.z; fast = mDisp.mv === 2; }
+  const k = 1 - Math.exp(-10*dt);
+  for (const [name, lp] of [['crawl', L.crawl], ['heavy', L.heavy]]){
+    const on = live && moving && (name === 'crawl') === crawl;
+    lp.g.gain.value = lerp(lp.g.gain.value, on ? vol : 0, k);
+    lp.src.playbackRate.value = fast ? 1.18 : 1;
+    if (lp.pan.positionX){ lp.pan.positionX.value = x; lp.pan.positionY.value = 0.2; lp.pan.positionZ.value = z; } else lp.pan.setPosition(x, 0.2, z);
+  }
+  // 8-bit noise that swells as it gets close (not for the Occupant itself, not while it's fooling you)
+  if (L.near){ const d = fooled ? 99 : md, near = !monSelf && live && role === 'survivor' && me.alive ? Math.pow(clamp(1 - (d-2)/14, 0, 1), 1.6) : 0; L.near.g.gain.value = lerp(L.near.g.gain.value, near*0.5, 1 - Math.exp(-4*dt)); }
+}
+function muteOccLoops(){ for (const lp of Object.values(sfx.loops)) lp.g.gain.value *= 0.9; }
 function occStep(pos, run){ if (MON === MONS[CRAWLER]) sfx.skitter(pos, run); else sfx.stomp(pos, run); }
 function dashSound(x, z){ playEventSound('dash', x, z); safe(()=>net.room && net.room.emit('snd',{k:'dash',x,z})); }
 function startGenLoop(gn){
@@ -1855,11 +1898,16 @@ addEventListener('keydown', e=>{
   if (mode==='spect' && e.code==='Space') specIdx++;
 });
 addEventListener('keyup', e=>keys.delete(e.code));
-canvas.addEventListener('click', ()=>{
+canvas.addEventListener('mousedown', e=>{
   if (isTouch) return;
-  if (mode==='spect'){ specIdx++; }
-  try { const r = canvas.requestPointerLock && canvas.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch(e){}
+  if (mode==='spect'){ if (e.button === 0) specIdx++; }
+  if (document.pointerLockElement !== canvas){ try { const r = canvas.requestPointerLock && canvas.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch(err){} return; }
+  if (mode==='play' && role==='survivor' && me.alive){
+    if (e.button === 0 && me.hidden < 0){ me.light = !me.light; sfx.click(); }
+    else if (e.button === 2) throwCan();
+  }
 });
+addEventListener('contextmenu', e=>{ if (document.pointerLockElement === canvas || e.target === canvas) e.preventDefault(); });
 addEventListener('mousemove', e=>{
   if (document.pointerLockElement !== canvas || mode!=='play') return;
   me.yaw -= e.movementX*0.0022; me.pitch = clamp(me.pitch - e.movementY*0.0022, -1.35, 1.35);
@@ -2045,7 +2093,7 @@ function updateMe(dt){
     me.bob += dt*(me.running?11:me.crouch?5:7.5);
     me.step += dt*(role==='monster' && MON === MONS[CRAWLER] ? (me.running?5:4) : me.running?2.6:me.crouch?1.1:1.7);
     if (me.step >= 1){ me.step -= 1;
-      if (role==='monster') occStep(null, me.running);
+      if (role==='monster' && !(sfx.loops.crawl && sfx.loops.heavy)) occStep(null, me.running);
       else sfx.step(me.crouch?0.06:me.running?0.24:0.14, onWet(me.x,me.z));
     }
   }
@@ -2242,7 +2290,7 @@ function updatePanels(t){
     l.color.setHex(p.red ? 0xff3018 : p.t===1 ? 0xd8ffe6 : p.t===2 ? 0xfff6dc : 0xfff0c0);
     localLight = Math.max(localLight, p.b * clamp(1 - e[0]/6.5, 0, 1));
   }
-  if (near[0]){ const nb = near[0][1].b; if (Math.abs(nb-lastNearB) > 0.5 && near[0][0] < 6) sfx.click({x:near[0][1].x, y:WH, z:near[0][1].z}); lastNearB = nb; }
+  if (near[0]){ const nb = near[0][1].b; if (Math.abs(nb-lastNearB) > 0.5 && near[0][0] < 6) sfx.flick({x:near[0][1].x, y:WH, z:near[0][1].z}); lastNearB = nb; }
 }
 
 function updateLights(dt){
@@ -2322,7 +2370,9 @@ function updateAmbience(dt){
   for (const dp of level.drips){ dp.t -= dt; if (dp.t <= 0 && !silenced()){ dp.t = 1.2+Math.random()*2.5; if (Math.hypot(dp.x-camera.position.x, dp.z-camera.position.z) < 18) sfx.drip(dp.x, dp.z); } }
   if (G.ring >= 0){ ringT -= dt; if (ringT <= 0){ ringT = 3; const ph=level.phones[G.ring]; if (ph) sfx.ring(ph.x, ph.z); } } else ringT = 0;
   // the Occupant's footsteps
-  if (!monSelf && mDisp.mv && md < 45){ monStepT -= dt; if (monStepT <= 0){ monStepT = (MON === MONS[CRAWLER] ? 0.24 : 0.46) * (mDisp.mv===2 ? 0.8 : 1) * (h01(Math.floor(t*3))<0.5 ? 0.8 : 1.2); if (fooled) sfx.step(0.14, onWet(mDisp.x,mDisp.z), {x:mDisp.x,y:0.1,z:mDisp.z}); else occStep({x:mDisp.x,y:0.1,z:mDisp.z}, mDisp.mv===2); } }
+  updateOccLoops(dt, monSelf, md, fooled);
+  const looped = sfx.loops.crawl && sfx.loops.heavy;
+  if (!monSelf && mDisp.mv && md < 45 && (fooled || !looped)){ monStepT -= dt; if (monStepT <= 0){ monStepT = (MON === MONS[CRAWLER] ? 0.24 : 0.46) * (mDisp.mv===2 ? 0.8 : 1) * (h01(Math.floor(t*3))<0.5 ? 0.8 : 1.2); if (fooled) sfx.step(0.14, onWet(mDisp.x,mDisp.z), {x:mDisp.x,y:0.1,z:mDisp.z}); else occStep({x:mDisp.x,y:0.1,z:mDisp.z}, mDisp.mv===2); } }
   if (role==='survivor' && me.alive && !me.esc){
     heartT -= dt;
     if (mdT < 16 && heartT <= 0){ const k=mdT/16; heartT=lerp(0.36,1.1,k); sfx.heart(lerp(0.7,0.15,k)); if (mdT<9) vibrate(35); }
@@ -2562,7 +2612,7 @@ function frame(now){
     mDisp.x = -999; mDisp.z = -999;
     updatePanels(t);
     { const e = Math.floor(t - pageT0); $('osdTime').textContent = `${Math.floor(e/3600)}:${String(Math.floor(e/60)%60).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`; }
-    if (sfx.ctx){ sfx.listen(camera); sfx.humG.gain.value = lerp(sfx.humG.gain.value, 0.045*localLight, 0.1); sfx.droneG.gain.value *= 0.95; sfx.breathG.gain.value = 0; }
+    if (sfx.ctx){ muteOccLoops(); sfx.listen(camera); sfx.humG.gain.value = lerp(sfx.humG.gain.value, 0.045*localLight, 0.1); sfx.droneG.gain.value *= 0.95; sfx.breathG.gain.value = 0; }
     nextSurge -= dt; if (nextSurge <= 0){ nextSurge = 20+Math.random()*30; surgeT = 1.2; } surgeT = Math.max(0, surgeT-dt);
   } else {
     updateRemotes(dt);
@@ -2589,7 +2639,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
+window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
 </script>
 </body>
 </html>
