@@ -171,7 +171,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.26.1</div>
+<div class="osd" id="ver">v0.26.2</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -3109,16 +3109,31 @@ function dashSound(x, z){ playEventSound('dash', x, z); safe(()=>net.room && net
 function genCrankSound(i, on, x, z){
   const gn = level && level.gens[i]; if (!gn || !sfx.ctx) return;
   if (!on){ if (gn.crk){ const c = gn.crk; gn.crk = null; try { c.g.gain.setTargetAtTime(0, sfx.ctx.currentTime, 0.08); c.src.stop(sfx.ctx.currentTime + 0.4); } catch(e){} } return; }
-  if (gn.crk){ gn.crk.until = nowS() + GEN_T + 3; return; }
+  if (gn.crk){ if (!gn.crk.end) gn.crk.until = nowS() + GEN_T + 3; return; }
   if (!sfx.samples.genStart){ sfx.genCough(gn.x, gn.z); return; }
-  const c = sfx.ctx, src = c.createBufferSource(); src.buffer = sfx.samples.genStart; src.loop = true; src.loopStart = 0.03; src.loopEnd = src.buffer.duration - 0.05;
+  // gen-start.mp3: 0–0.89 s the first pull, 0.89–1.17 s one turn of the starter (loops while someone keeps cranking),
+  // then the engine catching (plays through once the generator is started), then the running loop takes over
+  const c = sfx.ctx, src = c.createBufferSource(); src.buffer = sfx.samples.genStart; src.loop = true; src.loopStart = GS_LOOP[0]; src.loopEnd = GS_LOOP[1];
   const g = c.createGain(); g.gain.value = 1.0; src.connect(g).connect(sfx.panner(gn.x, 0.6, gn.z, 14)); src.start(); level.sounds.push(src);
-  gn.crk = { src, g, until: nowS() + GEN_T + 3 };
+  gn.crk = { src, g, t0: c.currentTime, until: nowS() + GEN_T + 3 };
 }
-let lastCrank = -1;
+const GS_LOOP = [0.89, 1.17];
+// the generator caught: let the start-up recording play out past the cranking loop; returns seconds until it ends
+function genCrankFinish(gn){
+  const k = gn.crk; if (!k || !sfx.ctx) return 0;
+  const now = sfx.ctx.currentTime, dur = k.src.buffer.duration;
+  if (k.end) return Math.max(0, k.end - now);
+  let pos = now - k.t0; if (pos > GS_LOOP[1]) pos = GS_LOOP[0] + (pos - GS_LOOP[0]) % (GS_LOOP[1] - GS_LOOP[0]);
+  k.src.loop = false; k.end = now + (dur - pos); k.until = Infinity;
+  k.src.onended = ()=>{ if (gn.crk === k) gn.crk = null; };
+  return dur - pos;
+}
+let lastCrank = -1, crankDone = -1;
 function crankWatch(){
   if (crankK !== lastCrank){
-    if (lastCrank >= 0){ genCrankSound(lastCrank, false); safe(()=>net.room && net.room.emit('snd',{k:'crankStop', i:lastCrank})); }
+    if (lastCrank >= 0){ const done = crankDone === lastCrank, gn = level.gens[lastCrank];
+      if (done && gn) genCrankFinish(gn); else genCrankSound(lastCrank, false);
+      safe(()=>net.room && net.room.emit('snd',{k: done ? 'crankDone' : 'crankStop', i:lastCrank})); crankDone = -1; }
     if (crankK >= 0 && LK === 1){ const gn = level.gens[crankK];
       if (gn){ useReq({ k:'crank', x:+gn.x.toFixed(2), z:+gn.z.toFixed(2) }); genCrankSound(crankK, true); safe(()=>net.room && net.room.emit('snd',{k:'crank', i:crankK, x:gn.x, z:gn.z})); } }
     lastCrank = crankK;
@@ -3127,8 +3142,9 @@ function crankWatch(){
 }
 function startGenLoop(gn){
   if (!sfx.ctx || gn.loop) return; const c = sfx.ctx, gl = c.createGain(); gl.gain.value = LK === 1 ? 0.3 : 0.16; gl.connect(sfx.panner(gn.x, 0.6, gn.z, LK === 1 ? 5 : 2.5)); gn.loop = gl;
-  genCrankSound(level.gens.indexOf(gn), false);
-  if (LK === 1 && sfx.samples.genRun){ const s = c.createBufferSource(); s.buffer = sfx.samples.genRun; s.loop = true; s.loopStart = 0.03; s.loopEnd = s.buffer.duration - 0.05; gl.gain.value = 0.85; s.connect(gl); s.start(c.currentTime, Math.random()*8); level.sounds.push(s); return; }
+  const wait = gn.crk ? genCrankFinish(gn) : 0;   // the start-up plays out first, then the running loop takes over
+  if (LK === 1 && sfx.samples.genRun){ const s = c.createBufferSource(), t = c.currentTime + Math.max(0, wait - 0.25); s.buffer = sfx.samples.genRun; s.loop = true; s.loopStart = 0.03; s.loopEnd = s.buffer.duration - 0.05;
+    gl.gain.setValueAtTime(0, c.currentTime); gl.gain.setValueAtTime(0, t); gl.gain.linearRampToValueAtTime(0.85, t + 0.3); s.connect(gl); s.start(t, Math.random()*8); level.sounds.push(s); return; }
   const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 31; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220; o.connect(lp).connect(gl); o.start(); level.sounds.push(o);
   const n = c.createBufferSource(); n.buffer = sfx.brown; n.loop = true; const nf = c.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 400; n.connect(nf).connect(gl); n.start(); level.sounds.push(n);
 }
@@ -3155,6 +3171,7 @@ function playEventSound(k, x, z, m){
   if (k === 'dash'){ sfx.dash(x, z); return; }
   if (k === 'crank'){ genCrankSound(m ? m.i|0 : -1, true, x, z); if (role === 'monster') msg('Somewhere in the garage, someone is starting a generator.', 3.5); return; }
   if (k === 'crankStop'){ genCrankSound(m ? m.i|0 : -1, false); return; }
+  if (k === 'crankDone'){ const gn = level.gens[m ? m.i|0 : -1]; if (gn) genCrankFinish(gn); return; }
   if (k === 'gasp'){ const o=sfx.panner(x,1.5,z,role==='monster'?4:2); sfx.noise(o,{dur:0.9,type:'bandpass',freq:900,q:0.7,gain:0.5,attack:0.05}); return; }
   if (k === 'lure'){ if (role === 'survivor' && me.alive && !me.esc) lureBehind(); }
 }
@@ -3416,7 +3433,7 @@ function updateMe(dt){
   if (crankK >= 0){ const gn = level.gens[crankK];
     if (!gn || (G.gen && G.gen[crankK]) || me.hidden >= 0 || Math.hypot(gn.x-me.x, gn.z-me.z) > 2.3) crankK = -1;
     else { crankT += dt; crankS -= dt; if (gn.wheel) gn.wheel.rotation.y -= dt*2.2; if (crankS <= 0){ crankS = 0.55; if (LK === 2) sfx.valve(gn.x, gn.z); else if (!sfx.samples.genStart) sfx.crank(gn.x, gn.z); vibrate(15); }
-      if (crankT >= GEN_T){ useReq({ k:'gen', i:crankK }); me.loudT = 1.2; crankK = -1; } } }
+      if (crankT >= GEN_T){ useReq({ k:'gen', i:crankK }); me.loudT = 1.2; crankDone = crankK; crankK = -1; } } }
   G.cn.forEach((t,i)=>{ if (!t && Math.hypot(level.cn[i][0]-me.x, level.cn[i][1]-me.z) < 1.1){ G.cn[i]=1; useReq({k:'cn',i}); me.cans++; sfx.pickup(); msg('Picked up a can. Throw it to make noise.', 2.5); } });
   if (lightOn()) me.bat = Math.max(0, me.bat - dt*0.55);
   if (me.bat <= 0 && me.light){ me.light=false; msg('Your flashlight died.', 3); }
