@@ -32,3 +32,5 @@ v0.26.1: generator start-up sound trimmed to a 1-second loop.
 v0.26.2: generator start-up clicks while cranking, then catches and keeps running.
 v0.26.3: removed the parked cars from Level 1.
 v0.26.4: removed throwable cans from every level.
+v0.26.5: the exit door can never be walled in, and there's always a path to it.
+v0.26.6: new footsteps: carpet on Level 0, concrete on Level 1, echoing tile on dry floor in the Poolrooms.
