@@ -168,7 +168,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.18.1</div>
+<div class="osd" id="ver">v0.19.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -234,6 +234,7 @@
     <div class="lbl">IN THE ROOM</div>
     <div id="lplayers"></div>
     <button class="btn" id="bVoice2">VOICE CHAT: OFF</button>
+    <button class="btn monb" id="bMonVoice">OCCUPANT VOICE: OFF</button>
     <button class="btn monb" id="bMon">THE OCCUPANT: RANDOM</button>
     <div id="monText"></div>
     <div class="picker"><button id="bSkin2L">◀</button><div class="pv" id="bSkin2"></div><button id="bSkin2R">▶</button></div>
@@ -1190,7 +1191,8 @@ function useSkin(k){
 function skinLabel(){ return 'OCCUPANT SKIN: ' + SKIN_NAMES[mySkin].replace('THE ',''); }
 
 /* ================= shared state ================= */
-function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0, dg:0, dgp:'', lv:0, gen:[], ads:0, kl:[] }; }
+let monVoiceOpt = 0; try { monVoiceOpt = +(localStorage.getItem('lvl0_monvoice')||0) ? 1 : 0; } catch(e){}
+function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0, dg:0, dgp:'', lv:0, gen:[], ads:0, kl:[], ov:monVoiceOpt }; }
 let G = freshState();
 const H = { ai:{}, shiftT:30, ringT:25, ringEnd:0 };
 let mode = 'menu';
@@ -1638,7 +1640,7 @@ function attachCall(call){
     c.el = new Audio(); c.el.srcObject = s; c.el.muted = true; c.el.play().catch(()=>{});   // Chrome only feeds WebAudio while an element plays the stream
     c.src = ctx.createMediaStreamSource(s); c.g = ctx.createGain(); c.g.gain.value = 0;
     c.pan = ctx.createPanner(); c.pan.panningModel = 'HRTF'; c.pan.distanceModel = 'linear'; c.pan.refDistance = 1; c.pan.maxDistance = 1000; c.pan.rolloffFactor = 0;   // volume is set by hand in updateVoice
-    c.src.connect(c.g).connect(c.pan).connect(sfx.master); });
+    c.dry = ctx.createGain(); c.src.connect(c.dry).connect(c.g); c.g.connect(c.pan).connect(sfx.master); });
   const end = ()=>{ if (voice.calls.get(id) === c) closeCall(id); };
   call.on('close', end); call.on('error', end);
 }
@@ -1647,6 +1649,43 @@ function closeCall(id){
   try { c.call.close(); } catch(e){} try { c.src && c.src.disconnect(); c.g && c.g.disconnect(); c.pan && c.pan.disconnect(); } catch(e){}
   if (c.el){ c.el.pause(); c.el.srcObject = null; }
 }
+/* ---- monster voice: pitch-shift down (delay-line "jungle" shifter), growl ring-mod, grit, echo ---- */
+function fadeBuf(ctx, active, fade){ const sr = ctx.sampleRate, l1 = Math.floor(active*sr), l2 = Math.floor((active-2*fade)*sr), b = ctx.createBuffer(1, l1+l2, sr), p = b.getChannelData(0), fl = fade*sr, i2 = l1-fl;
+  for (let i=0;i<l1;i++) p[i] = i < fl ? Math.sqrt(i/fl) : i >= i2 ? Math.sqrt(1-(i-i2)/fl) : 1; return b; }
+function rampBuf(ctx, active, fade){ const sr = ctx.sampleRate, l1 = Math.floor(active*sr), l2 = Math.floor((active-2*fade)*sr), b = ctx.createBuffer(1, l1+l2, sr), p = b.getChannelData(0);
+  for (let i=0;i<l1;i++) p[i] = i/l1; return b; }
+function pitchDown(ctx, amount){   // amount 0..1: 0.5 = one octave down
+  const D = 0.1, F = 0.05, B = 0.1, inp = ctx.createGain(), out = ctx.createGain(), t = ctx.currentTime + 0.05;
+  const ramp = rampBuf(ctx, B, F), fade = fadeBuf(ctx, B, F);
+  for (const off of [0, B - F]){
+    const mod = ctx.createBufferSource(); mod.buffer = ramp; mod.loop = true;
+    const mg = ctx.createGain(); mg.gain.value = 0.5*D*amount*2;
+    const dl = ctx.createDelay(1); dl.delayTime.value = 0;
+    mod.connect(mg).connect(dl.delayTime);
+    const fd = ctx.createBufferSource(); fd.buffer = fade; fd.loop = true;
+    const mix = ctx.createGain(); mix.gain.value = 0; fd.connect(mix.gain);
+    inp.connect(dl).connect(mix).connect(out);
+    mod.start(t + off); fd.start(t + off);
+  }
+  return { inp, out };
+}
+function monsterVoice(ctx){
+  const p = pitchDown(ctx, 0.56), out = ctx.createGain(); out.gain.value = 0;
+  // growl: ring-modulate the shifted voice with a low wobble, mix with the plain shifted voice
+  const ring = ctx.createGain(); ring.gain.value = 0; const osc = ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 38; const og = ctx.createGain(); og.gain.value = 1; osc.connect(og).connect(ring.gain); osc.start();
+  const body = ctx.createGain(); body.gain.value = 0.85; p.out.connect(body); p.out.connect(ring);
+  const sum = ctx.createGain(); body.connect(sum); ring.connect(sum);
+  // grit + darken
+  const sh = ctx.createWaveShaper(); const curve = new Float32Array(1024); for (let i=0;i<1024;i++){ const x = i/512-1; curve[i] = Math.tanh(x*3.2); } sh.curve = curve; sh.oversample = '2x';
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1700; lp.Q.value = 0.9;
+  const low = ctx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 180; low.gain.value = 9;
+  sum.connect(sh).connect(lp).connect(low);
+  // short, wet echo so it sounds wrong in any room
+  const dl = ctx.createDelay(1); dl.delayTime.value = 0.085; const fb = ctx.createGain(); fb.gain.value = 0.38; const wet = ctx.createGain(); wet.gain.value = 0.45;
+  low.connect(out); low.connect(dl); dl.connect(fb).connect(dl); dl.connect(wet).connect(out);
+  return { inp: p.inp, out };
+}
+
 function voiceNoise(){
   if (role !== 'survivor' || !me.alive || me.esc || !voice.stream || voice.muted) return 0;
   return voice.loudT > 0 ? 2 : voice.talkT > 0 ? 1 : 0;
@@ -1669,10 +1708,13 @@ function updateVoice(dt){
     let g = r ? 1 : 0, px = cx, pz = cz;
     if (r && playing){
       const rMon = r.pid === G.mo, rGone = isDead(r.pid) || isEsc(r.pid) || !r.a;
-      if (rMon) g = 0;
+      if (rMon){ g = 0; if (G.ov && !iAmDead){ const d = Math.hypot(r.x-cx, r.z-cz); g = Math.pow(clamp(1 - (d-1.5)/9, 0, 1), 1.4); px = r.x; pz = r.z; } }
       else if (rGone) g = iAmDead ? 1 : 0;
       else { const d = Math.hypot(r.x-cx, r.z-cz); g = Math.pow(clamp(1 - (d-1.5)/10.5, 0, 1), 1.6); if (g > 0 && !losClear(cx, cz, r.x, r.z)) g *= 0.55; px = r.x; pz = r.z; }
     }
+    const asMon = !!(r && playing && r.pid === G.mo && G.ov);
+    if (asMon && !c.mv && c.src){ c.mv = monsterVoice(sfx.ctx); c.src.connect(c.mv.inp); c.mv.out.connect(c.g); }
+    if (c.dry) c.dry.gain.value = asMon ? 0 : 1; if (c.mv) c.mv.out.gain.value = asMon ? 0.55 : 0;
     c.g.gain.value = lerp(c.g.gain.value, g*1.5*SET.vv/100, k);
     if (c.pan.positionX){ c.pan.positionX.value = px; c.pan.positionY.value = 1.6; c.pan.positionZ.value = pz; } else c.pan.setPosition(px, 1.6, pz);
   }
@@ -1708,6 +1750,7 @@ function renderLobby(){
   [ [(myName||'You')+' (you)', true], ...[...remotes.values()].map(r=>[r.n,false]) ].forEach(([n,isMe])=>{ const d=document.createElement('div'); d.className='chip'+(isMe?' me':''); d.innerHTML='<i></i>'; d.appendChild(document.createTextNode(n)); el.appendChild(d); });
   if (monChoice !== 'random' && monChoice !== 'ai' && monChoice !== myPid && !remotes.has(monChoice)) monChoice = 'random';
   $('bMon').style.display = host ? '' : 'none';
+  $('bMonVoice').textContent = 'OCCUPANT VOICE: ' + (G.ov ? 'MONSTER' : 'OFF') + (host ? '' : ' (host picks)'); $('bMonVoice').disabled = !host;
   $('bMon').textContent = 'THE OCCUPANT: ' + monLabel();
   $('monText').textContent = host ? (remotes.size ? 'Tap to choose who hunts.' : 'Alone? The computer will hunt you.') : 'The host picks who becomes the Occupant.';
   $('bStart').style.display = host ? '' : 'none';
@@ -1773,6 +1816,7 @@ function startRoundLocal(){
   setTouchUI(true); setButtons();
   sfx.init();
   if (role === 'monster'){
+    if (G.ov && voice.stream) setTimeout(()=>msg('Your mic is on. Survivors near you hear a monster.', 5), 1500);
     $('blacktext').textContent = 'YOU ARE THE OCCUPANT'; $('blacksub').textContent = 'They wake up in the halls. You can\'t run, but you walk faster than they do. Listen for them, and don\'t let them reach the exit.';
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
   } else msg('Find 3 fuses. Something else is awake.', 5);
@@ -2182,6 +2226,7 @@ $('bJoin').onclick = async ()=>{ if (voice.want && !voice.stream) voiceEnable(tr
   readName(); sfx.init(); if (isTouch) goFull(); if (await connect(c, false)) sfx.bindLevel();
 };
 $('joincode').addEventListener('input', e=>{ e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g,''); });
+$('bMonVoice').onclick = ()=>{ if (!amHost()) return; monVoiceOpt = G.ov = G.ov ? 0 : 1; try { localStorage.setItem('lvl0_monvoice', monVoiceOpt); } catch(e){} broadcastState(); renderLobby(); };
 $('bMon').onclick = ()=>{
   const opts = ['random','ai', myPid, ...remotes.keys()];
   monChoice = opts[(opts.indexOf(monChoice)+1) % opts.length]; renderLobby();
@@ -2800,7 +2845,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
+window.__hp = { get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; } };
 </script>
 </body>
 </html>
