@@ -187,7 +187,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.28.2</div>
+<div class="osd" id="ver">v0.28.3</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -4062,7 +4062,7 @@ function updateButtons(){
 function fitButtons(){
   const bs = $('btns'), n = [...bs.children].filter(b=>b.style.display !== 'none').length || 1;
   const vv = window.visualViewport, h = (vv ? vv.height : innerHeight) - 72, gap = 7;
-  const size = Math.max(40, Math.min(64, Math.floor((h - gap*(n-1))/n)));
+  const size = Math.max(36, Math.min(54, Math.floor((h - gap*(n-1))/n)));   // v0.28.3: a bit smaller (Ryan)
   bs.style.setProperty('--bs', size + 'px'); bs.style.setProperty('--bg', gap + 'px');
 }
 addEventListener('resize', ()=>fitButtons());
