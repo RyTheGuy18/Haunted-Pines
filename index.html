@@ -108,6 +108,8 @@
   #objBox{position:absolute;left:max(14px,env(safe-area-inset-left));top:10px;max-width:min(58vw,460px);padding:6px 14px 8px 10px;border-left:3px solid var(--hot);background:linear-gradient(90deg,rgba(0,0,0,.55),rgba(0,0,0,0))}
   #objBox .lbl{font-size:14px}
   #obj{font-size:22px;line-height:1.05}
+  #side{display:none;font-size:15px;line-height:1.1;margin-top:4px;color:#d8cea6;opacity:.85}
+  #mmap{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;z-index:7;pointer-events:none;border:2px solid #5a8aa8;image-rendering:pixelated;width:min(82vmin,420px);height:auto}
   #micbox{display:none;align-items:center;gap:8px;margin-top:6px;font-size:17px;color:#d8cea6}
   #micbar{position:relative;width:110px;height:10px;border:1.5px solid #cfc59c;padding:1px}
   #micfill{display:block;height:100%;width:0;background:#9fd88a;transition:width .06s}
@@ -191,10 +193,10 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.31.0</div>
+<div class="osd" id="ver">v0.32.0</div>
 
 <div id="hud">
-  <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
+  <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
     <div id="kit"><div id="bat"><div id="batfill"></div></div></div>
     <div id="micbox"><span id="micl">MIC</span><div id="micbar"><i id="micfill"></i><b id="mict1"></b><b id="mict2"></b></div><span id="mics"></span></div></div>
   <button id="bGear">⚙</button>
@@ -222,6 +224,7 @@
 <div id="btns">
   <button id="bA"></button><button id="bB"></button><button id="bC"></button><button id="bD"></button><button id="bE"></button><button id="bF"></button><button id="bUse">USE</button>
 </div>
+<canvas id="mmap" width="344" height="364"></canvas>
 <div id="elev"><div class="et">ELEVATOR</div><div class="eb"><button data-f="1">1</button><button data-f="2">2</button><button data-f="3">3</button><button data-f="4">4</button><button data-f="5">5</button></div><div class="eh">PRESS 2 · 3 · 4</div></div>
 
 <div class="screen show" id="menu"><div class="col">
@@ -539,7 +542,7 @@ let LK = 0, baseSeed = 0;   // LK: 0 = Level 0 (the office), 1 = Level 1 (the pa
 const lvSeed = k => k === 4 ? (Math.imul(baseSeed ^ 0x852a11, 2654435761) >>> 0) : k === 1 ? (Math.imul(baseSeed ^ 0x51ed, 2654435761) >>> 0) : k === 2 ? (Math.imul(baseSeed ^ 0x37b00, 2246822519) >>> 0) : k === 3 ? (Math.imul(baseSeed ^ 0x188f00d, 3266489917) >>> 0) : baseSeed;
 function zoneOf(i,j){ if (LK === 4) return 4; if (LK === 3) return 0; if (LK === 1) return 1; if (LK === 2) return 3; if (i>=N-ZS && j<ZS) return 1; if (i<ZS && j>=N-ZS) return 2; return 0; }
 const zoneAt = (x,z) => zoneOf(cellOf(x), cellOf(z));
-function floorY(x,z){ return LK === 2 ? h37(x,z) : 0; }
+function floorY(x,z){ return LK === 2 ? h37(x,z) : LK === 4 ? floorY852(x,z) : 0; }
 const poolBlock = () => null;
 function edgeCells(e){ if (e < VN){ const i=Math.floor(e/N), j=e%N; return [[i-1,j],[i,j]]; } const k=e-VN, j=Math.floor(k/N), i=k%N; return [[i,j-1],[i,j]]; }
 function edgeZoneOf(e){ if (LK === 4) return 4; if (LK === 2) return 3; const cs = edgeCells(e).filter(([i,j])=>inGrid(i,j)); if (cs.some(([i,j])=>zoneOf(i,j)===2)) return 2; if (cs.some(([i,j])=>zoneOf(i,j)===1)) return 1; return 0; }
@@ -648,7 +651,7 @@ function setEdgeMatrix(e, on){
   tmpM.compose(tmpV, tmpQ, tmpS); level.wallMeshes[zn].setMatrixAt(e, tmpM);
 }
 function applyWalls(force){
-  if (LK === 2 || LK === 3) return;
+  if (LK === 2 || LK === 3 || LK === 4) return;
   for (let e=0;e<E;e++) if (force || level.shown[e] !== walls[e]){ setEdgeMatrix(e, walls[e]); level.shown[e] = walls[e]; }
   for (const m of level.wallMeshes) m.instanceMatrix.needsUpdate = true;
 }
@@ -657,70 +660,72 @@ function hexToWalls(s){ const w = new Uint8Array(E); for (let k=0;k<s.length;k++
 
 const SCRAWLS = ["IT CAN'T SEE YOU IF YOU DON'T RUN","THE WALLS MOVE WHEN YOU LOOK AWAY","DON'T ANSWER THE PHONE","I'VE BEEN HERE 41 DAYS","THE HUM STOPS WHEN IT'S CLOSE","WHO TURNED OFF THE LIGHTS","FOLLOW THE BUZZING","NOT THE RED ROOM","IT WAS HUMAN ONCE","COUNT THE LIGHTS","YOU WERE HERE BEFORE","THE EXIT SIGNS LIE","IT WEARS A SMILE"];
 
-/* ================= Level 852: the Mall (v0.31; grid level, LK = 4, G.lv = 4) =================
-   A dead shopping mall at night. 24×24 cells of 4 m. Laid out by genMall (not a maze):
-   - M (per cell): 0 concourse, 1 store, 2 atrium, 3 escalator well (void), 4 food court, 5 entrance lobby
-   - a 2-wide ring concourse + a 2-wide cross through the middle, a 6×6 atrium at the centre with a railed
-     escalator well (2×2 cells, escalators going down into the dark, no way in), a food court, an entrance lobby
-     in the survivors' corner, and every other cell packed with stores (rectangles up to 4×2 / 3×3).
-   - stores open onto the concourse with 1–2 cell-wide entrances; the rest of their frontage is display windows;
-     ~20% are closed behind roll-down security gates, ~15% are vacant ("FOR LEASE"); stores with no frontage become
-     stockrooms of a neighbour. Walls never shift here (every edge is L.fixed).
-   Same goal as Level 0: 3 fuses → the breaker → the EXIT door opens. Floors: cream tile (concourse), checkerboard
-   (food court + atrium ring), carpet in stores (tinted per store). Concourse ceiling 3.6 m with night-blue
-   skylights; stores have a 3 m drop ceiling; the atrium goes up to 5.8 m under a big skylight. */
-const MALL_N = 24, MALL_CH = 3.6, MALL_SH = 3.0, MALL_AH = 5.8;
-const MALL_NAMES = ['PRETZEL TIME','MODA 89','TOY ATTIC','RADIOTRONIX','SHOE FORUM','GAME CAVE','SILK & CO','PET PALACE','VIDEO VAULT','OPTICAL ONE','CANDY CASTLE','ELECTRO BARN','GIFT GALAXY','TEEN SCENE','BOOK NOOK','SUN & SURF','CARD CORNER','PHOTO 1-HR','TUXEDO TOWN','KITCHEN KING','LUGGAGE LAND','PERFUME POINT','JEANS JUNCTION','MUSIC MILL','WATCH WORKS','LAMP LOFT'];
-const MALL_SCRAWLS = ["THE MUSIC NEVER STOPS","STORE HOURS: ALWAYS","DON'T GO DOWN THE ESCALATOR","THE MANNEQUINS MOVED","I'VE BEEN SHOPPING FOR YEARS","LOST? STAY WHERE YOU ARE","EVERYTHING MUST GO","IT FOLLOWS THE MUZAK","CLOSING TIME WAS 1993","THE FOOD COURT IS NOT EMPTY"];
-function genMall(rng){
-  const M = new Uint8Array(N*N).fill(1), sid = new Int16Array(N*N).fill(-1), w = new Uint8Array(E).fill(1), noDraw = new Uint8Array(E);
-  const set = (i0,i1,j0,j1,v) => { for (let i=i0;i<=i1;i++) for (let j=j0;j<=j1;j++) if (inGrid(i,j)) M[i*N+j] = v; };
-  // ring concourse (2 wide) + cross through the middle
-  for (let k=2;k<=21;k++){ set(2,3,k,k,0); set(20,21,k,k,0); set(k,k,2,3,0); set(k,k,20,21,0); }
-  set(11,12,4,19,0); set(4,19,11,12,0);
-  set(9,14,9,14,2); set(11,12,11,12,3);                  // atrium + escalator well
-  set(15,19,4,9,4); set(13,14,4,9,4);                    // food court (lower right of the top band)
-  set(0,1,0,3,5); set(0,3,0,1,5);                        // entrance lobby in the survivors' corner
-  const openC = (i,j) => inGrid(i,j) && M[i*N+j] !== 1 && M[i*N+j] !== 3;
-  // concourse-type cells are open to each other; the well is walled (invisibly: the railing stands there)
-  for (let i=0;i<N;i++) for (let j=0;j<N;j++) for (const [a,b] of [[1,0],[0,1]]){ const ni=i+a, nj=j+b; if (!inGrid(ni,nj)) continue; const e = edgeBetween(i,j,ni,nj);
-    if (openC(i,j) && openC(ni,nj)) w[e] = 0;
-    if ((M[i*N+j] === 3) !== (M[ni*N+nj] === 3)) noDraw[e] = 1;
-    if (M[i*N+j] === 3 && M[ni*N+nj] === 3) noDraw[e] = 1; }
-  // stores: pack the leftover cells with rectangles
-  const stores = []; const cells = []; for (let i=0;i<N;i++) for (let j=0;j<N;j++) if (M[i*N+j] === 1) cells.push([i,j]);
-  for (let k=cells.length-1;k>0;k--){ const r=Math.floor(rng()*(k+1)); [cells[k],cells[r]]=[cells[r],cells[k]]; }
-  const sizes = [[3,3],[3,2],[2,3],[4,2],[2,4],[2,2],[2,2],[3,1],[1,3],[2,1],[1,2],[1,1]];
-  for (const [i0,j0] of cells){ if (sid[i0*N+j0] >= 0) continue;
-    const order = sizes.slice().sort(()=>rng()-0.5).sort((a,b)=>b[0]*b[1]-a[0]*a[1] + (rng()-0.5)*3);
-    for (const [sw,sh] of order){ let ok = true;
-      for (let i=i0;i<i0+sw && ok;i++) for (let j=j0;j<j0+sh;j++){ if (!inGrid(i,j) || M[i*N+j] !== 1 || sid[i*N+j] >= 0){ ok = false; break; } }
-      if (!ok) continue; const id = stores.length, st = { id, cells:[], i0, j0, i1:i0+sw-1, j1:j0+sh-1, front:[], ent:[] };
-      for (let i=i0;i<i0+sw;i++) for (let j=j0;j<j0+sh;j++){ sid[i*N+j] = id; st.cells.push([i,j]); if (i>i0) w[edgeBetween(i,j,i-1,j)] = 0; if (j>j0) w[edgeBetween(i,j,i,j-1)] = 0; }
-      stores.push(st); break; } }
-  // frontage: store cell next to an open (non-well) cell
-  for (const st of stores){ for (const [i,j] of st.cells) for (const [a,b] of nbr4){ const ni=i+a, nj=j+b; if (openC(ni,nj)) st.front.push({ e:edgeBetween(i,j,ni,nj), i, j, nx:a, nz:b }); } }
-  const names = MALL_NAMES.slice().sort(()=>rng()-0.5);
-  for (const st of stores){
-    const big = st.cells.length >= 4;
-    st.closed = st.front.length > 0 && rng() < 0.2;
-    st.vacant = !st.closed && rng() < 0.15;
-    st.type = st.vacant ? 'vacant' : ['clothes','clothes','shelves','electronics','shelves'][Math.floor(rng()*5)];
-    st.name = st.vacant ? 'FOR LEASE' : names.length ? names.pop() : 'STORE';
-    st.tint = [0x8a8f98, 0x6f7f9a, 0x8a6a6a, 0x9a917a, 0x6f8a7a, 0x7a6f8a][Math.floor(rng()*6)];
-    if (!st.front.length || st.closed) continue;
-    // entrance: 1 cell (2 for long frontages), picked from the middle of the longest straight run
-    const byDir = {}; for (const f of st.front){ const k = f.nx+','+f.nz; (byDir[k] = byDir[k] || []).push(f); }
-    const run = Object.values(byDir).sort((a,b)=>b.length-a.length)[0].sort((a,b)=>(a.i-b.i)||(a.j-b.j));
-    const n = run.length >= 3 && big ? 2 : 1, s0 = Math.floor((run.length - n)/2);
-    for (let k=s0;k<s0+n;k++){ w[run[k].e] = 0; st.ent.push(run[k]); }
-  }
-  // stores with no way in (no frontage) become a neighbour's stockroom
-  for (const st of stores){ if (st.front.length || st.closed) continue;
-    for (const [i,j] of st.cells){ let done = false; for (const [a,b] of nbr4){ const ni=i+a, nj=j+b; if (!inGrid(ni,nj)) continue; const o = sid[ni*N+nj]; if (o >= 0 && o !== st.id && stores[o].ent.length){ w[edgeBetween(i,j,ni,nj)] = 0; st.stock = o; done = true; break; } } if (done) break; }
-    st.type = 'stock'; st.name = ''; }
-  return { w, rooms:[], halls:[], tight:[], kind:new Uint8Array(N*N), mall:{ M, sid, stores, noDraw } };
+/* ================= Level 852: the Mall (v0.32: three floors; LK = 4, G.lv = 4) =================
+   Ryan's v0.31 review: shorter, but with floors you can go up and down (escalators), taller ceilings, a harder goal
+   than fuses, and side quests. Three walkable floors of 16×16 cells sit side by side in one grid like the hotel (MO =
+   floor origins, far apart, so nothing is heard, seen or caught across floors) and are DRAWN stacked: vis852() maps a
+   logical position to the drawn one (local x/z, + f*MFH up).
+   Floors are joined by LANES (MLANES): two escalator pairs in the atrium (1↔2, 2↔3; one moving up, one down) and two
+   scissor service stairwells (east, west). A lane belongs to its bottom floor; only its last stretch (p ≥ RAMP1, already
+   at full height) also exists on the top floor. Reach p > 0.93 on the bottom floor and you're moved to the top floor at
+   the same drawn spot (laneShift852); go back below p 0.87 on the top floor and you're moved down. floorY = the ramp.
+   Every lane lies in walled-off "special" cells (the atrium void, the escalator pit on floor 1, the stair flights);
+   only the lane ends are open (crossing edges, with short slabs either side), so pathfinding never cuts across them.
+   Goal: 4 receipts (one code number each) → the security office keypad → the master keys → the loading dock: unlock
+   the gate, then hold to crank it up (loud) → out. Side quests: the lost teddy (bring it to the info desk → the PA
+   calls out where the Occupant is), the Trailhead Outfitters gate (crank it → the big flashlight), the arcade claw
+   machine (an energy soda: stamina lasts longer for a while). */
+const MF = 16, MG = 17, MALL_N = 2*MF + MG;
+const MFH = 5.6, MCH = 5.0, MSH = 3.4, MSKY = 7.4;   // floor-to-floor, concourse ceiling, store ceiling, atrium skylight (above the top floor)
+const MO = [[0,0],[MF+MG,0],[0,MF+MG]];
+const mTh = (MF + MG/2)*CS;
+const MT = { CONC:1, STORE:2, CORE:3, VOID:4, FOOD:5, LOBBY:6, LAND:7, STAIR:8, DOCK:9, ESC:10 };
+const mOpen = t => t === MT.CONC || t === MT.CORE || t === MT.FOOD || t === MT.LOBBY;
+const mSpecial = t => t === MT.VOID || t === MT.STAIR || t === MT.ESC;
+function floorAt852(x, z){ return x >= mTh ? 1 : z >= mTh ? 2 : 0; }
+const mBaseY = f => f*MFH;
+const mShift = (x, z, a, b) => [x + (MO[b][0]-MO[a][0])*CS, z + (MO[b][1]-MO[a][1])*CS];
+const mLog = (f, lx, lz) => [lx + MO[f][0]*CS, lz + MO[f][1]*CS];
+function vis852(x, y, z, out){ const f = floorAt852(x,z); out.x = x - MO[f][0]*CS; out.y = y + mBaseY(f); out.z = z - MO[f][1]*CS; return out; }
+// a lane: bottom floor f, runs along ax from s0 (bottom) in dir for len metres; band [b0,b1] across; v = moving steps (+ up, − down, 0 = stairs)
+const MLANES = [
+  { f:0, ax:'x', s0:24, dir:1,  len:16, b0:24.6, b1:25.9, v:0.65,  esc:1, nm:'the escalators' },
+  { f:0, ax:'x', s0:24, dir:1,  len:16, b0:26.3, b1:27.6, v:-0.65, esc:1, nm:'the escalators' },
+  { f:1, ax:'x', s0:40, dir:-1, len:16, b0:36.4, b1:37.7, v:0.65,  esc:1, nm:'the escalators' },
+  { f:1, ax:'x', s0:40, dir:-1, len:16, b0:38.1, b1:39.4, v:-0.65, esc:1, nm:'the escalators' },
+  { f:0, ax:'z', s0:24, dir:1,  len:12, b0:57.0, b1:59.4, v:0, esc:0, nm:'the east stairs' },
+  { f:1, ax:'z', s0:36, dir:-1, len:12, b0:60.6, b1:63.0, v:0, esc:0, nm:'the east stairs' },
+  { f:0, ax:'z', s0:40, dir:-1, len:12, b0:4.6,  b1:7.0,  v:0, esc:0, nm:'the west stairs' },
+  { f:1, ax:'z', s0:28, dir:1,  len:12, b0:1.0,  b1:3.4,  v:0, esc:0, nm:'the west stairs' },
+];
+const RAMP0 = 0.07, RAMP1 = 0.8;
+const laneH = p => MFH * clamp((p - RAMP0)/(RAMP1 - RAMP0), 0, 1);
+const laneA = (ln, p) => ln.s0 + ln.dir*p*ln.len;
+const laneXZ = (ln, p, c) => { const a = laneA(ln, p); return ln.ax === 'x' ? [a, c] : [c, a]; };   // local x, z
+function laneAt852(x, z){
+  const f = floorAt852(x, z), lx = x - MO[f][0]*CS, lz = z - MO[f][1]*CS;
+  for (let k=0;k<MLANES.length;k++){ const ln = MLANES[k]; if (ln.f !== f && ln.f+1 !== f) continue;
+    const a = ln.ax === 'x' ? lx : lz, c = ln.ax === 'x' ? lz : lx, p = (a - ln.s0)*ln.dir/ln.len;
+    if (c < ln.b0 || c > ln.b1) continue;
+    if (ln.f === f && p >= 0 && p <= 1.02) return { k, ln, p, top:false, f };
+    if (ln.f+1 === f && p >= RAMP1 - 0.03 && p <= 1) return { k, ln, p, top:true, f }; }
+  return null;
 }
+function floorY852(x, z){ const l = laneAt852(x, z); return l && !l.top ? laneH(l.p) : 0; }
+function laneShift852(x, z){
+  const l = laneAt852(x, z); if (!l) return null;
+  if (!l.top && l.p > 0.93) return mShift(x, z, l.ln.f, l.ln.f+1);
+  if (l.top && l.p < 0.87) return mShift(x, z, l.ln.f+1, l.ln.f);
+  return null;
+}
+// after moving: the escalator carries you, and at the end of a flight you're on the other floor
+function mallMove852(x, z, dt, r){
+  const l = laneAt852(x, z);
+  if (l && l.ln.v){ const s = l.ln.v*l.ln.dir*dt; [x, z] = collide(x + (l.ln.ax === 'x' ? s : 0), z + (l.ln.ax === 'z' ? s : 0), r, x, z); }
+  return laneShift852(x, z) || [x, z];
+}
+const MALL_NAMES = ['PRETZEL TIME','MODA 89','TOY ATTIC','RADIOTRONIX','SHOE FORUM','GAME CAVE','SILK & CO','PET PALACE','VIDEO VAULT','OPTICAL ONE','CANDY CASTLE','ELECTRO BARN','GIFT GALAXY','TEEN SCENE','BOOK NOOK','SUN & SURF','CARD CORNER','PHOTO 1-HR','TUXEDO TOWN','KITCHEN KING','LUGGAGE LAND','PERFUME POINT','JEANS JUNCTION','MUSIC MILL','WATCH WORKS','LAMP LOFT','HAT RACK','BRIDAL BOUTIQUE','VITAMIN VILLA','POSTER PALACE','CELLULAR CITY','KITE & KITE','SOCK SHACK','MIRROR MIRROR','TOTALLY TEES','CLOCK SHOP','PIANO PLACE','DOLL HOUSE','SPORTS ZONE','FRAME IT','LEATHER LANE','TRAVEL TOWN','BEAUTY BAR','BATTERY BARN','CASSETTE CORNER','CHEESE CHALET'];
+const MALL_SCRAWLS = ["THE MUSIC NEVER STOPS","STORE HOURS: ALWAYS","DON'T RIDE IT DOWN ALONE","THE MANNEQUINS MOVED","I'VE BEEN SHOPPING FOR YEARS","LOST? STAY WHERE YOU ARE","EVERYTHING MUST GO","IT FOLLOWS THE MUZAK","CLOSING TIME WAS 1993","THE FOOD COURT IS NOT EMPTY","KEEP YOUR RECEIPTS","SECURITY SEES EVERYTHING","THE ESCALATOR NEVER ENDS","ATTENTION SHOPPERS"];
 // ---- textures
 const mallTileTex = canvasTex(64,64,(g,w,h)=>{ g.fillStyle='#d9cfb4'; g.fillRect(0,0,w,h);
   for (let a=0;a<4;a++) for (let b=0;b<4;b++){ const v = 200 + texR()*22|0; g.fillStyle=`rgb(${v+14},${v+6},${v-18})`; g.fillRect(a*16+1,b*16+1,15,15); }
@@ -736,157 +741,629 @@ const mallWallTex = canvasTex(64,64,(g,w,h)=>{ g.fillStyle='#e4e0d6'; g.fillRect
   g.fillStyle='#4a4842'; g.fillRect(0,h-6,w,6); });
 const mallCeilTex = canvasTex(32,32,(g,w,h)=>{ g.fillStyle='#d6d4cc'; g.fillRect(0,0,w,h); for (let i=0;i<150;i++){ g.fillStyle='rgba(120,118,110,.3)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); } g.fillStyle='#9a988e'; g.fillRect(0,0,w,1); g.fillRect(0,0,1,h); });
 const mallGateTex = canvasTex(32,64,(g,w,h)=>{ g.fillStyle='#5a5c5c'; g.fillRect(0,0,w,h); for (let y=0;y<h;y+=4){ g.fillStyle='#7c7e7c'; g.fillRect(0,y,w,2); g.fillStyle='#3a3c3c'; g.fillRect(0,y+3,w,1); } for (let i=0;i<60;i++){ g.fillStyle='rgba(90,60,30,.4)'; g.fillRect(texR()*w|0,texR()*h|0,2,1); } });
-const escStepTex = canvasTex(16,16,(g,w,h)=>{ g.fillStyle='#2a2a2a'; g.fillRect(0,0,w,h); g.fillStyle='#4a4a46'; for (let y=0;y<h;y+=4) g.fillRect(0,y,w,1); g.fillStyle='#8a7a2a'; g.fillRect(0,0,w,1); });
+const escStepTex = canvasTex(16,16,(g,w,h)=>{ g.fillStyle='#2a2a2a'; g.fillRect(0,0,w,h); g.fillStyle='#55554e'; for (let x=0;x<w;x+=2) g.fillRect(x,0,1,h); g.fillStyle='#b89a2a'; g.fillRect(0,0,w,2); });
+const mallBlockTex = canvasTex(64,64,(g,w,h)=>{ g.fillStyle='#8e8c86'; g.fillRect(0,0,w,h);
+  for (let i=0;i<900;i++){ g.fillStyle = texR()<.5 ? 'rgba(60,58,54,.25)' : 'rgba(190,188,180,.2)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  g.fillStyle='rgba(50,48,44,.55)'; for (let y=0;y<h;y+=8){ g.fillRect(0,y,w,1); for (let x=(y/8)%2*8;x<w;x+=16) g.fillRect(x,y,1,8); }
+  g.fillStyle='rgba(70,60,40,.25)'; for (let i=0;i<6;i++) g.fillRect(texR()*w|0, 0, 2, texR()*h|0); g.fillStyle='#3a3a36'; g.fillRect(0,h-5,w,5); });
+const mallSlabTex = canvasTex(64,64,(g,w,h)=>{ g.fillStyle='#6a6862'; g.fillRect(0,0,w,h);
+  for (let i=0;i<1400;i++){ g.fillStyle = texR()<.5 ? 'rgba(40,38,34,.25)' : 'rgba(150,148,140,.2)'; g.fillRect(texR()*w|0,texR()*h|0,1,1); }
+  for (let i=0;i<5;i++){ const x=texR()*w, y=texR()*h, r=6+texR()*12, gr=g.createRadialGradient(x,y,0,x,y,r); gr.addColorStop(0,'rgba(30,26,20,.3)'); gr.addColorStop(1,'rgba(30,26,20,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2); }
+  g.fillStyle='rgba(40,38,34,.5)'; g.fillRect(0,0,w,1); g.fillRect(0,0,1,h); });
 function mallSignTex(name, col){ return textTex(name, 256, 40, (c,w,h,t)=>{ c.fillStyle='#141210'; c.fillRect(0,0,w,h); c.font='bold 26px "Special Elite", "Courier New", monospace'; c.textAlign='center'; c.fillStyle=col; c.fillText(t, w/2, 29); }); }
-// ---- build everything that's special to the mall (called from buildLevel after the walls exist)
-function buildMall(L, g, gen, rng){
-  const { M, sid, stores, noDraw } = gen.mall; L.mall = gen.mall; L.noDraw = noDraw;
-  const at = (i,j) => inGrid(i,j) ? M[i*N+j] : -1;
-  // floors
-  const conc = [], check = [], store = [];
-  for (let i=0;i<N;i++) for (let j=0;j<N;j++){ const m = M[i*N+j]; if (m === 3) continue;
-    if (m === 1) store.push([i,j]); else if (m === 4 || (m === 2 && (i===9||i===14||j===9||j===14))) check.push([i,j]); else conc.push([i,j]); }
-  const inst = (geo, mat, list, y, tintFn) => { const m = new THREE.InstancedMesh(geo, mat, Math.max(1,list.length)); list.forEach(([i,j],k)=>{ tmpM.makeTranslation(cc(i), y, cc(j)); m.setMatrixAt(k, tmpM); if (tintFn) m.setColorAt(k, tmpC.setHex(tintFn(i,j))); }); m.count = list.length; m.frustumCulled = false; g.add(m); return m; };
-  inst(cellPlane(2,false), lam(0xffffff,{ map:mallTileTex }), conc, 0);
-  inst(cellPlane(3,false), lam(0xffffff,{ map:mallCheckTex }), check, 0);
-  inst(cellPlane(2,false), lam(0xffffff,{ map:mallCarpetTex }), store, 0, (i,j)=>{ const s = stores[sid[i*N+j]]; return s ? s.tint : 0x8a8a8a; });
-  // ceilings: concourse / food court at 3.6 (skylights along the cross), stores at 3.0, atrium high
-  const cc36 = [], sky = [], st30 = [];
-  for (let i=0;i<N;i++) for (let j=0;j<N;j++){ const m = M[i*N+j]; if (m === 1) st30.push([i,j]); else if (m === 0 || m === 4 || m === 5){ if (m === 0 && ((i===11||i===12) || (j===11||j===12)) && (i+j)%3 === 0) sky.push([i,j]); else cc36.push([i,j]); } }
-  inst(cellPlane(2,true), lam(0xffffff,{ map:mallCeilTex }), cc36, MALL_CH);
-  inst(cellPlane(CS/0.6,true), lam(0xffffff,{ map:mallCeilTex }), st30, MALL_SH);
-  { const sg = new THREE.PlaneGeometry(3.2,3.2); sg.rotateX(Math.PI/2); inst(sg, new THREE.MeshBasicMaterial({ color:0x26303e }), sky, MALL_CH+0.01);   // night sky through the skylights
-    const fr = new THREE.BoxGeometry(CS,0.06,0.4); const fm = new THREE.InstancedMesh(fr, lam(0xcfcac0), sky.length*2); sky.forEach(([i,j],k)=>{ for (const s of [-1,1]){ tmpQ.identity(); tmpV.set(cc(i), MALL_CH-0.02, cc(j)+s*1.8); tmpS.set(1,1,1); tmpM.compose(tmpV,tmpQ,tmpS); fm.setMatrixAt(k*2+(s>0?1:0), tmpM); } }); fm.frustumCulled=false; g.add(fm); }
-  // atrium: tall ceiling with one big skylight, a white bulkhead band from 3.6 up to it (like the photo), red corner columns
-  const ax0 = 9*CS, ax1 = 15*CS, amid = 12*CS;
-  { const top = new THREE.Mesh(new THREE.PlaneGeometry(ax1-ax0, ax1-ax0), lam(0xffffff,{ map:mallCeilTex })); top.material.map = mallCeilTex; top.rotation.x = Math.PI/2; top.position.set(amid, MALL_AH, amid); g.add(top);
-    const sk = new THREE.Mesh(new THREE.PlaneGeometry(10,10), new THREE.MeshBasicMaterial({ color:0x2e3a4c })); sk.rotation.x = Math.PI/2; sk.position.set(amid, MALL_AH-0.01, amid); g.add(sk);
-    for (let k=-2;k<=2;k++){ bx(g, 10.4,0.08,0.12, amid, MALL_AH-0.05, amid+k*2.5, lam(0xbfbab0)); bx(g, 0.12,0.08,10.4, amid+k*2.5, MALL_AH-0.05, amid, lam(0xbfbab0)); }
-    const band = lam(0xe8e4da), bh = MALL_AH-MALL_CH, by = MALL_CH + bh/2, span = ax1-ax0;
-    bx(g, span, bh, 0.3, amid, by, ax0, band); bx(g, span, bh, 0.3, amid, by, ax1, band); bx(g, 0.3, bh, span, ax0, by, amid, band); bx(g, 0.3, bh, span, ax1, by, amid, band);
-    const red = lam(0xa8261c); for (const [x,z] of [[ax0,ax0],[ax1,ax0],[ax0,ax1],[ax1,ax1]]){ bx(g, 0.7, MALL_CH, 0.7, x, MALL_CH/2, z, red); L.circles.push({ x, z, r:0.5 }); }
-    for (const [x,z] of [[ax0,amid],[ax1,amid],[amid,ax0],[amid,ax1]]){ bx(g, 0.6, MALL_CH, 0.6, x, MALL_CH/2, z, lam(0xd8d0bc)); L.circles.push({ x, z, r:0.45 }); } }
-  // the escalator well: glass railing, a shaft down into the dark, two escalators going down, an opening into nothing
-  { const w0 = 11*CS, w1 = 13*CS, wm = 12*CS, D = 4.4, glass = new THREE.MeshBasicMaterial({ color:0x9fb6b4, transparent:true, opacity:0.22, depthWrite:false, side:THREE.DoubleSide }), rail = lam(0xd8d0bc), kick = lam(0x2a2a28);
-    for (const [x,z,ry] of [[wm,w0,0],[wm,w1,0],[w0,wm,Math.PI/2],[w1,wm,Math.PI/2]]){ const rg = new THREE.Group(); rg.position.set(x,0,z); rg.rotation.y = ry; g.add(rg);
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(8,0.9), glass); p.position.y = 0.55; rg.add(p); bx(rg, 8.1,0.08,0.12, 0,1.05,0, rail); bx(rg, 8.1,0.12,0.14, 0,0.06,0, kick);
-      for (let k=-4;k<=4;k+=2) bx(rg, 0.05,1.05,0.05, k,0.52,0, kick); }
-    const shaft = lam(0x8a8478);
-    bx(g, 8, D, 0.1, wm, -D/2, w0, shaft); bx(g, 8, D, 0.1, wm, -D/2, w1, shaft); bx(g, 0.1, D, 8, w0, -D/2, wm, shaft); bx(g, 0.1, D, 8, w1, -D/2, wm, shaft);
-    const bot = new THREE.Mesh(new THREE.PlaneGeometry(8,8), lam(0x24221e)); bot.rotation.x = -Math.PI/2; bot.position.set(wm, -D, wm); g.add(bot);
-    const hole = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.6), new THREE.MeshBasicMaterial({ color:0x000000 })); hole.position.set(wm, -D+1.3, w1-0.06); hole.rotation.y = Math.PI; g.add(hole);
-    const stepMat = lam(0xffffff,{ map: escStepTex }); escStepTex.repeat.set(1, 10); L.escTex = escStepTex;
-    for (const off of [-0.8, 0.8]){ const len = Math.hypot(7.2, D), ang = Math.atan2(D, 7.2), eg = new THREE.Group(); eg.position.set(wm+off, -D/2, wm); eg.rotation.x = ang; g.add(eg);
-      bx(eg, 1.1, 0.06, len, 0, 0, 0, stepMat);
-      for (const s of [-0.62, 0.62]){ const bal = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.9), glass); bal.rotation.y = Math.PI/2; bal.position.set(s, 0.5, 0); eg.add(bal); bx(eg, 0.1,0.08,len+0.4, s,0.98,0, kick); bx(eg, 0.14,0.5,len, s,0.25,0, lam(0x55524a)); } }
-    L.escPos = [wm, wm]; }
-  // storefronts: entrance header + sign, display windows on the rest of the frontage, roll-down gates on closed stores
+function mallTextPlane(txt, w, h, bg, fg, font){ return new THREE.MeshBasicMaterial({ map: textTex(txt, 256, Math.round(256*h/w), (c,cw,ch,t)=>{ c.fillStyle=bg; c.fillRect(0,0,cw,ch); c.fillStyle=fg; c.font=font || `bold ${Math.round(ch*0.62)}px monospace`; c.textAlign='center'; c.textBaseline='middle'; c.fillText(t, cw/2, ch/2+1); }) }); }
+
+// ---- layout of the three floors (local cells 0..15)
+function genMall852(rng){
+  const T = [], SID = [], stores = [], sec = 1 + Math.floor(rng()*2);
+  for (let f=0; f<3; f++){
+    const t = new Uint8Array(MF*MF), set = (i0,i1,j0,j1,v) => { for (let i=i0;i<=i1;i++) for (let j=j0;j<=j1;j++) t[i*MF+j] = v; };
+    set(0,15,0,15,MT.STORE);
+    for (let k=2;k<=13;k++){ set(2,3,k,k,MT.CONC); set(12,13,k,k,MT.CONC); set(k,k,2,3,MT.CONC); set(k,k,12,13,MT.CONC); }   // ring concourse
+    set(7,8,4,4,MT.CONC); set(7,8,11,11,MT.CONC); set(4,4,7,8,MT.CONC); set(11,11,7,8,MT.CONC);                               // cross halls into the atrium
+    for (let k=5;k<=10;k++){ set(5,5,k,k,MT.CONC); set(10,10,k,k,MT.CONC); set(k,k,5,5,MT.CONC); set(k,k,10,10,MT.CONC); }      // the walkway around the atrium
+    if (f === 0){ set(6,9,7,9,MT.CORE); set(6,9,6,6,MT.ESC); } else set(6,9,6,9,MT.VOID);
+    set(14,15,5,9,MT.STAIR); set(0,1,6,10,MT.STAIR);
+    if (f === 0){ set(0,1,0,3,MT.LOBBY); set(2,3,0,1,MT.LOBBY); set(12,15,14,15,MT.DOCK); set(14,15,12,13,MT.DOCK); }
+    if (f === 2) set(4,11,12,15,MT.FOOD);
+    T.push(t); SID.push(new Int16Array(MF*MF).fill(-1));
+  }
+  // stair landings: only the rows where a flight starts or ends on that floor
+  for (const ln of MLANES){ if (ln.esc) continue; const c = (ln.b0+ln.b1)/2;
+    for (const [f, p] of [[ln.f, -0.02], [ln.f+1, 1.02]]){ const [x, z] = laneXZ(ln, p, c), i = Math.floor(x/CS), j = Math.floor(z/CS);
+      for (const d of [-1,0,1]){ const ii = ln.ax === 'z' ? i+d : i, jj = ln.ax === 'z' ? j : j+d; if (ii>=0 && jj>=0 && ii<MF && jj<MF && T[f][ii*MF+jj] === MT.STAIR) T[f][ii*MF+jj] = MT.LAND; } } }
+  const mk = (f, cells, o={}) => { const id = stores.length, st = { id, f, cells, front:[], ent:[], kind:'', closed:false, vacant:false, ...o }; for (const [i,j] of cells) SID[f][i*MF+j] = id; stores.push(st); return st; };
+  const rect = (f,i0,i1,j0,j1,o) => { const cs = []; for (let i=i0;i<=i1;i++) for (let j=j0;j<=j1;j++) cs.push([i,j]); return mk(f, cs, o); };
+  rect(0, 5,10, 0,1, { kind:'dept', name:"BRADLEY'S", type:'clothes' });
+  rect(1, 5,9, 0,1, { kind:'arcade', name:'GALAXY ARCADE', type:'arcade' });
+  if (sec === 1) rect(1, 9,11, 14,15, { kind:'security', name:'SECURITY', type:'security' }); else rect(2, 9,11, 0,1, { kind:'security', name:'SECURITY', type:'security' });
+  const sizes = [[3,2],[2,3],[2,2],[2,2],[3,1],[1,3],[2,1],[1,2],[2,1],[1,2],[1,1]];
+  for (let f=0; f<3; f++){ const cells = []; for (let i=0;i<MF;i++) for (let j=0;j<MF;j++) if (T[f][i*MF+j] === MT.STORE) cells.push([i,j]); shuffle188(cells, rng);
+    for (const [i0,j0] of cells){ if (SID[f][i0*MF+j0] >= 0) continue;
+      const order = shuffle188(sizes.slice(), rng).sort((a,b)=>b[0]*b[1]-a[0]*a[1] + (rng()-0.5)*3);
+      for (const [sw,sh] of order){ let ok = true;
+        for (let i=i0;i<i0+sw && ok;i++) for (let j=j0;j<j0+sh;j++) if (i>=MF || j>=MF || T[f][i*MF+j] !== MT.STORE || SID[f][i*MF+j] >= 0){ ok = false; break; }
+        if (!ok) continue; const cs = []; for (let i=i0;i<i0+sw;i++) for (let j=j0;j<j0+sh;j++) cs.push([i,j]); mk(f, cs); break; } } }
+  for (const st of stores){ const t = T[st.f]; for (const [i,j] of st.cells) for (const [a,b] of nbr4){ const ni=i+a, nj=j+b; if (ni>=0 && nj>=0 && ni<MF && nj<MF && mOpen(t[ni*MF+nj])) st.front.push({ i, j, ni, nj, nx:a, nz:b }); } }
+  const names = shuffle188(MALL_NAMES.slice(), rng);
+  const normal = stores.filter(st=>!st.kind);
+  for (const st of normal){
+    st.closed = st.front.length > 0 && rng() < 0.18;
+    st.vacant = !st.closed && rng() < 0.14;
+    st.type = st.vacant ? 'vacant' : ['clothes','clothes','shelves','electronics','shelves'][Math.floor(rng()*5)];
+    st.name = st.vacant ? 'FOR LEASE' : names.pop() || (['BARGAIN','NOVELTY','FASHION','HOBBY','VARIETY','DISCOUNT','GIFT','WIG','PARTY','SUNGLASS'][Math.floor(rng()*10)] + ' ' + ['WORLD','DEPOT','HUT','PLACE','MART','BARN','CITY','SHACK'][Math.floor(rng()*8)]); }
+  // the outfitters: a closed store with one gate you can crank up
+  { const c = shuffle188(normal.filter(st=>st.cells.length >= 2 && st.front.length), rng)[0];
+    if (c){ c.kind = 'outfit'; c.name = 'TRAILHEAD OUTFITTERS'; c.type = 'outfit'; c.closed = false; c.vacant = false; } }
+  for (const st of stores){ st.tint = st.kind === 'dept' ? 0x7a6a8a : st.kind === 'arcade' ? 0x3a2a5a : st.kind === 'security' ? 0x5a5c5c : [0x8a8f98, 0x6f7f9a, 0x8a6a6a, 0x9a917a, 0x6f8a7a, 0x7a6f8a][Math.floor(rng()*6)];
+    if (!st.front.length || st.closed) continue;
+    const byDir = {}; for (const f of st.front){ const k = f.nx+','+f.nz; (byDir[k] = byDir[k] || []).push(f); }
+    const run = Object.values(byDir).sort((a,b)=>b.length-a.length)[0].sort((a,b)=>(a.i-b.i)||(a.j-b.j));
+    const n = (st.kind === 'dept' || st.kind === 'arcade') ? 2 : st.kind === 'security' || st.kind === 'outfit' ? 1 : run.length >= 3 && st.cells.length >= 4 ? 2 : 1, s0 = Math.floor((run.length - n)/2);
+    for (let k=s0;k<s0+n;k++) st.ent.push(run[k]); }
+  // stores with no frontage become a neighbour's stockroom
+  for (const st of stores){ if (st.front.length || st.kind) continue; st.type = 'stock'; st.name = '';
+    for (const [i,j] of st.cells){ let done = false; for (const [a,b] of nbr4){ const ni=i+a, nj=j+b; if (ni<0||nj<0||ni>=MF||nj>=MF) continue; const o = SID[st.f][ni*MF+nj];
+      if (o >= 0 && o !== st.id && stores[o].ent.length && !stores[o].kind){ st.link = [i,j,ni,nj]; done = true; break; } } if (done) break; } }
+  return { T, SID, stores, sec };
+}
+
+let mallMuz = null;
+function buildLevel852(seed){
+  const rng = rngFrom(seed), gen = genMall852(rng), { T, SID, stores } = gen;
+  const g = new THREE.Group(); scene.add(g);
+  const L = level = { seed, lk:4, group:g, gens:[], slotLeds:[], fuses:[], fuseMeshes:[], breaker:[-99,-99], rooms:[], halls:[], kind:new Uint8Array(N*N), fixed:new Uint8Array(E).fill(1), slabs:[], base:null, shown:new Uint8Array(E), circles:[], pillarSet:new Set(), sounds:[], used:new Set(), wet:[], drips:[], tvs:[], phones:[], lockers:[], cn:[], cnM:[], bt:[], btM:[], aw:[], awM:[], vents:[], holes:[], offhook:[], high:[], panels:[], panelAt:new Int16Array(N*N).fill(-1), edgeZ:new Uint8Array(E), wallMeshes:[], floats:[], lamps:[], cleanDesk:null, roller:null, red:{i0:-1,j0:-1,i1:-1,j1:-1}, clean:null,
+    mall:{ M:new Uint8Array(N*N), T, stores, sec:gen.sec }, escT:[], crossE:[] };
+  const tAt = (f,i,j) => (i>=0 && j>=0 && i<MF && j<MF) ? T[f][i*MF+j] : 0;
+  const sAt = (f,i,j) => (i>=0 && j>=0 && i<MF && j<MF) ? SID[f][i*MF+j] : -1;
+  const gi = (f,i) => MO[f][0]+i, gj = (f,j) => MO[f][1]+j;
+  const eOf = (f,i,j,ni,nj) => { const a = gi(f,i), b = gj(f,j); if (ni === i+1) return vIdx(a+1,b); if (ni === i-1) return vIdx(a,b); if (nj === j+1) return hIdx(a,b+1); return hIdx(a,b); };
+  const LX = (f,x) => x + MO[f][0]*CS, LZ = (f,z) => z + MO[f][1]*CS;
+  const C = (f, x, z, r) => L.circles.push({ x:LX(f,x), z:LZ(f,z), r });
+  for (let f=0; f<3; f++) for (let i=0;i<MF;i++) for (let j=0;j<MF;j++) L.mall.M[gi(f,i)*N + gj(f,j)] = T[f][i*MF+j];
+  // ---- walls (logical): open between public spaces, inside a store, store entrances, stairwell doors, the dock door
+  walls = new Uint8Array(E).fill(1);
+  for (let f=0; f<3; f++) for (let i=0;i<MF;i++) for (let j=0;j<MF;j++) for (const [a,b] of [[1,0],[0,1]]){ const ni=i+a, nj=j+b; if (ni>=MF || nj>=MF) continue;
+    const t0 = T[f][i*MF+j], t1 = T[f][ni*MF+nj], s0 = SID[f][i*MF+j], s1 = SID[f][ni*MF+nj], e = eOf(f,i,j,ni,nj);
+    if ((mOpen(t0) && mOpen(t1)) || (s0 >= 0 && s0 === s1) || (t0 === MT.DOCK && t1 === MT.DOCK) || (t0 === MT.LAND && t1 === MT.LAND) || (t0 === MT.LAND && mOpen(t1)) || (t1 === MT.LAND && mOpen(t0))) walls[e] = 0; }
+  for (const st of stores){ for (const fr of st.ent) walls[eOf(st.f, fr.i, fr.j, fr.ni, fr.nj)] = 0; if (st.link){ const [i,j,ni,nj] = st.link; walls[eOf(st.f,i,j,ni,nj)] = 0; } }
+  walls[eOf(0, 12,14, 12,13)] = 0;   // the service door into the loading dock
+  // special stores: the security office door and the outfitters gate stay shut until opened (updateMall)
+  const secSt = stores.find(s=>s.kind === 'security'), outSt = stores.find(s=>s.kind === 'outfit');
+  const doorOf = st => { const fr = st.ent[0]; return fr ? { ...fr, e:eOf(st.f, fr.i, fr.j, fr.ni, fr.nj) } : null; };
+  L.secDoor = doorOf(secSt); walls[L.secDoor.e] = 1; L.secF = secSt.f;
+  L.ogDoor = outSt ? doorOf(outSt) : null; if (L.ogDoor){ walls[L.ogDoor.e] = 1; L.ogF = outSt.f; }
+  // ---- lanes: open the edges they run along inside their well, open their ends, slabs along their sides
+  const slab = (f, ln, a0, a1, c0, c1) => { const [x0,x1,z0,z1] = ln.ax === 'x' ? [Math.min(a0,a1), Math.max(a0,a1), c0, c1] : [c0, c1, Math.min(a0,a1), Math.max(a0,a1)]; L.slabs.push([LX(f,x0), LX(f,x1), LZ(f,z0), LZ(f,z1)]); };
+  const cellAt = (ln, p, c) => { const [x,z] = laneXZ(ln, p, c); return [Math.floor(x/CS), Math.floor(z/CS)]; };
+  const cross = new Map();
+  MLANES.forEach(ln=>{ const c = (ln.b0+ln.b1)/2, TH = 0.14;
+    // bottom floor: the whole flight; top floor: the last stretch
+    for (const [f, p0, p1, top] of [[ln.f, 0, 1, false], [ln.f+1, RAMP1, 1, true]]){
+      slab(f, ln, laneA(ln,p0), laneA(ln,p1), ln.b0-TH, ln.b0); slab(f, ln, laneA(ln,p0), laneA(ln,p1), ln.b1, ln.b1+TH);
+      if (top) slab(f, ln, laneA(ln,RAMP1) - ln.dir*0.25, laneA(ln,RAMP1), ln.b0-TH, ln.b1+TH);
+      else slab(f, ln, laneA(ln,1), laneA(ln,1) + ln.dir*0.25, ln.b0-TH, ln.b1+TH);
+      // open the cell edges the lane runs over (inside its well only)
+      let [pi, pj] = cellAt(ln, p0 + 0.002, c);
+      for (let s=1; s<=40; s++){ const p = p0 + (p1-p0)*s/40, [ci, cj] = cellAt(ln, Math.min(p, p1-0.002), c);
+        if (ci !== pi || cj !== pj){ if (mSpecial(tAt(f,pi,pj)) && mSpecial(tAt(f,ci,cj))) walls[eOf(f,pi,pj,ci,cj)] = 0; pi = ci; pj = cj; } }
+      // where the lane leaves its well: open that edge, short slabs either side of the band(s)
+      const pe = top ? 1 : 0, sg = top ? -1 : 1, a = laneA(ln, pe), inA = a + ln.dir*sg*0.5, outA = a - ln.dir*sg*0.5;
+      const ci = ln.ax === 'x' ? [Math.floor(inA/CS), Math.floor(c/CS)] : [Math.floor(c/CS), Math.floor(inA/CS)], co = ln.ax === 'x' ? [Math.floor(outA/CS), Math.floor(c/CS)] : [Math.floor(c/CS), Math.floor(outA/CS)];
+      if (!mSpecial(tAt(f, ci[0], ci[1])) || mSpecial(tAt(f, co[0], co[1]))) continue;
+      const e = eOf(f, ci[0], ci[1], co[0], co[1]); if (!cross.has(e)) cross.set(e, { f, ln, a, cell: ln.ax === 'x' ? ci[1] : ci[0], bands:[] }); cross.get(e).bands.push([ln.b0, ln.b1]); } });
+  const railSegs = [];   // {f, x0,z0,x1,z1} drawn glass railings (local coords)
+  for (const [e, X] of cross){ walls[e] = 0; L.crossE.push(e);
+    let c = X.cell*CS; const rem = []; for (const [b0,b1] of X.bands.sort((p,q)=>p[0]-q[0])){ if (b0 - c > 0.02) rem.push([c, b0]); c = b1; } if ((X.cell+1)*CS - c > 0.02) rem.push([c, (X.cell+1)*CS]);
+    for (const [c0,c1] of rem){ slab(X.f, X.ln, X.a - 0.1, X.a + 0.1, c0, c1); const p0 = X.ln.ax === 'x' ? [X.a, c0] : [c0, X.a], p1 = X.ln.ax === 'x' ? [X.a, c1] : [c1, X.a]; railSegs.push({ f:X.f, x0:p0[0], z0:p0[1], x1:p1[0], z1:p1[1] }); } }
+  L.base = walls.slice();
+  // ---- materials
+  const tileM = lam(0xffffff,{ map:mallTileTex }), checkM = lam(0xffffff,{ map:mallCheckTex }), carpetM = lam(0xffffff,{ map:mallCarpetTex }), concM = lam(0xffffff,{ map:mallSlabTex, side:THREE.DoubleSide });
+  const ceilM = lam(0xffffff,{ map:mallCeilTex }), wallM = lam(0xffffff,{ map:mallWallTex }), cwallM = lam(0xffffff,{ map:mallBlockTex }), bandM = lam(0xe8e4da), redM = lam(0xa8261c), stoneM = lam(0xd8d0bc);
+  const glassM = new THREE.MeshBasicMaterial({ color:0x9fb6b4, transparent:true, opacity:0.2, depthWrite:false, side:THREE.DoubleSide }), railM = lam(0xd8d0bc), kickM = lam(0x2a2a28), metalM = lam(0x4a4a46);
+  // ---- floors + ceilings (drawn = local coords, + f*MFH)
+  const lists = { tile:[], check:[], carpet:[], conc:[], ceil:[], sceil:[], cceil:[], sky:[] };
+  for (let f=0; f<3; f++){ const Y = mBaseY(f);
+    for (let i=0;i<MF;i++) for (let j=0;j<MF;j++){ const t = T[f][i*MF+j], x = cc(i), z = cc(j);
+      if (t === MT.CONC || t === MT.LOBBY || t === MT.ESC) lists.tile.push([x,Y,z]);
+      else if (t === MT.CORE || t === MT.FOOD) lists.check.push([x,Y,z]);
+      else if (t === MT.STORE) lists.carpet.push([x,Y,z, stores[SID[f][i*MF+j]] ? stores[SID[f][i*MF+j]].tint : 0x8a8a8a]);
+      else if (t === MT.DOCK || t === MT.LAND || (t === MT.STAIR && f === 0)) lists.conc.push([x,Y,z]);
+      // ceilings: concourse up high (skylights along the cross on the top floor), stores have a lower drop ceiling, stairwells close at the top
+      if (t === MT.STORE) lists.sceil.push([x,Y+MSH,z]);
+      else if (t === MT.CONC || t === MT.LOBBY || t === MT.FOOD || t === MT.DOCK){ if (f === 2 && t !== MT.DOCK && (((i===7||i===8) || (j===7||j===8)) || (t === MT.FOOD && (i+j)%3 === 0)) && !(i>=5 && i<=10 && j>=5 && j<=10)) lists.sky.push([x,Y+MCH,z]); else lists.ceil.push([x,Y+MCH,z]); }
+      else if ((t === MT.STAIR || t === MT.LAND) && f === 2) lists.cceil.push([x,Y+MFH-0.04,z]);
+    } }
+  const inst = (geo, mat, list, tint) => { if (!list.length) return null; const m = new THREE.InstancedMesh(geo, mat, list.length); list.forEach((p,k)=>{ tmpM.makeTranslation(p[0], p[1], p[2]); m.setMatrixAt(k, tmpM); if (tint) m.setColorAt(k, tmpC.setHex(p[3])); }); m.frustumCulled = false; g.add(m); return m; };
+  inst(cellPlane(2,false), tileM, lists.tile); inst(cellPlane(3,false), checkM, lists.check); inst(cellPlane(2,false), carpetM, lists.carpet, true); inst(cellPlane(1,false), concM, lists.conc);
+  inst(cellPlane(2,true), ceilM, lists.ceil); inst(cellPlane(CS/0.6,true), ceilM, lists.sceil); inst(cellPlane(1,true), lam(0xffffff,{ map:mallSlabTex }), lists.cceil);
+  { const sg = new THREE.PlaneGeometry(3.2,3.2); sg.rotateX(Math.PI/2); inst(sg, new THREE.MeshBasicMaterial({ color:0x26303e }), lists.sky.map(p=>[p[0],p[1]+0.01,p[2]]));
+    const fr = new THREE.InstancedMesh(new THREE.BoxGeometry(CS,0.06,0.4), lam(0xcfcac0), Math.max(1, lists.sky.length*2)); lists.sky.forEach((p,k)=>{ for (const s of [0,1]){ tmpM.makeTranslation(p[0], p[1]-0.02, p[2]+(s?1.8:-1.8)); fr.setMatrixAt(k*2+s, tmpM); } }); fr.frustumCulled = false; g.add(fr);
+    inst(cellPlane(2,true), ceilM, lists.sky.map(p=>[p[0],p[1]+0.6,p[2]])); }
+  // ---- walls, railings, the slab edges around the atrium
+  const wl = [[],[]], seen = new Set();   // [mall walls, concrete walls]: [x, y, z, sx, sy, sz]
+  const noWall = new Set([L.secDoor.e, L.ogDoor ? L.ogDoor.e : -1]);
+  const glassEdges = [], crossSet = new Set(L.crossE);
+  for (let f=0; f<3; f++){ const Y = mBaseY(f);
+    for (let i=0;i<MF;i++) for (let j=0;j<MF;j++) for (const [a,b] of nbr4){ const ni=i+a, nj=j+b, e = eOf(f,i,j,ni,nj); if (seen.has(e)) continue; seen.add(e);
+      const t0 = T[f][i*MF+j], t1 = tAt(f,ni,nj);
+      const sp0 = mSpecial(t0), sp1 = mSpecial(t1); if (sp0 && sp1) continue;
+      const [ex, ez] = edgeMid(e), x = ex - MO[f][0]*CS, z = ez - MO[f][1]*CS, alongZ = e < VN;
+      const tw = sp0 ? t0 : t1, to = sp0 ? t1 : t0;
+      if ((sp0 || sp1) && (tw === MT.VOID || tw === MT.ESC || (tw === MT.STAIR && to === MT.LAND))){ glassEdges.push({ f, e, cross: crossSet.has(e), x0: alongZ ? x : x-CS/2, z0: alongZ ? z-CS/2 : z, x1: alongZ ? x : x+CS/2, z1: alongZ ? z+CS/2 : z, voidE: tw === MT.VOID, ox: alongZ ? (sp0 ? -a : a) : 0, oz: alongZ ? 0 : (sp0 ? -b : b) }); continue; }
+      if (!walls[e] && ((t0 === MT.LAND && mOpen(t1)) || (t1 === MT.LAND && mOpen(t0)))){ wl[1].push([x, Y+(2.8+MFH)/2, z, alongZ ? 0.2 : CS+0.2, MFH-2.8, alongZ ? CS+0.2 : 0.2]); continue; }
+      if (!walls[e] || noWall.has(e)) continue;
+      const stair = [t0,t1].some(t=>t === MT.STAIR || t === MT.LAND), dock = [t0,t1].some(t=>t === MT.DOCK), H = stair ? MFH : MCH;
+      wl[stair || dock ? 1 : 0].push([x, Y+H/2, z, alongZ ? 0.2 : CS+0.2, H, alongZ ? CS+0.2 : 0.2]); } }
+  [wallM, cwallM].forEach((m,k)=>{ if (!wl[k].length) return; const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), m, wl[k].length);
+    wl[k].forEach((w,q)=>{ tmpQ.identity(); tmpV.set(w[0],w[1],w[2]); tmpS.set(w[3],w[4],w[5]); tmpM.compose(tmpV,tmpQ,tmpS); im.setMatrixAt(q,tmpM); }); im.frustumCulled = false; g.add(im); });
+  const rail = (f, x0, z0, x1, z1) => { const len = Math.hypot(x1-x0, z1-z0); if (len < 0.05) return; const Y = mBaseY(f), rg = new THREE.Group(); rg.position.set((x0+x1)/2, Y, (z0+z1)/2); rg.rotation.y = Math.atan2(z1-z0, x1-x0) * -1; g.add(rg);
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.9), glassM); p.position.y = 0.55; rg.add(p); bx(rg, len+0.06,0.08,0.12, 0,1.05,0, railM); bx(rg, len+0.04,0.12,0.14, 0,0.06,0, kickM);
+    for (let k=0;k<=Math.floor(len/2);k++) bx(rg, 0.05,1.05,0.05, -len/2 + Math.min(len, k*2), 0.52, 0, kickM); };
+  // the crossing edges: glass only beside the lane(s)
+  for (const s of glassEdges) if (!s.cross) rail(s.f, s.x0, s.z0, s.x1, s.z1);
+  for (const r of railSegs) rail(r.f, r.x0, r.z0, r.x1, r.z1);
+  // slab edges (white bands) around the void on floors 2 and 3, the high band up to the skylight on the top floor
+  for (const s of glassEdges){ if (!s.voidE) continue; const Y = mBaseY(s.f), mx = (s.x0+s.x1)/2 + s.ox*0.15, mz = (s.z0+s.z1)/2 + s.oz*0.15, alongZ = s.x0 === s.x1;
+    bx(g, alongZ ? 0.3 : CS, 0.6, alongZ ? CS : 0.3, mx, Y-0.3, mz, bandM);
+    if (s.f === 2) bx(g, alongZ ? 0.3 : CS, MSKY-MCH, alongZ ? CS : 0.3, mx, Y+(MSKY+MCH)/2, mz, bandM); }
+  // the atrium: skylight over the void, red columns at its corners going all the way up, stone columns on the walkway
+  { const Ytop = mBaseY(2) + MSKY, a0 = 24, a1 = 40, am = 32;
+    const sk = new THREE.Mesh(new THREE.PlaneGeometry(16,16), new THREE.MeshBasicMaterial({ color:0x2a3446 })); sk.rotation.x = Math.PI/2; sk.position.set(am, Ytop, am); g.add(sk);
+    for (let k=-3;k<=3;k++){ bx(g, 16.2,0.1,0.14, am, Ytop-0.05, am+k*2.6, lam(0xbfbab0)); bx(g, 0.14,0.1,16.2, am+k*2.6, Ytop-0.05, am, lam(0xbfbab0)); }
+    for (const [x,z] of [[a0,a0],[a1,a0],[a0,a1],[a1,a1]]){ bx(g, 0.7, 3*MFH, 0.7, x, 1.5*MFH, z, redM); for (let f=0; f<3; f++) C(f, x, z, 0.5); }
+    for (let f=0; f<3; f++) for (const [x,z] of [[20,20],[44,20],[20,44],[44,44]]){ bx(g, 0.6, MCH, 0.6, x, mBaseY(f)+MCH/2, z, stoneM); C(f, x, z, 0.42); } }
+  // ---- escalators + stairs
+  const ribbon = (pts, mat) => { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pts.pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(pts.uv, 2)); geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; g.add(m); return m; };
+  const prof = [0, RAMP0, RAMP1, 1];
+  // a surface along a lane: flat across [c0,c1] at height h(p)+dy, or (wall) a vertical strip at c0 from h+dy to h+dy2
+  const strip = (ln, Y, c0, c1, dy, dy2, wall) => { const pos = [], uv = [];
+    for (let s=0;s<3;s++){ const pa = prof[s], pb = prof[s+1], ha = laneH(pa), hb = laneH(pb), ua = pa*ln.len/0.42, ub = pb*ln.len/0.42;
+      const V = (p, c, y) => { const [x,z] = laneXZ(ln, p, c); return [x, Y + y, z]; };
+      let q;
+      if (!wall) q = [V(pa,c0,ha+dy), V(pa,c1,ha+dy), V(pb,c1,hb+dy), V(pb,c0,hb+dy)];
+      else q = [V(pa,c0,ha+dy), V(pa,c0,ha+dy2), V(pb,c0,hb+dy2), V(pb,c0,hb+dy)];
+      const qu = [[0,ua],[1,ua],[1,ub],[0,ub]];
+      for (const k of [0,1,2,0,2,3]){ pos.push(...q[k]); uv.push(...qu[k]); } }
+    return { pos, uv }; };
+  const stepTex = [escStepTex.clone(), escStepTex.clone()]; stepTex.forEach(t=>{ t.needsUpdate = true; });
+  const stepM = stepTex.map(t=>lam(0xffffff,{ map:t, side:THREE.DoubleSide })), skirtM = lam(0x3a3a36, { side:THREE.DoubleSide }), escGlass = new THREE.MeshBasicMaterial({ color:0xa8c0bc, transparent:true, opacity:0.18, depthWrite:false, side:THREE.DoubleSide }), handM = new THREE.MeshBasicMaterial({ color:0x111111, side:THREE.DoubleSide });
+  L.escT = [{ t:stepTex[0], s:1 }, { t:stepTex[1], s:-1 }];
+  const stairStep = [], stairM = lam(0xffffff,{ map:mallSlabTex, side:THREE.DoubleSide });
+  MLANES.forEach(ln=>{ const Y = mBaseY(ln.f), b0 = ln.b0, b1 = ln.b1;
+    if (ln.esc){
+      ribbon(strip(ln, Y, b0+0.06, b1-0.06, 0.03, 0, false), stepM[ln.v > 0 ? 0 : 1]);
+      ribbon(strip(ln, Y, b0, b1, -0.9, 0, false), skirtM);
+      for (const c of [b0, b1]){ ribbon(strip(ln, Y, c, c, 0.0, -0.9, true), skirtM); ribbon(strip(ln, Y, c, c, 0.12, 0.98, true), escGlass); ribbon(strip(ln, Y, c, c, 0.95, 1.05, true), handM); }
+      // the landing plates at both ends
+      for (const p of [0.02, 0.985]){ const [x,z] = laneXZ(ln, p, (b0+b1)/2); bx(g, ln.ax === 'x' ? 0.5 : b1-b0, 0.04, ln.ax === 'x' ? b1-b0 : 0.5, x, Y + laneH(p) + 0.02, z, lam(0x9a9a92)); }
+    } else {
+      const n = 18; for (let k=0;k<n;k++){ const pa = RAMP0 + (RAMP1-RAMP0)*k/n, pb = RAMP0 + (RAMP1-RAMP0)*(k+1)/n, h = MFH*(k+1)/n, [x,z] = laneXZ(ln, (pa+pb)/2, (b0+b1)/2);
+        stairStep.push([x, Y + h - 0.16, z, ln.ax === 'x' ? Math.abs(pb-pa)*ln.len+0.02 : b1-b0, 0.32, ln.ax === 'x' ? b1-b0 : Math.abs(pb-pa)*ln.len+0.02]); }
+      ribbon(strip(ln, Y, b0, b1, -0.4, 0, false), stairM);
+      for (const [p0, p1, h] of [[0, RAMP0, 0], [RAMP1, 1, MFH]]){ const [x,z] = laneXZ(ln, (p0+p1)/2, (b0+b1)/2), l = (p1-p0)*ln.len; bx(g, ln.ax === 'x' ? l : b1-b0, 0.3, ln.ax === 'x' ? b1-b0 : l, x, Y + h - 0.15, z, stairM); }
+      for (const c of [b0 - 0.05, b1 + 0.05]){ ribbon(strip(ln, Y, c, c, 0.86, 0.94, true), metalM); for (let k=1;k<=7;k++){ const p = k/8, [x,z] = laneXZ(ln, p, c); bx(g, 0.05, 0.9, 0.05, x, Y + laneH(p) + 0.45, z, metalM); } }
+    } });
+  if (stairStep.length){ const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), stairM, stairStep.length); stairStep.forEach((w,q)=>{ tmpQ.identity(); tmpV.set(w[0],w[1],w[2]); tmpS.set(w[3],w[4],w[5]); tmpM.compose(tmpV,tmpQ,tmpS); im.setMatrixAt(q,tmpM); }); im.frustumCulled = false; g.add(im); }
+  L.escPos = MLANES.filter(ln=>ln.esc).map(ln=>{ const [x,z] = laneXZ(ln, 0.5, (ln.b0+ln.b1)/2); return mLog(ln.f, x, z); });
+  // stairwell signs: big painted floor numbers on the landings, and a sign at each stairwell door
+  for (let f=0; f<3; f++) for (const [i,j,nx,nz] of [[14,5,-1,0],[14,9,-1,0],[1,6,1,0],[1,10,1,0]]){ if (tAt(f,i,j) !== MT.LAND) continue; const Y = mBaseY(f);
+    const num = new THREE.Mesh(new THREE.PlaneGeometry(1.4,1.4), mallTextPlane(String(f+1), 1, 1, '#9a968c', '#2a2622', 'bold 150px monospace'));
+    num.position.set(nx < 0 ? 64-0.11 : 0.11, Y+2.2, cc(j)); num.rotation.y = nx < 0 ? -Math.PI/2 : Math.PI/2; g.add(num);
+    const s = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.32), mallTextPlane('STAIRS · FLOOR ' + (f+1), 1.6, 0.32, '#0c2a14', '#7aff9a')); s.position.set(nx < 0 ? 56 - 0.12 : 8 + 0.12, Y+2.9, cc(j)); s.rotation.y = nx < 0 ? -Math.PI/2 : Math.PI/2; g.add(s); }
+  // ---- storefronts: header + sign over entrances, display windows, roll-down gates
   const signCols = ['#e8463a','#f2c84a','#5ad0e8','#e86ad8','#7ae86a','#f0f0f0'];
   const winMat = new THREE.MeshBasicMaterial({ color:0x121a1e }), frameMat = lam(0x9a968c), gateMat = lam(0xffffff,{ map:mallGateTex }), header = lam(0xe2ddd2);
-  L.mallSigns = [];
-  for (const st of stores){ if (!st.front.length) continue;
-    const entSet = new Set(st.ent.map(f=>f.e));
-    for (const f of st.front){ const [x,z] = edgeMid(f.e), ry = Math.atan2(f.nx, f.nz), ox = f.nx*0.115, oz = f.nz*0.115;
-      const fg = new THREE.Group(); fg.position.set(x+ox, 0, z+oz); fg.rotation.y = ry; g.add(fg);
-      if (entSet.has(f.e)){ const hd = bx(fg, CS, MALL_CH-MALL_SH, 0.24, 0, (MALL_CH+MALL_SH)/2, -0.115, header); }   // header over the open entrance
-      else if (st.closed){ const gt = new THREE.Mesh(new THREE.PlaneGeometry(CS-0.1, MALL_SH-0.05), gateMat); gt.position.y = (MALL_SH-0.05)/2; fg.add(gt); }
+  const edgeLocal = (f, fr) => { const e = eOf(f, fr.i, fr.j, fr.ni, fr.nj), [x,z] = edgeMid(e); return [x - MO[f][0]*CS, z - MO[f][1]*CS]; };
+  for (const st of stores){ if (!st.front.length) continue; const Y = mBaseY(st.f);
+    const entSet = new Set(st.ent.map(fr=>fr.i+','+fr.j+','+fr.nx+','+fr.nz));
+    for (const fr of st.front){ const [x,z] = edgeLocal(st.f, fr), ry = Math.atan2(fr.nx, fr.nz), ox = fr.nx*0.115, oz = fr.nz*0.115, isEnt = entSet.has(fr.i+','+fr.j+','+fr.nx+','+fr.nz);
+      const fg = new THREE.Group(); fg.position.set(x+ox, Y, z+oz); fg.rotation.y = ry; g.add(fg);
+      if (isEnt){ bx(fg, CS, MCH-MSH, 0.24, 0, (MCH+MSH)/2, -0.115, header);
+        if (st.kind === 'security'){ L.secG = fg; const dm = bx(fg, CS-0.6, MSH-0.05, 0.08, 0, (MSH-0.05)/2, -0.1, lam(0x6a6c6a)); L.secDoorM = dm; bx(fg, 0.2, MSH, 0.2, -CS/2+0.2, MSH/2, -0.1, wallM); bx(fg, 0.2, MSH, 0.2, CS/2-0.2, MSH/2, -0.1, wallM);
+          const kp = bx(fg, 0.18, 0.26, 0.05, CS/2-0.45, 1.3, 0.02, lam(0x2a2a28)); L.keypadLed = bx(fg, 0.04, 0.04, 0.02, CS/2-0.45, 1.4, 0.05, new THREE.MeshBasicMaterial({ color:0xff2010 }));
+          const sg = new THREE.Mesh(new THREE.PlaneGeometry(1.8,0.3), mallTextPlane('SECURITY · AUTHORIZED PERSONNEL ONLY', 1.8, 0.3, '#e8e4da', '#8a1a10', 'bold 16px monospace')); sg.position.set(0, 2.55, 0.05); fg.add(sg); }
+        if (st.kind === 'outfit'){ L.ogG = new THREE.Mesh(new THREE.PlaneGeometry(CS-0.1, MSH-0.05), gateMat); L.ogG.position.y = (MSH-0.05)/2; fg.add(L.ogG);
+          const cb = bx(fg, 0.22, 0.4, 0.14, CS/2-0.25, 1.1, 0.08, lam(0x8a2a1a)); bx(fg, 0.04, 0.3, 0.04, CS/2-0.25, 1.1, 0.18, metalM); } }
+      else if (st.closed){ const gt = new THREE.Mesh(new THREE.PlaneGeometry(CS-0.1, MSH-0.05), gateMat); gt.position.y = (MSH-0.05)/2; fg.add(gt); }
+      else if (st.kind === 'security'){ /* solid wall */ }
       else if (!st.vacant || rng() < 0.6){ const win = new THREE.Mesh(new THREE.PlaneGeometry(CS-0.5, 2.3), winMat); win.position.y = 1.5; fg.add(win);
         bx(fg, CS-0.4, 0.08, 0.04, 0, 2.66, 0, frameMat); bx(fg, CS-0.4, 0.3, 0.04, 0, 0.2, 0, frameMat); bx(fg, 0.06, 2.4, 0.04, 0, 1.5, 0, frameMat); } }
-    // sign: centred on the entrance (or the frontage if closed)
-    const ref = st.ent[0] || st.front[Math.floor(st.front.length/2)]; if (!st.name) continue;
-    const [x,z] = edgeMid(ref.e), ry = Math.atan2(ref.nx, ref.nz); const col = st.vacant ? '#c8c2b0' : signCols[Math.floor(rng()*signCols.length)];
-    const dead = !st.vacant && rng() < 0.3;
+    const ref = st.ent[0] || st.front[Math.floor(st.front.length/2)]; if (!st.name || st.kind === 'security') continue;
+    const [x,z] = edgeLocal(st.f, ref), ry = Math.atan2(ref.nx, ref.nz), col = st.vacant ? '#c8c2b0' : st.kind === 'arcade' ? '#e86ad8' : st.kind === 'outfit' ? '#7ae86a' : signCols[Math.floor(rng()*signCols.length)];
+    const dead = !st.kind && !st.vacant && rng() < 0.3;
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.5), dead ? lam(0xffffff,{ map: mallSignTex(st.name, '#3a3630') }) : new THREE.MeshBasicMaterial({ map: mallSignTex(st.name, col) }));
-    sign.position.set(x + ref.nx*0.24, MALL_SH + 0.3, z + ref.nz*0.24); sign.rotation.y = ry; g.add(sign); L.mallSigns.push(sign); }
-  // store interiors
+    sign.position.set(x + ref.nx*0.24, Y + MSH + 0.4, z + ref.nz*0.24); sign.rotation.y = ry; g.add(sign); }
+  // ---- placement helpers: free cells per store / per floor (local), wall spots
+  const used = new Set(), key = (f,i,j) => f*1024 + i*32 + j;
+  for (const st of stores) for (const fr of st.ent) used.add(key(st.f, fr.i, fr.j));
+  const spotIn = st => { const opts = st.cells.filter(([i,j])=>!used.has(key(st.f,i,j))); if (!opts.length) return null; const c = opts[Math.floor(rng()*opts.length)]; used.add(key(st.f,c[0],c[1])); return c; };
+  const openStores = f => stores.filter(st=>st.f === f && !st.kind && !st.closed && st.ent.length && st.type !== 'vacant');
+  const spots = [];   // wall spots facing into walkable cells (not shopfronts / railings / doors)
+  for (let f=0; f<3; f++) for (let i=0;i<MF;i++) for (let j=0;j<MF;j++){ const t = T[f][i*MF+j]; if (mSpecial(t)) continue;
+    for (const [a,b] of nbr4){ const ni=i+a, nj=j+b, e = eOf(f,i,j,ni,nj), t1 = tAt(f,ni,nj); if (!walls[e] || noWall.has(e) || mSpecial(t1)) continue;
+      const s0 = sAt(f,i,j), s1 = sAt(f,ni,nj); if ((s0 >= 0) !== (s1 >= 0) && (mOpen(t) || mOpen(t1))) continue;   // a shopfront
+      if (f === 0 && (t === MT.LOBBY) && (ni < 0 || nj < 0)) continue;
+      spots.push({ f, i, j, t, s:s0, x: cc(i)+a*(CS/2-0.1), z: cc(j)+b*(CS/2-0.1), nx:-a, nz:-b, used:false }); } }
+  const takeSpot = ok => { const c = shuffle188(spots.filter(s=>!s.used && ok(s)), rng)[0]; if (c){ c.used = true; for (const s of spots) if (s.f === c.f && Math.hypot(s.x-c.x, s.z-c.z) < 2.2) s.used = true; } return c; };
+  // ---- store interiors
   const rackM = lam(0x8a8a86), clothCols = [0x7a2a2a,0x2a4a7a,0x3a6a3a,0x8a7a3a,0x5a3a6a,0x222222,0xb0a890], shelfM = lam(0xd0ccc0), counterM = lam(0x6a5a48);
-  const used = new Set(); const entCell = new Set(); for (const st of stores) for (const f of st.ent){ entCell.add(f.i*N+f.j); }
-  const spotIn = st => { const opts = st.cells.filter(([i,j])=>!entCell.has(i*N+j) && !used.has(i*N+j)); if (!opts.length) return null; const c = opts[Math.floor(rng()*opts.length)]; used.add(c[0]*N+c[1]); return c; };
-  const mannequin = (x, z, ry) => { const m = new THREE.Group(); m.position.set(x,0,z); m.rotation.y = ry; g.add(m); const mt = SM && SM.man ? SM.man : lam(0xd8c8ae), j = SM && SM.joint ? SM.joint : lam(0x3a3028);
+  const mannequin = (f, x, z, ry) => { const m = new THREE.Group(); m.position.set(x, mBaseY(f), z); m.rotation.y = ry; g.add(m); const mt = SM && SM.man ? SM.man : lam(0xd8c8ae), jm = SM && SM.joint ? SM.joint : lam(0x3a3028);
     bx(m, 0.12,0.82,0.12, -0.1,0.41,0, mt); bx(m, 0.12,0.82,0.12, 0.1,0.41,0, mt); bx(m, 0.4,0.6,0.22, 0,1.12,0, mt); bx(m, 0.1,0.6,0.1, -0.27,1.1,0, mt); bx(m, 0.1,0.6,0.1, 0.27,1.1,0, mt);
-    bx(m, 0.08,0.1,0.08, 0,1.47,0, j); bx(m, 0.22,0.28,0.22, 0,1.65,0, mt); bx(m, 0.36,0.06,0.3, 0,0.03,0, j); L.circles.push({ x, z, r:0.3 }); };
-  for (const st of stores){ if (st.closed || st.type === 'stock' && !st.cells.length) continue;
-    const n = Math.min(st.cells.length, st.type === 'vacant' ? 1 : 3);
+    bx(m, 0.08,0.1,0.08, 0,1.47,0, jm); bx(m, 0.22,0.28,0.22, 0,1.65,0, mt); bx(m, 0.36,0.06,0.3, 0,0.03,0, jm); C(f, x, z, 0.3); };
+  const grp = (f, x, z, ry) => { const r = new THREE.Group(); r.position.set(x, mBaseY(f), z); r.rotation.y = ry; g.add(r); return r; };
+  const reserved = [];   // cells kept free for the goal items (picked before props)
+  // receipts: one per floor, plus one more on a random floor, each in a different open store
+  L.code = [0,1,2,3].map(()=>Math.floor(rng()*10)); L.rc = [];
+  { const fl = shuffle188([0,1,2, Math.floor(rng()*3)], rng), taken = new Set();
+    for (let k=0;k<4;k++){ const f = fl[k], st = shuffle188(openStores(f).filter(s=>!taken.has(s.id)), rng)[0] || shuffle188(openStores(f), rng)[0]; if (!st) continue; taken.add(st.id); const c = spotIn(st) || st.cells[0];
+      const x = cc(c[0]) + (rng()-0.5)*1.4, z = cc(c[1]) + (rng()-0.5)*1.4; L.rc.push({ x:LX(f,x), z:LZ(f,z), f, store:st.name }); } }
+  // the teddy, somewhere in a store
+  { const f = Math.floor(rng()*3), st = shuffle188(openStores(f), rng)[0]; const c = st ? (spotIn(st) || st.cells[0]) : [3,3]; L.teddy = [LX(f, cc(c[0]) + (rng()-0.5)*1.2), LZ(f, cc(c[1]) + (rng()-0.5)*1.2)]; L.teddyF = f; }
+  for (const st of stores){ if (st.closed || st.type === 'vacant' && rng() < 0.3) continue; const f = st.f, Y = mBaseY(f);
+    if (st.kind === 'security' || st.kind === 'arcade' || st.kind === 'outfit') continue;
+    const n = Math.min(st.cells.length, st.type === 'vacant' ? 1 : st.kind === 'dept' ? 8 : 3);
     for (let k=0;k<n;k++){ const c = spotIn(st); if (!c) break; const x = cc(c[0]) + (rng()-0.5)*0.8, z = cc(c[1]) + (rng()-0.5)*0.8, ry = Math.floor(rng()*4)*Math.PI/2;
-      if (st.type === 'clothes'){ if (k === 0 || rng() < 0.4){ mannequin(x, z, Math.atan2(cc(st.ent[0] ? st.ent[0].i : c[0]) - x + 0.001, cc(st.ent[0] ? st.ent[0].j : c[1]) - z)); continue; }
-        const r = new THREE.Group(); r.position.set(x,0,z); r.rotation.y = ry; g.add(r); bx(r, 1.6,0.04,0.04, 0,1.45,0, rackM); bx(r, 0.04,1.45,0.04, -0.78,0.72,0, rackM); bx(r, 0.04,1.45,0.04, 0.78,0.72,0, rackM); bx(r, 0.5,0.03,0.4, -0.78,0.02,0, rackM); bx(r, 0.5,0.03,0.4, 0.78,0.02,0, rackM);
+      if (st.type === 'clothes'){ const e0 = st.ent[0]; if (k === 0 || rng() < 0.4){ mannequin(f, x, z, Math.atan2(cc(e0 ? e0.i : c[0]) - x + 0.001, cc(e0 ? e0.j : c[1]) - z)); continue; }
+        const r = grp(f, x, z, ry); bx(r, 1.6,0.04,0.04, 0,1.45,0, rackM); bx(r, 0.04,1.45,0.04, -0.78,0.72,0, rackM); bx(r, 0.04,1.45,0.04, 0.78,0.72,0, rackM); bx(r, 0.5,0.03,0.4, -0.78,0.02,0, rackM); bx(r, 0.5,0.03,0.4, 0.78,0.02,0, rackM);
         for (let q=0;q<6;q++) bx(r, 0.06,0.75,0.42, -0.6+q*0.24, 1.05, 0, lam(clothCols[Math.floor(rng()*clothCols.length)]));
-        L.circles.push({ x: x + Math.cos(ry)*0.6, z: z - Math.sin(ry)*0.6, r:0.4 }, { x: x - Math.cos(ry)*0.6, z: z + Math.sin(ry)*0.6, r:0.4 }); }
-      else if (st.type === 'shelves' || st.type === 'stock'){ const r = new THREE.Group(); r.position.set(x,0,z); r.rotation.y = ry; g.add(r); bx(r, 1.8,1.6,0.6, 0,0.8,0, shelfM);
+        C(f, x + Math.cos(ry)*0.6, z - Math.sin(ry)*0.6, 0.4); C(f, x - Math.cos(ry)*0.6, z + Math.sin(ry)*0.6, 0.4); }
+      else if (st.type === 'shelves' || st.type === 'stock'){ const r = grp(f, x, z, ry); bx(r, 1.8,1.6,0.6, 0,0.8,0, shelfM);
         for (let q=0;q<4;q++) for (let b=0;b<5;b++) if (rng() < 0.6) bx(r, 0.26,0.24,0.62, -0.68+b*0.34, 0.25+q*0.4, 0, lam(clothCols[Math.floor(rng()*clothCols.length)]));
-        L.circles.push({ x: x + Math.cos(ry)*0.5, z: z - Math.sin(ry)*0.5, r:0.5 }, { x: x - Math.cos(ry)*0.5, z: z + Math.sin(ry)*0.5, r:0.5 }); }
-      else if (st.type === 'electronics'){ const r = new THREE.Group(); r.position.set(x,0,z); r.rotation.y = ry; g.add(r); bx(r, 1.6,0.9,0.6, 0,0.45,0, counterM);
+        C(f, x + Math.cos(ry)*0.5, z - Math.sin(ry)*0.5, 0.5); C(f, x - Math.cos(ry)*0.5, z + Math.sin(ry)*0.5, 0.5); }
+      else if (st.type === 'electronics'){ const r = grp(f, x, z, ry); bx(r, 1.6,0.9,0.6, 0,0.45,0, counterM);
         for (const sx of [-0.45,0.45]){ bx(r, 0.55,0.42,0.4, sx,1.12,0, lam(0x2a2620)); const sc = new THREE.Mesh(new THREE.PlaneGeometry(0.44,0.32), new THREE.MeshBasicMaterial({ map:tvTex })); sc.position.set(sx,1.13,0.205); r.add(sc); }
-        L.circles.push({ x, z, r:0.8 }); L.tvs.push({ x, z }); }
-      else { const r = new THREE.Group(); r.position.set(x,0,z); r.rotation.y = ry; g.add(r); bx(r, 0.5,1.7,0.08, 0,0.85,0.1, lam(0x8a7a50)); bx(r, 0.5,0.04,0.6, 0,1.2,0, lam(0x8a7a50));   // a ladder left behind
-        const sheet = new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.4), new THREE.MeshLambertMaterial({ color:0xe0e4e0, transparent:true, opacity:0.4, side:THREE.DoubleSide, depthWrite:false })); sheet.position.set(0.9,1.3,0); sheet.rotation.y = 0.4; r.add(sheet); L.circles.push({ x, z, r:0.4 }); } }
-    // a checkout counter just inside the entrance of most open stores
-    if (st.ent[0] && st.type !== 'vacant' && st.cells.length >= 2){ const f = st.ent[0], x = cc(f.i) - f.nx*0.6 + (f.nz ? 1.2 : 0), z = cc(f.j) - f.nz*0.6 + (f.nx ? 1.2 : 0);
-      const r = new THREE.Group(); r.position.set(x,0,z); r.rotation.y = Math.atan2(f.nx, f.nz); g.add(r); bx(r, 1.4,0.95,0.55, 0,0.47,0, counterM); bx(r, 0.36,0.22,0.3, 0.3,1.06,0, lam(0x3a3a38)); L.circles.push({ x, z, r:0.55 }); } }
-  // food court: tables + chairs, two kiosks
-  { const chairCols = [0xd8742a, 0x2a9a9a, 0xd8c02a]; const tblM = lam(0xcfc8b8), postM = lam(0x3a3a38);
-    for (let i=15;i<=19;i++) for (let j=4;j<=9;j++){ if ((i+j)%2 || rng() < 0.25) continue; const x = cc(i) + (rng()-0.5)*0.6, z = cc(j) + (rng()-0.5)*0.6;
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.05,10), tblM); t.position.set(x,0.75,z); g.add(t); bx(g, 0.08,0.75,0.08, x,0.37,z, postM);
+        C(f, x, z, 0.8); L.tvs.push({ x:LX(f,x), z:LZ(f,z) }); }
+      else { const r = grp(f, x, z, ry); bx(r, 0.5,1.7,0.08, 0,0.85,0.1, lam(0x8a7a50)); bx(r, 0.5,0.04,0.6, 0,1.2,0, lam(0x8a7a50));
+        const sheet = new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.4), new THREE.MeshLambertMaterial({ color:0xe0e4e0, transparent:true, opacity:0.4, side:THREE.DoubleSide, depthWrite:false })); sheet.position.set(0.9,1.3,0); sheet.rotation.y = 0.4; r.add(sheet); C(f, x, z, 0.4); } }
+    if (st.ent[0] && st.type !== 'vacant' && st.cells.length >= 2){ const fr = st.ent[0], x = cc(fr.i) - fr.nx*0.6 + (fr.nz ? 1.2 : 0), z = cc(fr.j) - fr.nz*0.6 + (fr.nx ? 1.2 : 0);
+      const r = grp(f, x, z, Math.atan2(fr.nx, fr.nz)); bx(r, 1.4,0.95,0.55, 0,0.47,0, counterM); bx(r, 0.36,0.22,0.3, 0.3,1.06,0, lam(0x3a3a38)); C(f, x, z, 0.55); } }
+  // the arcade: rows of glowing cabinets, a prize counter, the claw machine
+  { const st = stores.find(s=>s.kind === 'arcade'), f = st.f, Y = mBaseY(f), fr = st.ent[0];
+    const scrCols = ['#3ae8ff','#ff3ad8','#ffe83a','#3aff6a','#ff6a3a'];
+    let k = 0; for (const [i,j] of st.cells){ if (st.ent.some(e=>e.i === i && e.j === j)) continue; const back = j === 0 ? -1 : j === 15 ? 1 : 0; if (!back) continue;
+      for (const sx of [-1, 1]){ const x = cc(i) + sx*1.0, z = cc(j) + (back ? back*1.4 : 0), ry = back < 0 ? 0 : Math.PI, r = grp(f, x, z, ry);
+        bx(r, 0.8,1.8,0.7, 0,0.9,0, lam(0x1a1626)); const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.6,0.45), new THREE.MeshBasicMaterial({ color: scrCols[(k++)%scrCols.length] })); scr.position.set(0,1.35,0.36); scr.rotation.x = -0.25; r.add(scr);
+        bx(r, 0.8,0.08,0.35, 0,1.0,0.45, lam(0x2a2236)); C(f, x, z, 0.5); } }
+    const cx = cc(fr.i) + (fr.nz ? 2.6 : 0) - fr.nx*1.8, cz = cc(fr.j) + (fr.nx ? 2.6 : 0) - fr.nz*1.8, ry = Math.atan2(fr.nx, fr.nz), r = grp(f, cx, cz, ry);
+    bx(r, 1.0,0.9,0.9, 0,0.45,0, lam(0xc8302a)); const box = new THREE.Mesh(new THREE.BoxGeometry(0.96,1.0,0.86), new THREE.MeshBasicMaterial({ color:0xb8e8ff, transparent:true, opacity:0.25, depthWrite:false })); box.position.y = 1.4; r.add(box);
+    for (let q=0;q<9;q++){ const p = new THREE.Mesh(new THREE.SphereGeometry(0.11,6,4), lam([0xe85a8a,0x5ad0e8,0xf2c84a,0x7ae86a][q%4])); p.position.set(-0.3+(q%3)*0.3, 1.0, -0.25+Math.floor(q/3)*0.25); r.add(p); }
+    L.claw = bx(r, 0.05,0.3,0.05, 0,1.75,0, metalM); bx(r, 1.0,0.18,0.9, 0,1.98,0, lam(0xc8302a));
+    const cs = new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.18), mallTextPlane('CLAW-O-MATIC', 0.9, 0.18, '#c8302a', '#ffe83a')); cs.position.set(0, 1.98, 0.46); r.add(cs);
+    L.clawPos = [LX(f,cx) + fr.nx*0.9, LZ(f,cz) + fr.nz*0.9]; C(f, cx, cz, 0.62); }
+  // the security office: monitors, a desk, the key cabinet on the back wall (the keys hang there)
+  { const st = secSt, f = st.f, Y = mBaseY(f), d = L.secDoor, xs = st.cells.map(c=>c[0]), zs = st.cells.map(c=>c[1]);
+    const i0 = Math.min(...xs), i1 = Math.max(...xs), j0 = Math.min(...zs), j1 = Math.max(...zs), bx0 = i0*CS, bx1 = (i1+1)*CS, bz0 = j0*CS, bz1 = (j1+1)*CS;
+    const backZ = d.nz > 0 ? bz0 + 0.25 : bz1 - 0.25, mid = (bx0+bx1)/2, inward = d.nz > 0 ? 1 : -1;
+    const desk = grp(f, mid, backZ + inward*1.6, d.nz > 0 ? Math.PI : 0); bx(desk, 3.0,0.85,0.8, 0,0.42,0, counterM);
+    for (let k=0;k<6;k++){ const mx = -1.2 + (k%3)*1.2, my = 1.25 + Math.floor(k/3)*0.5; bx(desk, 0.5,0.4,0.4, mx, my, 0.1, lam(0x2a2620)); const sc = new THREE.Mesh(new THREE.PlaneGeometry(0.42,0.32), new THREE.MeshBasicMaterial({ map:tvTex })); sc.position.set(mx, my, -0.11); sc.rotation.y = Math.PI; desk.add(sc); }
+    C(f, mid - 1.0, backZ + inward*1.6, 0.6); C(f, mid, backZ + inward*1.6, 0.6); C(f, mid + 1.0, backZ + inward*1.6, 0.6); L.tvs.push({ x:LX(f,mid), z:LZ(f, backZ + inward*1.6) });
+    const kx = mid + 3.4, cab = grp(f, kx, backZ, d.nz > 0 ? 0 : Math.PI); bx(cab, 0.8,1.0,0.12, 0,1.5,0, lam(0x6a6c6a));
+    for (let k=0;k<12;k++) bx(cab, 0.03,0.08,0.03, -0.3+(k%6)*0.12, 1.75-Math.floor(k/6)*0.3, 0.08, lam(0xc9a85a));
+    L.keys = [LX(f,kx), LZ(f, backZ + inward*0.6)]; L.keysF = f; L.secMon = [LX(f, mid), LZ(f, backZ + inward*2.4)];
+    const cam = grp(f, mid, backZ + inward*2.6, 0); cam.visible = false; }
+  // the outfitters: tents, backpacks, a counter with the big flashlight, two batteries
+  if (outSt){ const st = outSt, f = st.f, r0 = spotIn(st) || st.cells[0], x = cc(r0[0]), z = cc(r0[1]);
+    const r = grp(f, x, z, 0); bx(r, 1.4,0.95,0.55, 0,0.47,0, counterM); L.bigFL = [LX(f,x), LZ(f,z+0.5)]; C(f, x, z, 0.6);
+    const fl = new THREE.Group(); const body = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,0.42,8), lam(0xd8d020)); body.rotation.z = Math.PI/2; fl.add(body); const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,0.06,10), new THREE.MeshBasicMaterial({ color:0xfff6c8 })); lens.rotation.z = Math.PI/2; lens.position.x = 0.23; fl.add(lens);
+    fl.position.set(x, mBaseY(f)+1.02, z); g.add(fl); L.bigFLM = fl;
+    for (let k=0;k<2;k++){ const c = spotIn(st) || st.cells[0]; L.bt.push([LX(f, cc(c[0]) + (rng()-0.5)), LZ(f, cc(c[1]) + (rng()-0.5))]); }
+    const c2 = spotIn(st); if (c2){ const t = grp(f, cc(c2[0]), cc(c2[1]), rng()*6); const tent = new THREE.Mesh(new THREE.ConeGeometry(1.2, 1.4, 4), lam(0x3a6a3a)); tent.position.y = 0.7; tent.rotation.y = Math.PI/4; t.add(tent); C(f, cc(c2[0]), cc(c2[1]), 1.0); } }
+  // ---- the ground floor atrium: a dry fountain, the information desk (LOST & FOUND), planters
+  { const Y = 0, fx = 32, fz = 33;
+    const basin = new THREE.Mesh(new THREE.CylinderGeometry(2.4,2.5,0.5,16), stoneM); basin.position.set(fx, Y+0.25, fz); g.add(basin);
+    const inner = new THREE.Mesh(new THREE.CircleGeometry(2.15,16), lam(0x5a5a50)); inner.rotation.x = -Math.PI/2; inner.position.set(fx, Y+0.51, fz); g.add(inner);
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.35,1.6,8), stoneM); col.position.set(fx, Y+1.2, fz); g.add(col);
+    for (let k=0;k<30;k++){ const cn = new THREE.Mesh(new THREE.CircleGeometry(0.03,5), lam(0xb89a40)); cn.rotation.x = -Math.PI/2; cn.position.set(fx + (rng()-0.5)*3.4, Y+0.52, fz + (rng()-0.5)*3.4); g.add(cn); }
+    C(0, fx, fz, 2.55);
+    const ix = 32, iz = 38.6, desk = grp(0, ix, iz, 0); bx(desk, 4.2,1.05,1.0, 0,0.52,0, lam(0x2a4a6a)); bx(desk, 4.4,0.06,1.2, 0,1.08,0, lam(0xd8d0bc));
+    const s1 = new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.42), mallTextPlane('INFORMATION', 2.6, 0.42, '#1a3450', '#f2e8c8')); s1.position.set(0, 1.9, -0.05); s1.rotation.y = Math.PI; desk.add(s1); bx(desk, 0.06,0.9,0.06, -1.2,1.5,0, metalM); bx(desk, 0.06,0.9,0.06, 1.2,1.5,0, metalM);
+    const lf = new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.5), mallTextPlane('LOST & FOUND', 0.9, 0.5, '#e8e4da', '#2a2622', 'bold 22px monospace')); lf.position.set(1.4, 0.6, -0.51); lf.rotation.y = Math.PI; desk.add(lf);
+    const mic = bx(desk, 0.04,0.3,0.04, -0.8,1.25,0.1, metalM);
+    C(0, ix-1.6, iz, 0.7); C(0, ix-0.5, iz, 0.7); C(0, ix+0.5, iz, 0.7); C(0, ix+1.6, iz, 0.7); L.info = [ix, iz - 1.2];
+    // a poster at the desk: the lost teddy
+    const pt = textTex('', 96, 128, (c,w,h)=>{ c.fillStyle='#f4ead0'; c.fillRect(0,0,w,h); c.fillStyle='#b8241a'; c.font='bold 16px monospace'; c.textAlign='center'; c.fillText('LOST', w/2, 18); c.fillStyle='#8a5a2a'; c.beginPath(); c.arc(w/2, 58, 20, 0, 7); c.fill(); c.beginPath(); c.arc(w/2-16, 40, 8, 0, 7); c.arc(w/2+16, 40, 8, 0, 7); c.fill(); c.fillStyle='#222'; c.font='9px monospace'; c.fillText('HAVE YOU SEEN', w/2, 96); c.fillText('MR. BUTTONS?', w/2, 108); c.fillText('REWARD · INFO DESK', w/2, 121); });
+    const pp = new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.66), new THREE.MeshBasicMaterial({ map:pt })); pp.position.set(-1.6, 1.45, -0.52); pp.rotation.y = Math.PI; desk.add(pp); }
+  // ---- the top floor food court: tables, chairs, kiosks along the back wall
+  { const f = 2, Y = mBaseY(f), chairCols = [0xd8742a, 0x2a9a9a, 0xd8c02a], tblM = lam(0xcfc8b8), postM = lam(0x3a3a38);
+    for (let i=4;i<=11;i++) for (let j=12;j<=14;j++){ if ((i+j)%2 || rng() < 0.2 || (i>=7 && i<=8)) continue; const x = cc(i) + (rng()-0.5)*0.6, z = cc(j) + (rng()-0.5)*0.6;
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.05,10), tblM); t.position.set(x,Y+0.75,z); g.add(t); bx(g, 0.08,0.75,0.08, x,Y+0.37,z, postM);
       const cm = lam(chairCols[Math.floor(rng()*3)]);
-      for (let q=0;q<4;q++){ const a = q*Math.PI/2 + 0.3, cx = x + Math.sin(a)*0.85, cz = z + Math.cos(a)*0.85, c = new THREE.Group(); c.position.set(cx,0,cz); c.rotation.y = a + Math.PI + (rng()-0.5)*0.5; g.add(c);
-        if (rng() < 0.12){ c.rotation.z = Math.PI/2; c.position.y = 0.22; }
+      for (let q=0;q<4;q++){ const a = q*Math.PI/2 + 0.3, cx = x + Math.sin(a)*0.85, cz = z + Math.cos(a)*0.85, c = grp(f, cx, cz, a + Math.PI + (rng()-0.5)*0.5);
+        if (rng() < 0.12){ c.rotation.z = Math.PI/2; c.position.y = Y+0.22; }
         bx(c, 0.42,0.05,0.42, 0,0.45,0, cm); bx(c, 0.42,0.42,0.05, 0,0.7,-0.19, cm); bx(c, 0.05,0.45,0.05, 0,0.22,0, postM); }
-      L.circles.push({ x, z, r:0.75 }); }
-    const kn = ['WOK & ROLL','TACO TOWN','HOT DOG HUT'];
-    [[13.5, 5.2],[13.5, 8.6]].forEach(([ci,cj],k)=>{ const x = ci*CS, z = cj*CS, kg = new THREE.Group(); kg.position.set(x,0,z); g.add(kg);
-      bx(kg, 2.6,1.05,1.2, 0,0.52,0, lam(0x9a3a2a)); bx(kg, 2.8,0.08,1.4, 0,1.08,0, lam(0xcfc8b8)); bx(kg, 0.1,1.4,0.1, -1.2,1.8,0, postM); bx(kg, 0.1,1.4,0.1, 1.2,1.8,0, postM);
-      const s = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.45), new THREE.MeshBasicMaterial({ map: mallSignTex(kn[k], '#f2c84a') })); s.position.set(0, 2.55, 0.06); kg.add(s); const s2 = s.clone(); s2.rotation.y = Math.PI; s2.position.z = -0.06; kg.add(s2);
-      L.circles.push({ x: x-0.9, z, r:0.75 }, { x, z, r:0.75 }, { x: x+0.9, z, r:0.75 }); }); }
-  // benches, planters with dead plants, trash cans along the concourse; sale banners hanging from the ceiling
-  { const benchM = lam(0x6a4a2a), potM = lam(0xbfb8a8), deadM = lam(0x4a4024), canM = lam(0x3a3a38);
-    const spots = []; for (let i=0;i<N;i++) for (let j=0;j<N;j++) if (M[i*N+j] === 0 && !(i<=4 && j<=4)) spots.push([i,j]);
-    for (let k=spots.length-1;k>0;k--){ const r=Math.floor(rng()*(k+1)); [spots[k],spots[r]]=[spots[r],spots[k]]; }
-    let nb = 0;
-    for (const [i,j] of spots){ if (nb >= 26) break; if (L.used.has(i*N+j)) continue; const horiz = at(i-1,j) === 0 && at(i+1,j) === 0, x = cc(i) + (rng()-0.5)*0.4, z = cc(j) + (rng()-0.5)*0.4; L.used.add(i*N+j); nb++;
-      const kind = nb % 3;
-      if (kind === 0){ const b = new THREE.Group(); b.position.set(x,0,z); b.rotation.y = horiz ? 0 : Math.PI/2; g.add(b); bx(b, 1.8,0.08,0.5, 0,0.45,0, benchM); bx(b, 1.8,0.5,0.06, 0,0.75,-0.22, benchM); bx(b, 0.08,0.45,0.45, -0.8,0.22,0, canM); bx(b, 0.08,0.45,0.45, 0.8,0.22,0, canM);
-        L.circles.push({ x: x + (horiz ? 0.55 : 0), z: z + (horiz ? 0 : 0.55), r:0.4 }, { x: x - (horiz ? 0.55 : 0), z: z - (horiz ? 0 : 0.55), r:0.4 }); }
-      else if (kind === 1){ bx(g, 1.0,0.6,1.0, x,0.3,z, potM); for (let q=0;q<5;q++){ const st2 = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.9+rng()*0.6, 4), deadM); st2.position.set(x+(rng()-0.5)*0.6, 1.0, z+(rng()-0.5)*0.6); st2.rotation.set((rng()-0.5)*0.7, 0, (rng()-0.5)*0.7); g.add(st2); } L.circles.push({ x, z, r:0.65 }); }
-      else { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.25,0.9,8), canM); c.position.set(x,0.45,z); g.add(c); L.circles.push({ x, z, r:0.3 }); } }
-    const bann = ['SALE · 50% OFF','EVERYTHING MUST GO','THANK YOU FOR SHOPPING','STORE CLOSING','BACK TO SCHOOL'];
-    for (let k=0;k<6;k++){ const [i,j] = spots[(k*7+3) % spots.length]; const horiz = at(i-1,j) === 0 && at(i+1,j) === 0;
-      const t = bann[Math.floor(rng()*bann.length)], tex = textTex(t, 256, 48, (c,w,h,s)=>{ c.fillStyle='#b8241a'; c.fillRect(0,0,w,h); c.fillStyle='#f4ead0'; c.font='bold 24px monospace'; c.textAlign='center'; c.fillText(s, w/2, 32); });
-      const b = new THREE.Mesh(new THREE.PlaneGeometry(3.0,0.56), new THREE.MeshLambertMaterial({ map:tex, side:THREE.DoubleSide })); b.position.set(cc(i), MALL_CH-0.75, cc(j)); b.rotation.y = horiz ? Math.PI/2 : 0; b.rotation.z = (rng()-0.5)*0.12; g.add(b);
-      bx(g, 0.01,0.45,0.01, cc(i)-1.2*(horiz?0:1), MALL_CH-0.25, cc(j)-1.2*(horiz?1:0), lam(0x222222)); bx(g, 0.01,0.45,0.01, cc(i)+1.2*(horiz?0:1), MALL_CH-0.25, cc(j)+1.2*(horiz?1:0), lam(0x222222)); } }
-  // the lobby: glass entrance doors to a black night outside (on the outer walls), a directory board
+      C(f, x, z, 0.75); }
+    const kn = ['WOK & ROLL','TACO TOWN','HOT DOG HUT','PIZZA PIT','SMOOTHIE STOP'];
+    [5, 7.5, 10].forEach((ci,k)=>{ const x = ci*CS, z = 63.0, kg = grp(f, x, z, Math.PI);
+      bx(kg, 3.2,1.05,1.0, 0,0.52,0, lam([0x9a3a2a,0x2a6a4a,0x8a6a1a][k])); bx(kg, 3.4,0.08,1.2, 0,1.08,0, lam(0xcfc8b8)); bx(kg, 3.4,0.6,0.1, 0,3.2,0.5, lam(0x1a1a18));
+      const s = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 0.5), new THREE.MeshBasicMaterial({ map: mallSignTex(kn[(k*2+Math.floor(rng()*2))%kn.length], '#f2c84a') })); s.position.set(0, 3.2, 0.56); kg.add(s);
+      C(f, x-1.0, z, 0.7); C(f, x, z, 0.7); C(f, x+1.0, z, 0.7); }); }
+  // ---- the loading dock (ground floor): pallets, crates, the roll-up gate and its control box
+  { const Y = 0, gz = cc(14), gx = 64;
+    L.exitPos = [LX(0, gx - 0.6), LZ(0, gz)];
+    const gg = new THREE.Group(); gg.position.set(gx - 0.12, Y, gz); gg.rotation.y = -Math.PI/2; g.add(gg);
+    const out = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6), new THREE.MeshBasicMaterial({ color:0x05070a })); out.position.set(0, 1.8, -0.04); gg.add(out);
+    L.door = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6), gateMat); L.door.position.set(0, 1.8, 0.02); gg.add(L.door); L.doorMatLocked = L.doorMatOpen = gateMat; L.dockGate = L.door;
+    bx(gg, 4.0, 0.4, 0.3, 0, 3.8, 0.1, lam(0x3a3c3c)); bx(gg, 0.2, 3.8, 0.25, -1.9, 1.9, 0.08, lam(0xd8b020)); bx(gg, 0.2, 3.8, 0.25, 1.9, 1.9, 0.08, lam(0xd8b020));
+    const ds = new THREE.Mesh(new THREE.PlaneGeometry(1.6,0.3), mallTextPlane('LOADING DOCK 3', 1.6, 0.3, '#d8b020', '#111')); ds.position.set(0, 4.2, 0.06); gg.add(ds);
+    const cbx = gx - 0.14, cbz = gz - 3.0, cb = grp(0, cbx, cbz, -Math.PI/2); bx(cb, 0.5,0.7,0.2, 0,1.3,0, lam(0x5a6a5a)); L.gateLed = bx(cb, 0.06,0.06,0.03, 0.14,1.5,0.11, new THREE.MeshBasicMaterial({ color:0xff2010 })); bx(cb, 0.1,0.12,0.04, -0.1,1.2,0.11, lam(0x111111));
+    const kh = new THREE.Mesh(new THREE.PlaneGeometry(0.42,0.12), mallTextPlane('KEY · UP', 0.42, 0.12, '#222', '#e8e4da')); kh.position.set(0, 1.62, 0.105); cb.add(kh);
+    L.gateBox = [LX(0, cbx - 0.6), LZ(0, cbz)];
+    exitLight.position.set(LX(0, gx - 1.2), 1.8, LZ(0, gz)); exitLight.intensity = 0;
+    for (let k=0;k<7;k++){ const i = [12,13,14,15,14,13,15][k], j = [15,15,13,12,12,14,15][k]; if (i === 15 && j === 14) continue; const x = cc(i) + (rng()-0.5)*1.2, z = cc(j) + (rng()-0.5)*1.2;
+      const p = grp(0, x, z, rng()*0.5); bx(p, 1.2,0.14,1.0, 0,0.07,0, lam(0x8a6a3a)); const n = 1 + Math.floor(rng()*3); for (let s=0;s<n;s++) bx(p, 0.55,0.45,0.5, (s%2-0.5)*0.55, 0.37+Math.floor(s/2)*0.45, 0, lam(0x9a7a4a)); C(0, x, z, 0.7); }
+    // the service door from the ring
+    const [sx, sz] = edgeLocal(0, { i:12, j:14, ni:12, nj:13 }), sg = grp(0, sx, sz - 0.12, Math.PI); bx(sg, CS, MCH-2.6, 0.24, 0, (MCH+2.6)/2, 0, cwallM);
+    const st = new THREE.Mesh(new THREE.PlaneGeometry(2.4,0.34), mallTextPlane('SERVICE · EMPLOYEES ONLY', 2.4, 0.34, '#e8e4da', '#8a1a10', 'bold 18px monospace')); st.position.set(0, 2.9, 0.13); sg.add(st); }
+  // ---- the lobby (ground floor): glass doors to a black night, chained
   { const glassDoor = new THREE.MeshBasicMaterial({ color:0x05070a }), fr = lam(0x6a6a66);
-    for (const [x,z,ry] of [[cc(0),0.12,0],[cc(1),0.12,0],[0.12,cc(0),Math.PI/2],[0.12,cc(1),Math.PI/2]]){ const d = new THREE.Group(); d.position.set(x,0,z); d.rotation.y = ry; g.add(d);
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(3.4,2.6), glassDoor); p.position.y = 1.3; d.add(p); bx(d, 3.6,0.1,0.05, 0,2.65,0, fr); bx(d, 0.06,2.6,0.05, 0,1.3,0, fr); bx(d, 0.5,0.04,0.06, -0.3,1.1,0.03, fr); bx(d, 0.5,0.04,0.06, 0.3,1.1,0.03, fr); }
-    const dir = new THREE.Group(); dir.position.set(cc(3)+1.2, 0, cc(3)+1.2); dir.rotation.y = Math.PI*1.25; g.add(dir); bx(dir, 1.1,2.0,0.25, 0,1.0,0, lam(0x2a2a2c));
-    const dt = textTex('', 96, 160, (c,w,h)=>{ c.fillStyle='#0d1a24'; c.fillRect(0,0,w,h); c.fillStyle='#e8e0c8'; c.font='bold 11px monospace'; c.textAlign='center'; c.fillText('MALL DIRECTORY',w/2,14); c.strokeStyle='#5a8aa8'; c.strokeRect(10,24,w-20,h-40);
-      for (let k=0;k<14;k++){ c.fillStyle=['#a83a2a','#3a7a4a','#c8a83a','#3a5a9a'][k%4]; c.fillRect(14+(k%3)*24, 30+Math.floor(k/3)*20, 18, 14); } c.fillStyle='#ff4a3a'; c.beginPath(); c.arc(30,h-24,4,0,7); c.fill(); c.fillStyle='#e8e0c8'; c.font='9px monospace'; c.fillText('YOU ARE HERE?', w/2+8, h-21); });
-    const dp = new THREE.Mesh(new THREE.PlaneGeometry(0.9,1.5), new THREE.MeshBasicMaterial({ map:dt })); dp.position.set(0,1.2,0.13); dir.add(dp); L.circles.push({ x: cc(3)+1.2, z: cc(3)+1.2, r:0.5 }); }
-  // lights: panels in the concourse and stores (lots dead), none under skylights / in the atrium
-  const skySet = new Set(sky.map(([i,j])=>i*N+j));
-  for (let i=0;i<N;i++) for (let j=0;j<N;j++){ const m = M[i*N+j]; if (m === 3 || m === 2 || skySet.has(i*N+j)) continue;
-    const isStore = m === 1, st = isStore ? stores[sid[i*N+j]] : null;
-    if (st && st.closed) continue;
-    if (rng() > (isStore ? 0.6 : m === 4 ? 0.8 : 0.55)) continue;
-    const p = { idx:L.panels.length, i, j, t:0, x:cc(i), z:cc(j), y:(isStore ? MALL_SH : MALL_CH)-0.03, faulty: rng() < 0.22, dead: rng() < (st && st.vacant ? 0.7 : 0.28), red:false, ph: rng()*10, b:1, gk:-1 };
-    L.panelAt[i*N+j] = p.idx; L.panels.push(p); }
-  // the atrium: pendant lamps hanging from the high ceiling (like the photo), around the escalator well
-  for (const [i,j] of [[9,9],[9,14],[14,9],[14,14],[9,11.5],[14,11.5],[11.5,9],[11.5,14]]){ const x = (i+0.5)*CS, z = (j+0.5)*CS, y = 4.3;
-    bx(g, 0.02, MALL_AH-y, 0.02, x, (MALL_AH+y)/2, z, lam(0x222222));
-    const p = { idx:L.panels.length, i:Math.floor(i), j:Math.floor(j), t:0, x, z, y, sx:0.55, sy:0.22, sz:0.55, faulty: rng() < 0.3, dead: rng() < 0.25, red:false, ph: rng()*10, b:1, gk:-1 };
+    for (const [x,z,ry] of [[cc(0),0.12,0],[cc(1),0.12,0],[cc(2),0.12,0],[cc(3),0.12,0],[0.12,cc(0),Math.PI/2],[0.12,cc(1),Math.PI/2],[0.12,cc(2),Math.PI/2],[0.12,cc(3),Math.PI/2]]){ const d = grp(0, x, z, ry);
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(3.4,2.8), glassDoor); p.position.y = 1.4; d.add(p); bx(d, 3.6,0.1,0.05, 0,2.85,0, fr); bx(d, 0.06,2.8,0.05, 0,1.4,0, fr); bx(d, 0.5,0.04,0.06, -0.3,1.1,0.03, fr); bx(d, 0.5,0.04,0.06, 0.3,1.1,0.03, fr);
+      for (let k=0;k<6;k++) bx(d, 0.08,0.05,0.05, -0.2+k*0.08, 1.1 + Math.sin(k)*0.05, 0.06, lam(0x8a8a86)); } }
+  // ---- mall directories (one per floor): read one for a floor map
+  L.dirs = [];
+  const dirTex = textTex('', 96, 160, (c,w,h)=>{ c.fillStyle='#0d1a24'; c.fillRect(0,0,w,h); c.fillStyle='#e8e0c8'; c.font='bold 11px monospace'; c.textAlign='center'; c.fillText('MALL DIRECTORY',w/2,14); c.strokeStyle='#5a8aa8'; c.strokeRect(10,24,w-20,h-40);
+    for (let k=0;k<14;k++){ c.fillStyle=['#a83a2a','#3a7a4a','#c8a83a','#3a5a9a'][k%4]; c.fillRect(14+(k%3)*24, 30+Math.floor(k/3)*20, 18, 14); } c.fillStyle='#ff4a3a'; c.beginPath(); c.arc(30,h-24,4,0,7); c.fill(); c.fillStyle='#e8e0c8'; c.font='9px monospace'; c.fillText('YOU ARE HERE?', w/2+8, h-21); });
+  for (let f=0; f<3; f++){ const [x,z] = f === 0 ? [15.2, 15.2] : [20.9, 20.9], d = grp(f, x, z, -Math.PI*0.75); used.add(key(f, Math.floor(x/CS), Math.floor(z/CS))); bx(d, 1.1,2.0,0.25, 0,1.0,0, lam(0x2a2a2c));
+    const dp = new THREE.Mesh(new THREE.PlaneGeometry(0.9,1.5), new THREE.MeshBasicMaterial({ map:dirTex })); dp.position.set(0,1.2,0.13); d.add(dp); C(f, x, z, 0.55); L.dirs.push([LX(f, x - 0.8), LZ(f, z - 0.8)]); }
+  // ---- concourse dressing: benches, dead planters, trash cans, banners
+  { const benchM = lam(0x6a4a2a), potM = lam(0xbfb8a8), deadM = lam(0x4a4024), canM = lam(0x3a3a38);
+    for (let f=0; f<3; f++){ const Y = mBaseY(f), cells = [];
+      for (let i=0;i<MF;i++) for (let j=0;j<MF;j++){ const t = T[f][i*MF+j]; if (t === MT.CONC && !(i>=5 && i<=10 && j>=5 && j<=10) && !(f === 0 && i<=4 && j<=4) && !used.has(key(f,i,j))) cells.push([i,j]); }
+      shuffle188(cells, rng); let nb = 0;
+      for (const [i,j] of cells){ if (nb >= 9) break; used.add(key(f,i,j)); nb++; const horiz = tAt(f,i-1,j) === MT.CONC && tAt(f,i+1,j) === MT.CONC, x = cc(i) + (rng()-0.5)*0.4, z = cc(j) + (rng()-0.5)*0.4, kind = nb % 3;
+        if (kind === 0){ const b = grp(f, x, z, horiz ? 0 : Math.PI/2); bx(b, 1.8,0.08,0.5, 0,0.45,0, benchM); bx(b, 1.8,0.5,0.06, 0,0.75,-0.22, benchM); bx(b, 0.08,0.45,0.45, -0.8,0.22,0, canM); bx(b, 0.08,0.45,0.45, 0.8,0.22,0, canM);
+          C(f, x + (horiz ? 0.55 : 0), z + (horiz ? 0 : 0.55), 0.4); C(f, x - (horiz ? 0.55 : 0), z - (horiz ? 0 : 0.55), 0.4); }
+        else if (kind === 1){ bx(g, 1.0,0.6,1.0, x,Y+0.3,z, potM); for (let q=0;q<5;q++){ const s2 = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.9+rng()*0.6, 4), deadM); s2.position.set(x+(rng()-0.5)*0.6, Y+1.0, z+(rng()-0.5)*0.6); s2.rotation.set((rng()-0.5)*0.7, 0, (rng()-0.5)*0.7); g.add(s2); } C(f, x, z, 0.65); }
+        else { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.25,0.9,8), canM); c.position.set(x,Y+0.45,z); g.add(c); C(f, x, z, 0.3); } }
+      const bann = ['SALE · 50% OFF','EVERYTHING MUST GO','THANK YOU FOR SHOPPING','STORE CLOSING','BACK TO SCHOOL','GRAND RE-OPENING'];
+      for (let k=0;k<3;k++){ const [i,j] = cells[(k*5+2) % cells.length]; const horiz = tAt(f,i-1,j) === MT.CONC && tAt(f,i+1,j) === MT.CONC;
+        const t = bann[Math.floor(rng()*bann.length)], tex = textTex(t, 256, 48, (c,w,h,s)=>{ c.fillStyle='#b8241a'; c.fillRect(0,0,w,h); c.fillStyle='#f4ead0'; c.font='bold 24px monospace'; c.textAlign='center'; c.fillText(s, w/2, 32); });
+        const b = new THREE.Mesh(new THREE.PlaneGeometry(3.0,0.56), new THREE.MeshLambertMaterial({ map:tex, side:THREE.DoubleSide })); b.position.set(cc(i), Y+MCH-0.9, cc(j)); b.rotation.y = horiz ? Math.PI/2 : 0; b.rotation.z = (rng()-0.5)*0.12; g.add(b); } } }
+  // ---- lights: panels in the concourse, stores, landings and the dock (lots dead); pendants hanging into the atrium
+  for (let f=0; f<3; f++) for (let i=0;i<MF;i++) for (let j=0;j<MF;j++){ const t = T[f][i*MF+j]; if (mSpecial(t) || t === MT.CORE) continue;
+    const st = t === MT.STORE ? stores[SID[f][i*MF+j]] : null; if (st && (st.closed || st.type === 'stock')) continue;
+    const sky = f === 2 && t !== MT.STORE && t !== MT.DOCK && t !== MT.LAND && (((i===7||i===8) || (j===7||j===8)) || (t === MT.FOOD && (i+j)%3 === 0)) && !(i>=5 && i<=10 && j>=5 && j<=10);
+    if (sky || rng() > (st ? 0.62 : t === MT.FOOD ? 0.8 : t === MT.LAND ? 0.9 : t === MT.DOCK ? 0.55 : 0.55)) continue;
+    const p = { idx:L.panels.length, i:gi(f,i), j:gj(f,j), t:0, x:LX(f,cc(i)), z:LZ(f,cc(j)), y:(st ? MSH : t === MT.LAND ? MFH-0.2 : MCH)-0.03, faulty: rng() < 0.22, dead: rng() < (st && st.vacant ? 0.7 : t === MT.LAND ? 0.4 : 0.26), red:false, ph: rng()*10, b:1, gk:-1, f };
+    if (t === MT.LAND){ p.sx = 0.35; p.sy = 0.2; p.sz = 0.35; }
+    if (st && st.kind){ p.dead = st.kind === 'security' ? false : p.dead; if (st.kind === 'arcade'){ p.dead = rng() < 0.5; } }
+    L.panelAt[p.i*N+p.j] = p.idx; L.panels.push(p); }
+  for (const [x,z] of [[26,29],[38,29],[26,37],[38,37]]){ const y = 5.2; bx(g, 0.02, 2*MFH+MSKY-y, 0.02, x, (2*MFH+MSKY+y)/2, z, lam(0x222222));
+    const p = { idx:L.panels.length, i:cellOf(x), j:cellOf(z), t:0, x, z, y, sx:0.6, sy:0.26, sz:0.6, faulty: rng() < 0.3, dead: rng() < 0.2, red:false, ph: rng()*10, b:1, gk:-1, f:0 };
     if (L.panelAt[p.i*N+p.j] < 0) L.panelAt[p.i*N+p.j] = p.idx; L.panels.push(p); }
-  // spawn: the lobby; never place things in it
-  L.spawn = [cc(1), cc(1)];
+  // the atrium floor has no ceiling panels: under the pendants count as lit
+  L.panelMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial({ color:0xffffff }), Math.max(1, L.panels.length));
+  L.panels.forEach(p=>{ tmpV.set(p.x - MO[p.f][0]*CS, p.y + mBaseY(p.f), p.z - MO[p.f][1]*CS); tmpS.set(p.sx || 1.3, p.sy || 0.05, p.sz || 0.62); tmpQ.identity(); tmpM.compose(tmpV, tmpQ, tmpS); L.panelMesh.setMatrixAt(p.idx, tmpM); L.panelMesh.setColorAt(p.idx, tmpC.setRGB(1,1,1)); });
+  L.panelMesh.frustumCulled = false; g.add(L.panelMesh);
+  // ---- spawn points
+  L.start = [1,1]; L.spawn = [cc(1), cc(1)];
+  L.mspawn = mLog(2, cc(8), cc(14));
+  // ---- hiding: changing-room booths (in clothing stores where possible) and photo booths on the concourse, 3 per floor
+  const boothM = [lam(0x5a3e5a), lam(0x5a3e5a), lam(0x4a324a), lam(0x4a324a), lam(0xffffff,{ map: textTex('',32,64,(c,w,h)=>{ c.fillStyle='#7a2a3a'; c.fillRect(0,0,w,h); for (let x=0;x<w;x+=4){ c.fillStyle='rgba(30,10,15,.45)'; c.fillRect(x,0,2,h); } c.fillStyle='#c9a85a'; c.fillRect(0,4,w,2); }) }), lam(0x5a3e5a)];
+  for (let f=0; f<3; f++) for (let t=0;t<3;t++){ const s = takeSpot(q=>q.f === f && q.s >= 0 && stores[q.s].type === 'clothes' && !stores[q.s].closed) || takeSpot(q=>q.f === f && (q.t === MT.CONC || q.t === MT.FOOD || (q.s >= 0 && !stores[q.s].closed))); if (!s) break;
+    const ry = Math.atan2(s.nx, s.nz), lx = s.x + s.nx*0.42, lz = s.z + s.nz*0.42, lk = grp(f, lx, lz, ry); bx(lk, 0.95, 2.1, 0.8, 0, 1.05, 0, boothM);
+    L.lockers.push({ x:LX(f,lx), z:LZ(f,lz), ry, fx:LX(f, lx + s.nx*0.85), fz:LZ(f, lz + s.nz*0.85) }); C(f, lx, lz, 0.5); }
+  // ---- courtesy phones (2 per floor), batteries (4 per floor), puddles, scrawls
+  for (let f=0; f<3; f++){
+    for (let t=0;t<2;t++){ const s = takeSpot(q=>q.f === f && (q.t === MT.LAND || q.t === MT.CONC || q.t === MT.FOOD || q.t === MT.DOCK)) || takeSpot(q=>q.f === f); if (!s) break; const ph = grp(f, s.x + s.nx*0.06, s.z + s.nz*0.06, Math.atan2(s.nx, s.nz)); ph.position.y += 1.35;
+      bx(ph, 0.24,0.32,0.09, 0,0,0, lam(0xe2dccb)); const hs = bx(ph, 0.06,0.28,0.07, -0.15,0,0.05, lam(0xd8d0bc));
+      const pr = { x:LX(f, s.x + s.nx*0.7), z:LZ(f, s.z + s.nz*0.7), mesh:ph, hs, zoff:-0.045 }; L.phones.push(pr); phoneModel(pr); }
+    const free = []; for (let i=0;i<MF;i++) for (let j=0;j<MF;j++){ const t = T[f][i*MF+j]; if (mSpecial(t) || used.has(key(f,i,j)) || (f === 0 && i <= 3 && j <= 3)) continue; const st = t === MT.STORE ? stores[SID[f][i*MF+j]] : null; if (st && (st.closed || st.kind === 'security' || st.kind === 'outfit' || !st.ent.length && !st.link)) continue; free.push([i,j]); }
+    shuffle188(free, rng);
+    for (let t=0;t<4 && t<free.length;t++){ const [i,j] = free[t]; used.add(key(f,i,j)); L.bt.push([LX(f, cc(i) + (rng()-0.5)*1.2), LZ(f, cc(j) + (rng()-0.5)*1.2)]); }
+    for (let t=0;t<2 && t+4<free.length;t++){ const [i,j] = free[t+4], x = cc(i)+(rng()-0.5), z = cc(j)+(rng()-0.5);
+      const pd = new THREE.Mesh(new THREE.CircleGeometry(0.6+rng()*0.4,10), new THREE.MeshLambertMaterial({ color:0x2a2410, transparent:true, opacity:0.5, depthWrite:false })); pd.rotation.x = -Math.PI/2; pd.position.set(x, mBaseY(f)+0.012, z); g.add(pd);
+      L.drips.push({ x:LX(f,x), z:LZ(f,z), t:rng()*3 }); L.wet.push({ x:LX(f,x), z:LZ(f,z), r:0.9 }); }
+    const msgs = shuffle188(MALL_SCRAWLS.slice(), rng);
+    for (let t=0;t<3;t++){ const s = takeSpot(q=>q.f === f); if (!s) break; const txt = msgs[t];
+      const tex = textTex(txt,512,96,(c,w,h,tt)=>{ c.clearRect(0,0,w,h); c.save(); c.translate(w/2,h/2); c.rotate((rng()-0.5)*0.08); c.font='bold 34px "Special Elite", "Courier New", monospace'; c.textAlign='center'; c.fillStyle='rgba(70,18,8,.85)'; c.fillText(tt,0,10); c.restore(); });
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.5), new THREE.MeshLambertMaterial({ map:tex, transparent:true, depthWrite:false })); m.position.set(s.x + s.nx*0.012, mBaseY(f)+1.3+rng()*0.5, s.z + s.nz*0.012); m.rotation.y = Math.atan2(s.nx, s.nz); g.add(m); } }
+  for (const p of L.bt){ const [x,,z] = [p[0] - MO[floorAt852(p[0],p[1])][0]*CS, 0, p[1] - MO[floorAt852(p[0],p[1])][1]*CS], m = new THREE.Group(); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.3,8), lam(0xb8a640)); b.rotation.z = Math.PI/2; b.position.y = 0.08; m.add(b);
+    const cp = new THREE.Mesh(new THREE.CylinderGeometry(0.081,0.081,0.1,8), lam(0x222222)); cp.rotation.z = Math.PI/2; cp.position.set(0.1,0.08,0); m.add(cp); m.position.set(x, mBaseY(floorAt852(p[0],p[1])), z); m.rotation.y = rng()*6; g.add(m); L.btM.push(m); }
+  // ---- the goal items: receipts, the master keys, the teddy
+  L.rcM = L.rc.map(r=>{ const m = new THREE.Mesh(new THREE.PlaneGeometry(0.16,0.32), new THREE.MeshBasicMaterial({ color:0xfffbea })); m.rotation.x = -Math.PI/2; m.rotation.z = rng()*6; m.position.set(r.x - MO[r.f][0]*CS, mBaseY(r.f)+0.02, r.z - MO[r.f][1]*CS); g.add(m); return m; });
+  { const kg = new THREE.Group(); const ring = new THREE.Mesh(new THREE.TorusGeometry(0.07,0.012,5,12), new THREE.MeshBasicMaterial({ color:0xd8c060 })); kg.add(ring); for (let k=0;k<4;k++) bx(kg, 0.02,0.12,0.005, -0.04+k*0.027, -0.12, 0, new THREE.MeshBasicMaterial({ color:0xc8b050 })); g.add(kg); L.keysM = kg; }
+  { const tg = new THREE.Group(), fur = lam(0x8a5a2a); const b = new THREE.Mesh(new THREE.SphereGeometry(0.14,8,6), fur); b.position.y = 0.14; tg.add(b); const h = new THREE.Mesh(new THREE.SphereGeometry(0.1,8,6), fur); h.position.y = 0.33; tg.add(h);
+    for (const s of [-1,1]){ const e = new THREE.Mesh(new THREE.SphereGeometry(0.04,6,4), fur); e.position.set(s*0.07, 0.42, 0); tg.add(e); const a = new THREE.Mesh(new THREE.SphereGeometry(0.05,6,4), fur); a.position.set(s*0.14, 0.17, 0.03); tg.add(a); }
+    const bow = bx(tg, 0.1,0.04,0.03, 0,0.25,0.08, lam(0xb8241a)); g.add(tg); L.teddyM = tg; }
+  L.kind = new Uint8Array(N*N);
+  bakeStatic852(g, new Set([L.secDoorM, L.keypadLed, L.ogG, L.dockGate, L.gateLed, L.claw, L.bigFLM, L.keysM, L.teddyM, L.panelMesh, ...L.rcM, ...L.btM, ...L.phones.map(p=>p.mesh)].filter(Boolean)));
 }
-// escalator steps creep down, the muzak keeps playing, the escalators hum
-let mallMuz = null;
+// everything that never moves is merged into one mesh per look (material), so three floors of props stay cheap to draw
+function bakeStatic852(g, skip){
+  g.updateMatrixWorld(true);
+  const groups = new Map(), dead = [];
+  const keyOf = m => [m.type, m.color && m.color.getHexString(), m.map && m.map.uuid, m.transparent, m.opacity, m.side, m.emissive && m.emissive.getHexString(), m.emissiveMap && m.emissiveMap.uuid, m.depthWrite].join('|');
+  const visit = o => { if (skip.has(o)) return;
+    if (o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && !Array.isArray(o.material) && o.visible){
+      let geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); geo.applyMatrix4(o.matrixWorld);
+      for (const a of Object.keys(geo.attributes)) if (a !== 'position' && a !== 'normal' && a !== 'uv') geo.deleteAttribute(a);
+      if (!geo.attributes.normal) geo.computeVertexNormals(); if (!geo.attributes.uv) geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count*2), 2));
+      const k = keyOf(o.material); if (!groups.has(k)) groups.set(k, { mat:o.material, geos:[], ro:o.renderOrder }); groups.get(k).geos.push(geo); dead.push(o); }
+    for (const ch of o.children.slice()) visit(ch); };
+  for (const ch of g.children.slice()) visit(ch);
+  for (const o of dead){ o.parent && o.parent.remove(o); }
+  for (const G0 of groups.values()){ const geo = G0.geos.length === 1 ? G0.geos[0] : mergeGeometries(G0.geos); if (!geo) continue; const m = new THREE.Mesh(geo, G0.mat); m.renderOrder = G0.ro; g.add(m); }
+}
+
+// ---- every frame on every client: doors, gates, items, escalator steps, music, the PA
+let mallHold = null, mallMapT = 0, seenPam = -1, clawWon = false, clawCD = 0, sodaT = 0;
+const MALL_GATE_T = 8, MALL_CODE_T = 2.2, MALL_OG_T = 6, MALL_CLAW_T = 4;
+function mallFloorName(f){ return 'floor ' + (f+1); }
+function mallArea852(x, z){
+  const f = floorAt852(x, z), lx = x - MO[f][0]*CS, lz = z - MO[f][1]*CS, i = clamp(Math.floor(lx/CS), 0, MF-1), j = clamp(Math.floor(lz/CS), 0, MF-1), M = level.mall, t = M.T[f][i*MF+j];
+  if (t === MT.STORE){ const st = M.stores.find(s=>s.f === f && s.cells.some(c=>c[0] === i && c[1] === j)); return st && st.name ? (st.kind === 'security' ? 'the security office' : st.name) : 'a stockroom'; }
+  if (t === MT.FOOD) return 'the food court'; if (t === MT.DOCK) return 'the loading dock'; if (t === MT.LOBBY) return 'the entrance';
+  if (t === MT.LAND || t === MT.STAIR) return i > 8 ? 'the east stairs' : 'the west stairs';
+  const l = laneAt852(x, z); if (l) return l.ln.nm;
+  if (i >= 5 && i <= 10 && j >= 5 && j <= 10) return 'the atrium';
+  return ['the north','the south','the west','the east'][Math.abs(lz-32) > Math.abs(lx-32) ? (lz < 32 ? 0 : 1) : (lx < 32 ? 2 : 3)] + ' concourse';
+}
 function updateMall(dt){
-  const on = LK === 4 && level && level.mall && G.ph === 'play' && mode !== 'menu';
-  if (level && level.escTex){ level.escTex.offset.y = (level.escTex.offset.y + dt*0.25) % 1; }
+  if (LK !== 4 || !level || !level.mall){ if (mallMuz && mallMuz.g) mallMuz.g.gain.value = lerp(mallMuz.g.gain.value, 0, 1-Math.exp(-3*dt)); return; }
+  const L = level, on = G.ph === 'play' && mode !== 'menu';
+  for (const e of L.escT) e.t.offset.y = (e.t.offset.y - e.s*dt*0.65/0.42 + 10) % 1;
+  // doors that open during the round
+  if (L.secDoor){ walls[L.secDoor.e] = G.so ? 0 : 1; if (L.secDoorM){ const tx = G.so ? -(CS-0.7) : 0; L.secDoorM.position.x += (tx - L.secDoorM.position.x)*(1-Math.exp(-2.5*dt)); } if (L.keypadLed) L.keypadLed.material.color.setHex(G.so ? 0x30ff60 : (mallHold && mallHold.k === 'code' && Math.sin(nowS()*12) > 0) ? 0xffc020 : 0xff2010); }
+  if (L.ogDoor){ walls[L.ogDoor.e] = G.og ? 0 : 1; if (L.ogG){ const ty = G.og ? MSH-0.3 : (MSH-0.05)/2, k = 1-Math.exp(-1.6*dt); L.ogG.position.y += (ty - L.ogG.position.y)*k; L.ogG.scale.y += ((G.og ? 0.15 : 1) - L.ogG.scale.y)*k; } }
+  if (L.dockGate){ const op = G.open ? 1 : (mallHold && mallHold.k === 'gate') ? mallHold.t/MALL_GATE_T*0.25 : 0, ty = 1.8 + op*3.2, k = 1-Math.exp(-1.5*dt); L.dockGate.position.y += (ty - L.dockGate.position.y)*k; L.dockGate.scale.y += ((1-op*0.85) - L.dockGate.scale.y)*k; }
+  if (L.gateLed) L.gateLed.material.color.setHex(G.open ? 0x30ff60 : G.mk && G.mk[0] === 2 ? 0xffc020 : 0xff2010);
+  // items
+  const rc = G.rc|0; (L.rcM || []).forEach((m,k)=>{ m.visible = !(rc & (1<<k)); });
+  const putAt = (m, x, z, y) => { const f = floorAt852(x, z); m.position.set(x - MO[f][0]*CS, mBaseY(f) + floorY852(x, z) + y, z - MO[f][1]*CS); };
+  if (L.keysM){ const mk = G.mk; L.keysM.visible = !!mk && mk[0] === 0; if (L.keysM.visible){ const onHook = Math.hypot(mk[1]-L.keys[0], mk[2]-L.keys[1]) < 0.05; putAt(L.keysM, mk[1], mk[2], onHook ? 1.35 : 0.05); L.keysM.rotation.set(onHook ? 0 : Math.PI/2, nowS()*0.4, 0); } }
+  if (L.teddyM){ const td = G.td; L.teddyM.visible = !!td && (td[0] === 0 || td[0] === 2); if (td && td[0] === 0) putAt(L.teddyM, td[1], td[2], 0); else if (td && td[0] === 2){ L.teddyM.position.set(L.info[0] + 1.2, 1.1, L.info[1] + 1.2); } }
+  if (L.bigFLM) L.bigFLM.visible = !G.bf;
+  if (L.claw){ const busy = mallHold && mallHold.k === 'claw'; L.claw.position.y = 1.75 - (busy ? Math.abs(Math.sin(mallHold.t*1.6))*0.55 : 0); L.claw.position.x = busy ? Math.sin(mallHold.t*2.3)*0.25 : 0; }
+  // the PA: the reward for bringing the teddy back
+  if (on && G.pam && G.pam[0] !== seenPam){ seenPam = G.pam[0]; if (sfx.chime) sfx.chime(me.x, me.z); else if (sfx.ctx) sfx.tone(sfx.master, { f:880, dur:0.6, gain:0.05 });
+    setTimeout(()=>msg(role === 'monster' ? `The PA crackles: "Attention shoppers… a guest is waiting on ${mallFloorName(G.pam[1])}, ${G.pam[2]}." It's talking about you.` : `The PA crackles: "Attention shoppers… a guest is waiting on ${mallFloorName(G.pam[1])}, ${G.pam[2]}. Please avoid the area."`, 6), 700); }
+  // music + the escalator hum (the nearest escalator on your floor)
   if (!sfx.ctx) return;
   if (on && !mallMuz) mallMuz = sfx.mallStart();
   if (mallMuz){ const tgt = on ? 1 : 0; mallMuz.g.gain.value = lerp(mallMuz.g.gain.value, tgt*(silenced() ? 0.1 : 1), 1-Math.exp(-2*dt));
-    if (on){ const [ex,ez] = level.escPos; const P = mallMuz.esc; if (P.positionX){ P.positionX.value = ex; P.positionY.value = -1; P.positionZ.value = ez; } else P.setPosition(ex, -1, ez);
+    if (on){ const mf = floorAt852(me.x, me.z); let best = null, bd = 1e9; for (const p of L.escPos){ if (floorAt852(p[0], p[1]) !== mf && floorAt852(p[0], p[1]) !== mf - 1) continue; const q = floorAt852(p[0],p[1]) === mf ? p : mShift(p[0], p[1], mf-1, mf), d = Math.hypot(q[0]-me.x, q[1]-me.z); if (d < bd){ bd = d; best = q; } }
+      const P = mallMuz.esc; if (best){ if (P.positionX){ P.positionX.value = best[0]; P.positionY.value = 1; P.positionZ.value = best[1]; } else P.setPosition(best[0], 1, best[1]); }
       mallMuz.t -= dt; if (mallMuz.t <= 0){ mallMuz.t = 1.6 + Math.random()*0.8; sfx.muzakNote(mallMuz); } } }
+}
+// ---- host: the PA, items whose holder left
+function hostMall852(dt, ps){
+  const back = (a, home) => { if (a && a[0] === 1 && !ps.some(p=>p.pid === a[3])){ a[0] = 0; a[1] = +home[0].toFixed(2); a[2] = +home[1].toFixed(2); a[3] = ''; } };
+  back(G.mk, level.keys); back(G.td, level.teddy);
+  if (G.bf && !ps.some(p=>p.pid === G.bf)) G.bf = '';
+  if (G.pa){ H.paT = (H.paT ?? 4) - dt; if (H.paT <= 0){ H.paT = 40; const mp = G.mo === 'AI' ? { x:G.ax, z:G.az } : (ps.find(p=>p.pid === G.mo) || { x:G.ax, z:G.az });
+    G.pam = [((G.pam && G.pam[0])|0) + 1, floorAt852(mp.x, mp.z), mallArea852(mp.x, mp.z)]; } }
+}
+// ---- survivors: picking things up, carrying, the holds (keypad, gate, crank, claw)
+function mallSurvivor852(dt){
+  const L = level; if (!L || !L.rc) return;
+  sodaT = Math.max(0, sodaT - dt); clawCD = Math.max(0, clawCD - dt);
+  L.rc.forEach((r,k)=>{ if (!((G.rc|0) & (1<<k)) && Math.hypot(r.x-me.x, r.z-me.z) < 1.15){ G.rc = (G.rc|0) | (1<<k); useReq({ k:'rc', i:k }); sfx.pickup(); const n = [0,1,2,3].filter(q=>G.rc & (1<<q)).length;
+    msg(`A receipt from ${r.store}. Circled on the back, in pen: number ${k+1} is ${L.code[k]}. (${n}/4)`, 5); } });
+  const mk = G.mk;
+  if (mk && mk[0] === 0 && Math.hypot(mk[1]-me.x, mk[2]-me.z) < 1.2){ mk[0] = 1; mk[3] = myPid; useReq({ k:'mk' }); sfx.pickup(); me.loudT = 0.6; msg('The master keys. One of them says DOCK. The loading dock is on floor 1.', 5); }
+  if (mk && mk[0] === 1 && mk[3] === myPid && Math.hypot(L.gateBox[0]-me.x, L.gateBox[1]-me.z) < 1.9){ useReq({ k:'mkuse' }); if (!amHost()) mk[0] = 2; sfx.clunk(L.gateBox[0], L.gateBox[1]); msg('The key turns. The gate is unlocked. Now crank it up — hold USE. It\'s going to be LOUD.', 5); }
+  const td = G.td;
+  if (td && td[0] === 0 && Math.hypot(td[1]-me.x, td[2]-me.z) < 1.2){ td[0] = 1; td[3] = myPid; useReq({ k:'td' }); sfx.pickup(); msg('A teddy bear. The tag says MR. BUTTONS. Someone at the information desk (floor 1) is looking for it.', 5); }
+  if (td && td[0] === 1 && td[3] === myPid && Math.hypot(L.info[0]-me.x, L.info[1]-me.z) < 2.4){ useReq({ k:'tduse' }); if (!amHost()){ td[0] = 2; G.pa = 1; } msg('You leave Mr. Buttons on the desk. The PA system crackles on. From now on, it will tell you where it is.', 5); }
+  if (L.bigFL && G.og && !G.bf && Math.hypot(L.bigFL[0]-me.x, L.bigFL[1]-me.z) < 1.4){ G.bf = myPid; useReq({ k:'bf' }); sfx.pickup(); me.bat = 100; msg('A big camping flashlight. Brighter, wider, and the battery lasts much longer.', 5); }
+  // holds
+  if (mallHold){ const H0 = mallHold, near = Math.hypot(H0.x-me.x, H0.z-me.z) < 2.4;
+    if (!near || me.hidden >= 0 || !me.alive || (H0.k === 'code' && G.so) || (H0.k === 'gate' && G.open) || (H0.k === 'og' && G.og)){ mallHold = null; return; }
+    H0.t += dt; H0.s -= dt;
+    if (H0.k === 'gate'){ me.loudT = Math.max(me.loudT, 0.5); if (H0.s <= 0){ H0.s = 0.5; if (sfx.ctx){ const o = sfx.panner(H0.x, 2.5, H0.z, 6); sfx.noise(o,{ dur:0.35, type:'bandpass', freq:900, q:1.2, gain:0.9 }); sfx.tone(o,{ f:70, dur:0.3, gain:0.25 }); } if (Math.floor(H0.t) % 2 === 0) useReq({ k:'crank', x:+H0.x.toFixed(1), z:+H0.z.toFixed(1) }); vibrate(12); } }
+    else if (H0.k === 'og'){ if (H0.s <= 0){ H0.s = 0.45; if (sfx.ctx){ const o = sfx.panner(H0.x, 1.5, H0.z, 4); sfx.noise(o,{ dur:0.25, type:'bandpass', freq:1400, q:2, gain:0.6 }); } vibrate(10); } }
+    else if (H0.k === 'code'){ if (H0.s <= 0){ H0.s = MALL_CODE_T/4.5; if (sfx.ctx){ const o = sfx.panner(H0.x, 1.3, H0.z, 2); sfx.tone(o,{ f:1200 + Math.random()*500, dur:0.09, gain:0.08, attack:0.002 }); } } }
+    else if (H0.k === 'claw'){ if (H0.s <= 0){ H0.s = 0.28; if (sfx.ctx){ const o = sfx.panner(H0.x, 1.5, H0.z, 3); sfx.tone(o,{ f:[523,659,784,1047][Math.floor(H0.t*3.6)%4], type:'square', dur:0.12, gain:0.035 }); } } }
+    if (H0.t >= H0.T){ mallHold = null;
+      if (H0.k === 'gate'){ useReq({ k:'mgate' }); me.loudT = 2; }
+      else if (H0.k === 'og'){ useReq({ k:'og' }); msg('The gate rattles up into the ceiling.', 3); }
+      else if (H0.k === 'code'){ useReq({ k:'mcode' }); if (sfx.ctx){ const o = sfx.panner(H0.x, 1.3, H0.z, 3); sfx.tone(o,{ f:1600, dur:0.35, gain:0.1 }); } msg('The light goes green. The security office door slides open.', 4); }
+      else if (H0.k === 'claw'){ clawCD = 6; if (!clawWon && Math.random() < 0.55){ clawWon = true; sodaT = 75; me.stam = 100; sfx.pickup(); msg('The claw drops a can into the chute: BLAST ENERGY SODA. You drink it. You won\'t run out of breath so fast for a while.', 5); } else msg(clawWon ? 'Nothing. You already won your prize.' : 'The claw drops it. Again?', 2.5); } } }
+}
+function mallHoldStart(k, T, x, z){ mallHold = { k, t:0, T, x, z, s:0 }; }
+function mallAction852(){
+  if (LK !== 4 || !level || !level.rc || mallHold) return mallHold ? { label:'STOP', key:'E', fn:()=>{ mallHold = null; } } : null;
+  const L = level, d = (p, r) => p && Math.hypot(p[0]-me.x, p[1]-me.z) < r;
+  for (const p of L.dirs) if (d(p, 1.8)) return { label:'READ MAP', key:'E', fn:()=>{ mallMapT = 12; mallMapDraw(); } };
+  if (!G.so){ const sd = L.secDoor, kp = mallKeypad852(); if (d(kp, 1.9)){ const n = [0,1,2,3].filter(q=>(G.rc|0) & (1<<q)).length;
+    return n >= 4 ? { label:'ENTER CODE ' + L.code.join(''), key:'E', fn:()=>mallHoldStart('code', MALL_CODE_T, kp[0], kp[1]) } : { label:'KEYPAD', key:'E', fn:()=>msg(`It wants a 4-number code. You know ${n} of the numbers. The receipts…`, 3.5) }; } }
+  if (G.mk && G.mk[0] === 2 && !G.open && d(L.gateBox, 2.0)) return { label:'CRANK THE GATE', key:'E', fn:()=>{ mallHoldStart('gate', MALL_GATE_T, L.gateBox[0], L.gateBox[1]); msg('Keep holding… it\'s LOUD.', 2); } };
+  if (G.mk && G.mk[0] < 2 && !G.open && d(L.gateBox, 1.8)) return { label:'GATE CONTROL', key:'E', fn:()=>msg('A key switch. LOCKED. The master keys are in the security office.', 3.5) };
+  if (L.ogDoor && !G.og){ const og = mallOgPos852(); if (d(og, 1.9)) return { label:'CRANK THE GATE', key:'E', fn:()=>mallHoldStart('og', MALL_OG_T, og[0], og[1]) }; }
+  if (d(L.clawPos, 1.6) && clawCD <= 0) return { label:'PLAY THE CLAW', key:'E', fn:()=>mallHoldStart('claw', MALL_CLAW_T, L.clawPos[0], L.clawPos[1]) };
+  return null;
+}
+function mallKeypad852(){ const sd = level.secDoor, [x,z] = edgeMid(sd.e); return [x + sd.nx*0.8 + sd.nz*1.55, z + sd.nz*0.8 - sd.nx*1.55]; }   // along the edge = the door group's local +x
+function mallOgPos852(){ const sd = level.ogDoor, [x,z] = edgeMid(sd.e); return [x + sd.nx*0.8 + sd.nz*1.75, z + sd.nz*0.8 - sd.nx*1.75]; }
+function mallObj852(){
+  const L = level, mf = floorAt852(me.x, me.z) + 1, sf = L.secF + 1, n = [0,1,2,3].filter(q=>(G.rc|0) & (1<<q)).length, mk = G.mk || [0];
+  const code = L.code.map((d,k)=>((G.rc|0) & (1<<k)) ? d : '_').join(' '), who = mk[3] === myPid ? 'You have' : ((allPlayers().find(p=>p.pid === mk[3])||{}).n || 'Someone') + ' has';
+  if (G.open) return `The dock gate is open · floor 1 · you're on ${mf}`;
+  if (mk[0] === 2) return `Gate unlocked · crank it up at the loading dock (floor 1) · LOUD · you're on ${mf}`;
+  if (mk[0] === 1) return `${who} the master keys · the loading dock, floor 1 · you're on ${mf}`;
+  if (G.so) return `The security office is open (floor ${sf}) · take the master keys · you're on ${mf}`;
+  if (n >= 4) return `Code ${L.code.join('')} · security office keypad, floor ${sf} · you're on ${mf}`;
+  return `Find the receipts · code ${code} · you're on floor ${mf}`;
+}
+function mallSide852(){ const td = G.td || [0]; return `SIDE · ${G.pa ? '✓' : '☐'} lost teddy → info desk · ${G.og ? '✓' : '☐'} Trailhead gate · ${clawWon ? '✓' : '☐'} claw prize` + (sodaT > 0 ? ` · SODA ${Math.ceil(sodaT)}s` : '') + (G.bf === myPid ? ' · BIG LIGHT' : ''); }
+// where the phones / guide point next
+function mallTarget852(){
+  const L = level, mk = G.mk || [0], n = [0,1,2,3].filter(q=>(G.rc|0) & (1<<q)).length;
+  if (G.open) return [L.exitPos[0], L.exitPos[1], 'the loading dock gate'];
+  if (mk[0] === 2) return [L.gateBox[0], L.gateBox[1], 'the gate control'];
+  if (mk[0] === 1) return [L.gateBox[0], L.gateBox[1], 'the loading dock'];
+  if (G.so) return [mk[1], mk[2], 'the master keys'];
+  if (n >= 4){ const kp = mallKeypad852(); return [kp[0], kp[1], 'the security office']; }
+  const left = L.rc.map((r,k)=>[r,k]).filter(([r,k])=>!((G.rc|0) & (1<<k)));
+  const mf = floorAt852(me.x, me.z); left.sort((a,b)=>((floorAt852(a[0].x,a[0].z) !== mf) - (floorAt852(b[0].x,b[0].z) !== mf)) || Math.hypot(a[0].x-me.x,a[0].z-me.z) - Math.hypot(b[0].x-me.x,b[0].z-me.z));
+  return [left[0][0].x, left[0][0].z, 'a receipt'];
+}
+// the nearest way to another floor from where you stand: [x, z] of the lane end on your floor
+function mallWayTo852(x, z, tf){
+  const f = floorAt852(x, z); if (f === tf) return null; const up = tf > f; let best = null, bd = 1e9;
+  MLANES.forEach(ln=>{ if (up ? ln.f !== f : ln.f+1 !== f) return; if (ln.v && (up ? ln.v < 0 : ln.v > 0)) return; const c = (ln.b0+ln.b1)/2, [lx, lz] = laneXZ(ln, up ? -0.06 : 1.06, c), p = mLog(f, lx, lz), d = Math.hypot(p[0]-x, p[1]-z); if (d < bd){ bd = d; best = { p, ln }; } });
+  return best;
+}
+// ---- the floor map (mall directory)
+function mallMapDraw(){
+  const cv = $('mmap'); if (!cv || !level || !level.mall) return; const c = cv.getContext('2d'), M = level.mall, f = floorAt852(me.x, me.z), S = 20, T = M.T[f];
+  cv.style.display = 'block'; c.fillStyle = '#0d1a24'; c.fillRect(0,0,cv.width,cv.height); const ox = 12, oy = 30;
+  c.fillStyle = '#e8e0c8'; c.font = 'bold 14px monospace'; c.textAlign = 'center'; c.fillText(`MALL DIRECTORY · FLOOR ${f+1}`, cv.width/2, 20);
+  const col = { [MT.CONC]:'#4a5a66', [MT.CORE]:'#4a5a66', [MT.FOOD]:'#6a5a3a', [MT.LOBBY]:'#4a6a5a', [MT.LAND]:'#6a6a6a', [MT.STAIR]:'#2a2a2a', [MT.DOCK]:'#5a4a3a', [MT.VOID]:'#0d1a24', [MT.ESC]:'#2a3a46' };
+  for (let i=0;i<MF;i++) for (let j=0;j<MF;j++){ const t = T[i*MF+j]; let cl = col[t];
+    if (t === MT.STORE){ const st = M.stores.find(s=>s.f === f && s.cells.some(q=>q[0] === i && q[1] === j)); cl = !st || st.closed ? '#3a2a2a' : st.kind === 'security' ? '#8a2a2a' : st.kind === 'arcade' ? '#5a3a7a' : st.kind === 'outfit' ? '#3a6a3a' : st.vacant ? '#3a3a3a' : '#8a7a5a'; }
+    c.fillStyle = cl || '#000'; c.fillRect(ox + i*S, oy + j*S, S, S); }
+  // outlines between different stores / spaces
+  const sid = (i,j) => { if (i<0||j<0||i>=MF||j>=MF) return -9; const t = T[i*MF+j]; if (t !== MT.STORE) return mOpen(t) ? -1 : -2 - t; const st = M.stores.findIndex(s=>s.f === f && s.cells.some(q=>q[0] === i && q[1] === j)); return st; };
+  c.fillStyle = '#0d1a24';
+  for (let i=0;i<MF;i++) for (let j=0;j<MF;j++){ const a = sid(i,j); if (sid(i+1,j) !== a) c.fillRect(ox + (i+1)*S - 1, oy + j*S, 2, S); if (sid(i,j+1) !== a) c.fillRect(ox + i*S, oy + (j+1)*S - 1, S, 2); }
+  c.font = 'bold 8px monospace';
+  for (const st of M.stores){ if (st.f !== f || !st.name || st.vacant || st.cells.length < 2 && !st.kind || st.closed && st.kind !== 'outfit') continue; const xs = st.cells.map(q=>q[0]), zs = st.cells.map(q=>q[1]), cx = (Math.min(...xs)+Math.max(...xs)+1)/2, cz = (Math.min(...zs)+Math.max(...zs)+1)/2;
+    c.fillStyle = '#f2ead0'; c.save(); c.translate(ox + cx*S, oy + cz*S + 3); if (Math.max(...zs)-Math.min(...zs) > Math.max(...xs)-Math.min(...xs)) c.rotate(Math.PI/2); c.fillText(st.name.length > 12 ? st.name.slice(0,11)+'…' : st.name, 0, 0); c.restore(); }
+  c.fillStyle = '#ffe83a'; c.font = 'bold 11px monospace';
+  const lbl = (t, i, j) => c.fillText(t, ox + i*S, oy + j*S);
+  const done = new Set(); for (const ln of MLANES){ if (ln.f !== f && ln.f+1 !== f) continue; const k = ln.nm + (ln.f === f); if (done.has(k)) continue; done.add(k); const c0 = ln.esc ? 26.1 + (ln.f ? 11.65 : 0) : (ln.b0+ln.b1)/2, [x0,z0] = laneXZ(ln, ln.f === f ? 0.15 : 0.9, c0); lbl(ln.f === f ? '▲' + (ln.f+2) : '▼' + (ln.f+1), x0/CS, z0/CS + 0.2); }
+  if (f === 0){ lbl('INFO', 8, 9.3); lbl('DOCK', 14, 14.8); lbl('ENTRANCE', 1.6, 1.2); }
+  if (f === 2) lbl('FOOD COURT', 8, 13.5);
+  const lx = me.x - MO[f][0]*CS, lz = me.z - MO[f][1]*CS, px = ox + lx/CS*S, pz = oy + lz/CS*S, [fx,,fz] = lookDir(me.yaw, 0);
+  c.fillStyle = '#ff4a3a'; c.beginPath(); c.arc(px, pz, 5, 0, 7); c.fill(); c.strokeStyle = '#ff4a3a'; c.lineWidth = 2; c.beginPath(); c.moveTo(px, pz); c.lineTo(px + fx*14, pz + fz*14); c.stroke();
+  c.fillStyle = '#ff8a7a'; c.font = 'bold 10px monospace'; c.fillText('YOU ARE HERE', px, pz - 9);
+}
+function updateMallMap(dt){ if (mallMapT <= 0) return; mallMapT -= dt; const cv = $('mmap'); if (mallMapT <= 0 || mode !== 'play' || LK !== 4 || !level.dirs || !level.dirs.some(p=>Math.hypot(p[0]-me.x, p[1]-me.z) < 4)){ mallMapT = 0; if (cv) cv.style.display = 'none'; } }
+// ---- the computer Occupant: hunts its own floor, takes the escalators / stairs to find survivors on others
+function aiTick852(dt, alive){
+  const A = H.ai, D = aiD(), fA = floorAt852(G.ax, G.az), same = alive.filter(p=>floorAt852(p.x, p.z) === fA);
+  const after = () => { [G.ax, G.az] = mallMove852(G.ax, G.az, dt, 0.38); };
+  if (G.grace > 0 || G.stun > 0){ A.el = null; aiTick(dt, same); return; }
+  if (A.el){ const T = A.el;
+    // it hears or sees someone on its floor before it leaves: forget the trip
+    if (!T.on) for (const p of same){ if (p.hd) continue; const d = Math.hypot(p.x-G.ax, p.z-G.az), hear = (p.m>=3 ? 60 : p.m===2 ? 32 : p.m===1 ? 11 : 0)*D.hear;
+      if (d < hear || (d < D.see && (p.l || d < D.near || lightAtCell(p.x,p.z) > 0.5) && losClear(G.ax,G.az,p.x,p.z))){ A.el = null; A.lc = -1; break; } }
+  }
+  if (!A.el){
+    const company = same.some(p=>!p.hd);
+    A.lonely = company && A.mode !== 'wander' ? 0 : (A.lonely||0) + dt*(company ? 0.25 : 1);
+    if (A.mode === 'wander' && A.lonely > [40,25,16,9][clamp(G.df ?? 1, 0, 3)] && alive.length){
+      A.lonely = 0; const p = Math.random() < D.drift ? alive[Math.floor(Math.random()*alive.length)] : null;
+      const tf = p ? floorAt852(p.x, p.z) : [0,1,2].filter(f=>f !== fA)[Math.floor(Math.random()*2)];
+      if (tf !== fA) A.el = { tf, t:0 };
+    }
+  }
+  if (A.el){ const T = A.el; T.t += dt; G.ach = 0; G.ads = 0;
+    const f = floorAt852(G.ax, G.az); if (f === T.tf && !T.on){ A.el = null; A.mode = 'wander'; A.wp = null; aiTick(dt, same); return; }
+    if (T.t > 70){ A.el = null; aiTick(dt, same); return; }
+    const sp = MON_SPEED*D.spd*0.9;
+    if (!T.on){ const w = mallWayTo852(G.ax, G.az, T.tf); if (!w){ A.el = null; return; }
+      if (Math.hypot(w.p[0]-G.ax, w.p[1]-G.az) < 0.6){ T.on = { ln:w.ln, up:T.tf > f, f0:f }; }
+      else if (!aiGo188(w.p[0], w.p[1], sp, dt)){ A.el = null; return; } after(); return; }
+    // on the flight: walk straight along it until we're off the far end on the next floor
+    const ln = T.on.ln, c = (ln.b0+ln.b1)/2, fNow = floorAt852(G.ax, G.az), [lx, lz] = laneXZ(ln, fNow === T.on.f0 ? (T.on.up ? 1.0 : 0.7) : (T.on.up ? 1.15 : -0.15), c), [tx, tz] = mLog(fNow, lx, lz);
+    if (fNow !== T.on.f0 && Math.hypot(tx-G.ax, tz-G.az) < 0.5){ T.on = null; T.t = Math.min(T.t, 50); if (fNow === T.tf){ A.el = null; A.mode = 'wander'; A.wp = null; A.lonely = 0; } return; }
+    const dx = tx-G.ax, dz = tz-G.az, d = Math.hypot(dx, dz); if (d > 0.05){ const st = Math.min(d, sp*dt); [G.ax, G.az] = collide(G.ax + dx/d*st, G.az + dz/d*st, 0.38, G.ax, G.az); G.ay = Math.atan2(dx, dz); G.amv = 1; }
+    after(); return; }
+  aiTick(dt, same); after();
 }
 
 function buildLevel(seed, kind=0){
@@ -894,12 +1371,13 @@ function buildLevel(seed, kind=0){
   LK = kind; if (kind === 0) baseSeed = seed;
   if (level){ scene.remove(level.group); level.group.traverse(o=>{ o.geometry && o.geometry.dispose(); }); for (const s of level.sounds) try{ s.stop(); }catch(e){} }
   setGrid(GRID_N(kind));
-  { const far = kind === 3 ? 170 : 90; if (camera.far !== far){ camera.far = far; camera.updateProjectionMatrix(); } }
+  { const far = kind === 3 ? 170 : kind === 4 ? 120 : 90; if (camera.far !== far){ camera.far = far; camera.updateProjectionMatrix(); } }
   if (kind === 3){ M37 = null; setPoolVisible(false); buildLevel188(seed); return; }
+  if (kind === 4){ M37 = null; setPoolVisible(false); buildLevel852(seed); return; }
   if (kind === 2){ walls = new Uint8Array(E); setPoolVisible(true); buildLevel37(seed); return; }
   M37 = null;
   const rng = rngFrom(seed);
-  const gen = kind === 4 ? genMall(rng) : genWalls(rng);
+  const gen = genWalls(rng);
   walls = gen.w.slice();
   const g = new THREE.Group(); scene.add(g);
   level = { seed, lk:kind, gens:[], slotLeds:[], fuses:[], fuseMeshes:[], breaker:null, group:g, rooms:gen.rooms, halls:gen.halls, kind:gen.kind, fixed:new Uint8Array(E), slabs:[], base:gen.w, shown:new Uint8Array(E).fill(2), circles:[], pillarSet:new Set(), sounds:[], used:new Set(), wet:[], drips:[], tvs:[], phones:[] };
@@ -915,7 +1393,6 @@ function buildLevel(seed, kind=0){
   instCells(cellPlane(1,true), lam(0xffffff,{map:concCeilTex}), zc[1], WH);
   instCells(cellPlane(CS/0.6,true), lam(0xffffff,{map:tileCeilTex}), zc[2], ZH[2]);
   }
-  if (kind === 4){ L.fixed.fill(1); L.noDraw = gen.mall.noDraw; }
   setPoolVisible(false);
   // walls (one instanced mesh per zone, every edge slot in each; hidden ones are scaled to zero)
   L.edgeZ = new Uint8Array(E); for (let e=0;e<E;e++) L.edgeZ[e] = edgeZoneOf(e);
@@ -965,7 +1442,6 @@ function buildLevel(seed, kind=0){
       L.panelAt[i*N+j] = p.idx; L.panels.push(p);
     }
   }
-  if (kind === 4) buildMall(L, g, gen, rng);
   L.panelMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial({ color:0xffffff }), L.panels.length);
   const cords = [];
   const cordMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.015,1,0.015), lam(0x111111), Math.max(1,cords.length));
@@ -2449,7 +2925,7 @@ function elevCall188(){
 const visSaved = [];
 function visPass188(){
   visSaved.length = 0;
-  const add = o => { if (!o) return; visSaved.push(o, o.position.x, o.position.y, o.position.z); vis188(o.position.x, o.position.y, o.position.z, o.position); };
+  const V = LK === 4 ? vis852 : vis188, add = o => { if (!o) return; visSaved.push(o, o.position.x, o.position.y, o.position.z); V(o.position.x, o.position.y, o.position.z, o.position); };
   add(camera); for (const s of spots){ add(s); add(s.target); } for (const l of PL) add(l); add(exitLight);
   for (const r of remotes.values()) add(r.mesh); add(MON.g); for (const f of fakes.values()) add(f.g); if (LRK){ add(LRK.g); if (LRK.run) add(LRK.run.g); }
 }
@@ -2503,7 +2979,7 @@ function losClear(ax,az,bx,bz){
 const STEP_SLOT = 0.42, STEP_GAIN = { stepC:0.28, stepK:0.45, stepT:0.3, stepW:0.28 }, STEP_LEN = 0.24;   // v0.29: quieter (Ryan), and only the first 0.24 s of each slot
 function stepSurf(x, z){
   if (LK === 0) return 'stepC';
-  if (LK === 4){ const M = level.mall && level.mall.M; return M && M[cellOf(x)*N+cellOf(z)] === 1 ? 'stepC' : 'stepT'; }   // the mall: tile, carpet in the stores
+  if (LK === 4){ const t = level.mall && level.mall.M[cellOf(x)*N+cellOf(z)]; return t === MT.STORE ? 'stepC' : (t === MT.LAND || t === MT.STAIR || t === MT.DOCK) ? 'stepK' : 'stepT'; }   // the mall: tile, carpet in the stores, concrete in the stairwells and the dock
   if (LK === 1) return 'stepK';
   if (LK === 3) return 'stepW';   // Level 188: Ryan's wood-floor recording
   if (LK === 2 && M37){ const k = k37(x, z); return (k === K37.WATER || k === K37.DEEP) ? null : 'stepT'; }
@@ -3038,6 +3514,7 @@ function noiseMove(){
   if (role !== 'survivor' || !me.alive || me.esc) return 0;
   if (me.loudT > 0) return 3;
   if (crankK >= 0) return LK === 1 ? 3 : 2;   // starting a generator is LOUD
+  if (mallHold) return mallHold.k === 'gate' ? 3 : mallHold.k === 'code' ? 1 : 2;   // the mall: the dock gate is LOUD, the claw and the outfitters gate rattle
   if (me.hidden >= 0) return 0;
   if (!me.moving) return 0;
   if (me.crouch) return 0;
@@ -3092,6 +3569,15 @@ function applyUse(pid, m){
   else if (m.k === 'gen'){ const i = m.i|0; if (G.lv >= 1 && G.gen[i] === 0){ G.gen[i] = 1; if (G.gen.every(Boolean)) G.open = 1; const gn = level.gens[i]; if (gn && G.mo === 'AI' && H.ai.mode !== 'chase'){ H.ai.mode='hunt'; H.ai.lx=gn.x; H.ai.lz=gn.z; H.ai.lt=15; H.ai.rp=0; } } }
   else if (m.k === 'kc'){ if (G.kc && G.kc[0] === 0 && !isDead(pid)){ G.kc[0] = 1; G.kc[3] = pid; } }
   else if (m.k === 'kcuse'){ if (G.kc && G.kc[0] === 1 && G.kc[3] === pid && !isDead(pid)){ G.kc[0] = 2; G.open = 1; } }
+  else if (m.k === 'rc'){ G.rc = (G.rc|0) | (1 << (m.i|0)); }
+  else if (m.k === 'mcode'){ if ((G.rc|0) === 15) G.so = 1; }
+  else if (m.k === 'mk'){ if (G.mk && G.mk[0] === 0 && !isDead(pid)){ G.mk[0] = 1; G.mk[3] = pid; } }
+  else if (m.k === 'mkuse'){ if (G.mk && G.mk[0] === 1 && G.mk[3] === pid && !isDead(pid)) G.mk[0] = 2; }
+  else if (m.k === 'mgate'){ if (G.mk && G.mk[0] === 2) G.open = 1; }
+  else if (m.k === 'td'){ if (G.td && G.td[0] === 0 && !isDead(pid)){ G.td[0] = 1; G.td[3] = pid; } }
+  else if (m.k === 'tduse'){ if (G.td && G.td[0] === 1 && G.td[3] === pid){ G.td[0] = 2; G.pa = 1; H.paT = 6; } }
+  else if (m.k === 'og'){ G.og = 1; }
+  else if (m.k === 'bf'){ if (G.og && !G.bf) G.bf = pid; }
   else if (m.k === 'ecall' || m.k === 'ego'){ const el = G.el && G.el[m.i|0], f = m.f|0; if (el && f >= 0 && f <= 2) el.q |= 1<<f; }
   else if (m.k === 'esc'){ if (G.open && !isDead(pid) && !isEsc(pid)) G.esc.push(pid); }
   else if (m.k === 'cn'){ G.cn[m.i|0] = 1; }
@@ -3121,6 +3607,7 @@ function killSurvivor(p, byLurker){
   G.dead.push(p.pid); if (byLurker) (G.lkd = G.lkd || []).push(p.pid); else G.kl.push(p.pid);
   if (G.kc && G.kc[0] === 1 && G.kc[3] === p.pid){ G.kc[0] = 0; G.kc[1] = +p.x.toFixed(2); G.kc[2] = +p.z.toFixed(2); G.kc[3] = ''; }   // the keycard falls where they were caught
   for (const f of G.fz) if (f[0]===1 && f[3]===p.pid){ f[0]=0; f[1]=+p.x.toFixed(2); f[2]=+p.z.toFixed(2); f[3]=''; }
+  for (const a of [G.mk, G.td]) if (a && a[0] === 1 && a[3] === p.pid){ a[0] = 0; a[1] = +p.x.toFixed(2); a[2] = +p.z.toFixed(2); a[3] = ''; }   // the mall: keys / teddy fall where they were caught
 }
 function survivorsAlive(){ return allPlayers().filter(p=>p.pid!==G.mo && !isDead(p.pid) && !isEsc(p.pid)); }
 function edgeVisible(e, viewers){
@@ -3164,6 +3651,10 @@ const aiD = () => AI_DIFF[clamp(G.df ?? 1, 0, 3)];
 function aiObjectives(){
   if ((G.lv|0) === 3){ const out = []; if (G.kc) out.push(G.kc[0] === 0 ? [G.kc[1], G.kc[2]] : level.exitPos); const f = floorAt188(G.ax, G.az); return out.filter(o=>floorAt188(o[0], o[1]) === f); }
   if ((G.lv|0) === 2) return [level.stairBase || level.exitPos];
+  if ((G.lv|0) === 4){ const L = level, out = [], mk = G.mk || [0];
+    if (G.open) out.push(L.exitPos); else if (mk[0] >= 1) out.push(L.gateBox); else if (G.so) out.push([mk[1], mk[2]]); else if ((G.rc|0) === 15) out.push(mallKeypad852());
+    else L.rc.forEach((r,k)=>{ if (!((G.rc|0) & (1<<k))) out.push([r.x, r.z]); });
+    const f = floorAt852(G.ax, G.az); return out.filter(o=>floorAt852(o[0], o[1]) === f); }
   if (G.open) return [level.exitPos];
   const out = [];
   if ((G.lv|0) === 0 || (G.lv|0) === 4){ for (const f of G.fz) if (f[0]===0) out.push([f[1], f[2]]); if (G.fz.some(f=>f[0]===1)) out.push(level.breaker); }
@@ -3289,7 +3780,7 @@ function setupLevel(k){
   buildLevel(lvSeed(k), k); sfx.bindLevel();
   walls = level.base.slice(); G.w = wallsHex(); G.wv++;
   G.lv = k; G.esc = []; G.dead = [];   // everyone caught on the last level wakes up here too
-  G.open = 0; G.fz = (k === 0 || k === 4) ? level.fuses.map(f=>[0, +f[0].toFixed(2), +f[1].toFixed(2), '']) : []; G.pl = 0; G.gen = level.gens.map(()=>0);
+  G.open = 0; G.fz = (k === 0) ? level.fuses.map(f=>[0, +f[0].toFixed(2), +f[1].toFixed(2), '']) : []; G.pl = 0; G.gen = level.gens.map(()=>0);
   G.aw = level.aw.map(()=>0); G.bt = level.bt.map(()=>0); G.cn = level.cn.map(()=>0);
   G.bo = []; G.stun = 0; G.dg = 0; G.ring = -1; G.ads = 0; G.lkd = []; G.lr = [0,0,0,0,0]; H.lr = null;
   G.ax = level.mspawn[0]; G.az = level.mspawn[1];
@@ -3297,6 +3788,8 @@ function setupLevel(k){
   if (k === 2){ G.open = 1; G.tod = 0; G.stk = 0; G.asub = G.mo === 'AI' ? 1 : 0; }   // Level 37: the staircase is always there, you just have to find it
   if (k === 3){ G.kc = [0, +level.kc[0].toFixed(2), +level.kc[1].toFixed(2), '']; G.el = ELV.map((e,i)=>({ a:i, f:i, s:0, d:0, q:0, t:0, tg:i })); G.w = ''; }   // Level 188: walls never change, so they aren't sent
   else { G.kc = null; G.el = null; }
+  if (k === 4){ G.w = ''; G.rc = 0; G.so = 0; G.mk = [0, +level.keys[0].toFixed(2), +level.keys[1].toFixed(2), '']; G.og = level.ogDoor ? 0 : 1; G.td = [0, +level.teddy[0].toFixed(2), +level.teddy[1].toFixed(2), '']; G.pa = 0; G.pam = null; G.bf = ''; H.paT = 6; }   // Level 852: walls never shift
+  else { G.mk = null; G.td = null; G.pa = 0; G.pam = null; G.bf = ''; }
 }
 function advanceLevel(){
   setupLevel(Math.min(4, (G.lv|0) + 1));
@@ -3320,7 +3813,8 @@ function hostTick(dt){
   let mp;
   if (LK === 3){ hostElev188(dt);
     if (G.kc && G.kc[0] === 1 && !ps.some(p=>p.pid === G.kc[3])){ G.kc[0] = 0; G.kc[1] = +level.kc[0].toFixed(2); G.kc[2] = +level.kc[1].toFixed(2); G.kc[3] = ''; } }   // whoever had it left the game
-  if (G.mo === 'AI'){ (LK === 2 ? aiTick37 : LK === 3 ? aiTick188 : aiTick)(dt, alive); mp = { x:G.ax, z:G.az }; }
+  if (LK === 4) hostMall852(dt, ps);
+  if (G.mo === 'AI'){ (LK === 2 ? aiTick37 : LK === 3 ? aiTick188 : LK === 4 ? aiTick852 : aiTick)(dt, alive); mp = { x:G.ax, z:G.az }; }
   else {
     const m = ps.find(p=>p.pid===G.mo);
     if (!m){ G.dg = 0; G.mo = 'AI'; aiReset('hunt'); return; }
@@ -3892,6 +4386,7 @@ function startRoundLocal(){
   else { const k = hashStr(myPid)%4, sp0 = level.spawn || [cc(1), cc(1)]; me.x = sp0[0] + [-0.8,0.8,-0.8,0.8][k]; me.z = sp0[1] + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; }
   me.pitch = 0; me.bat = 100; me.light = false; me.stam = 100; me.alive = true; me.esc = false; me.crouch = false; me.san = 100; me.loudT = 0; me.hidden = -1; me.cans = 0; me.breath = 100; me.winded = false; me.vmRun = 0;
   stunCharge = 0; stunCD = 0; ventCD = 8; ventT = 0; roundT0 = nowS(); creakT = 25 + Math.random()*20; silT = 0; silNext = 70 + Math.random()*50; $('locker').style.display='none';
+  mallHold = null; clawWon = false; sodaT = 0; seenPam = G.pam ? G.pam[0] : -1; mallMapT = 0; if ($('mmap')) $('mmap').style.display = 'none';
   seenPl = G.pl; seenOpen = G.open; seenKl = (G.kl||[]).length; seenLkd = (G.lkd||[]).length; seenLv = G.lv|0; genSeen = []; crankK = -1; dashT = 0; pendingEnd = false; specIdx = 0; knownBo.clear(); abCD = { blackout:8, shift:8, lure:5, disguise:20, dash:10 };
   mode = 'play';
   showScreen(null);
@@ -3909,17 +4404,17 @@ function startRoundLocal(){
     if (G.ov && voice.stream) setTimeout(()=>msg('Your mic is on. Survivors near you hear a monster.', 5), 1500);
     $('blacktext').textContent = 'YOU ARE THE OCCUPANT'; $('blacksub').textContent = 'They wake up in the halls. You can\'t run, but you walk faster than they do. Listen for them, and don\'t let them reach the exit.';
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
-  } else msg((G.lv|0) === 4 ? 'Find 3 fuses. The stores are open. Nobody is shopping.' : (G.lv|0) === 3 ? 'Find the keycard. The elevators work. Something else uses them too.' : (G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
+  } else msg((G.lv|0) === 4 ? 'Find the 4 receipts. Each one has a number of the security code. Three floors. Nobody is shopping.' : (G.lv|0) === 3 ? 'Find the keycard. The elevators work. Something else uses them too.' : (G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
   if ((G.lv|0) > 0){ seenZones.add(1); seenZones.add(2); }
 }
 function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? .86 : LK === 2 ? 1.0 : LK === 3 || LK === 4 ? .82 : .64})` : ''; }
 function enterLevel(){
-  seenLv = G.lv|0; seenOpen = G.open; seenPl = G.pl; genSeen = []; knownBo.clear(); crankK = -1; dashT = 0; ventT = 0; ventCD = 8; pendingEnd = false;
+  seenLv = G.lv|0; seenOpen = G.open; seenPl = G.pl; genSeen = []; mallHold = null; clawWon = false; sodaT = 0; seenPam = G.pam ? G.pam[0] : -1; mallMapT = 0; if ($('mmap')) $('mmap').style.display = 'none'; knownBo.clear(); crankK = -1; dashT = 0; ventT = 0; ventCD = 8; pendingEnd = false;
   PHANTOM.g.visible = false; seenZones.add(1); seenZones.add(2); for (const s of spots) s.intensity = 0;
   $('locker').style.display='none'; me.hidden = -1; $('white').style.transition='none'; $('white').style.opacity = 0; $('flash').style.opacity = 0; $('spec').style.display = 'none';
   setTimeout(()=>{ $('white').style.transition=''; }, 50);
   const b = $('black'); b.style.transition = 'none'; b.style.opacity = 1;
-  if ((G.lv|0) === 4){ $('blacktext').textContent = 'LEVEL 852'; $('blacksub').textContent = 'THE MALL · it closed decades ago. Find 3 fuses, bring them to the breaker, then find the exit. The music is still playing.'; }
+  if ((G.lv|0) === 4){ $('blacktext').textContent = 'LEVEL 852'; $('blacksub').textContent = 'THE MALL · three floors, closed for decades. Find the receipts, open the security office, take the master keys down to the loading dock. The music is still playing.'; }
   else if ((G.lv|0) === 3){ $('blacktext').textContent = 'LEVEL 188'; $('blacksub').textContent = 'THE HOTEL · find the keycard. It opens one room. The elevators work. So does something else.'; }
   else if ((G.lv|0) === 2){ $('blacktext').textContent = 'LEVEL 37'; $('blacksub').textContent = 'THE POOLROOMS · somewhere there is a staircase up to the sky. Find it. Stay out of the water at night.'; }
   else { $('blacktext').textContent = 'LEVEL 1'; $('blacksub').textContent = 'THE PARKING GARAGE · start all 5 generators, then find the exit'; }
@@ -3948,6 +4443,8 @@ function triggerDeath(){
 }
 function powerOn(){
   if (LK === 2) return;
+  if (LK === 4){ exitLight.intensity = 9; sfx.clunk(level.exitPos[0], level.exitPos[1]); if (sfx.ctx){ const o = sfx.panner(level.exitPos[0], 2.5, level.exitPos[1], 10); sfx.noise(o,{ dur:1.6, type:'bandpass', freq:500, q:0.8, gain:1.0 }); sfx.tone(o,{ f:55, dur:1.2, gain:0.4 }); }
+    msg(role === 'monster' ? 'The loading dock gate is open. Floor 1. Stop them.' : 'THE GATE IS UP. Floor 1, the loading dock. GET OUT.', 5); return; }
   if (LK === 3){ exitLight.intensity = 9; sfx.clunk(level.exitPos[0], level.exitPos[1]);
     msg(role === 'monster' ? `They opened ROOM ${level.roomNo}. Floor ${level.exitFloor+2}. Stop them.` : `ROOM ${level.roomNo} IS OPEN. Floor ${level.exitFloor+2}. Get inside.`, 5); return; }
   powerFlash = 1.5; sfx.powerUp();
@@ -4531,7 +5028,7 @@ function updateMe(dt){
   const [fx, fz, want] = moveInput();
   const runReq = (keys.has('ShiftLeft')||keys.has('ShiftRight')||runHeld||stickRun) && want && fz < 0.3;
   if (role === 'monster' && (G.grace > 0 || G.stun > 0 || ventT > 0)){ me.moving = false; me.running = false; dashT = 0; return; }
-  if (role === 'monster' && dashT > 0){ dashT -= dt; const [fx,,fz] = lookDir(dashYaw, 0); [me.x, me.z] = collide(me.x + fx*DASH_SPEED*dt, me.z + fz*DASH_SPEED*dt, 0.38, me.x, me.z, LK === 2, true); me.moving = true; me.running = false; return; }
+  if (role === 'monster' && dashT > 0){ dashT -= dt; const [fx,,fz] = lookDir(dashYaw, 0); [me.x, me.z] = collide(me.x + fx*DASH_SPEED*dt, me.z + fz*DASH_SPEED*dt, 0.38, me.x, me.z, LK === 2, true); if (LK === 4) [me.x, me.z] = mallMove852(me.x, me.z, dt, 0.38); me.moving = true; me.running = false; return; }
   if (role === 'survivor' && me.hidden >= 0){ updateHidden(dt); return; }
   if (runReq && me.crouch) me.crouch = false;
   const md = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
@@ -4540,13 +5037,14 @@ function updateMe(dt){
   if (me.winded && (role === 'monster' ? me.stam >= 100 : (me.stam >= 35 || (!runReq && me.stam >= 12)))) me.winded = false;
   me.running = runReq && !me.winded && me.stam > 0.5;
   if (role === 'monster') me.stam = clamp(me.stam + (me.running ? -55 : 24)*dt, 0, 100);   // ~1.8s sprint, ~4s to recharge
-  else me.stam = clamp(me.stam + (me.running ? (me.adren ? -8 : -14) : 16)*dt, 0, 100);   // ~7s of sprint (~12s with adrenaline)
+  else me.stam = clamp(me.stam + (me.running ? (me.adren ? -8 : -14)*(sodaT > 0 ? 0.5 : 1) : 16*(sodaT > 0 ? 1.5 : 1))*dt, 0, 100);   // the mall's energy soda   // ~7s of sprint (~12s with adrenaline)
   let sp;
   if (role === 'monster') sp = (me.running ? MON_SPEED*1.15 : MON_SPEED) * (LK === 2 && !isNight() ? 0.72 : 1);   // the eel drifts slowly by day
   else sp = me.crouch ? 1.35 : me.running ? (me.adren ? 5.6 : 5.0) : 2.6;
   const sn = Math.sin(me.yaw), cs = Math.cos(me.yaw);
   const vx = (fx*cs + fz*sn)*sp, vz = (-fx*sn + fz*cs)*sp;
   [me.x, me.z] = collide(me.x + vx*dt, me.z + vz*dt, role==='monster' ? 0.38 : 0.32, me.x, me.z, role==='monster' && LK === 2, false);
+  if (LK === 4) [me.x, me.z] = mallMove852(me.x, me.z, dt, role==='monster' ? 0.38 : 0.32);
   if (LK === 2){
     // out of the water after a lunge: the eel has to slither back in
     if (role === 'monster' && !isEelGround(k37(me.x, me.z))){ const w = nearestWater(me.x, me.z, 6); if (w){ const dx = w[0]-me.x, dz = w[1]-me.z, d = Math.hypot(dx,dz)||1; [me.x, me.z] = collide(me.x+dx/d*3*dt, me.z+dz/d*3*dt, 0.38, me.x, me.z, true, true); } }
@@ -4578,7 +5076,7 @@ function updateMe(dt){
     else { crankT += dt; crankS -= dt; if (gn.wheel) gn.wheel.rotation.y -= dt*2.2; if (crankS <= 0){ crankS = 0.55; if (LK === 2) sfx.valve(gn.x, gn.z); else if (!sfx.samples.genStart) sfx.crank(gn.x, gn.z); vibrate(15); }
       if (crankT >= GEN_T){ useReq({ k:'gen', i:crankK }); me.loudT = 1.2; crankDone = crankK; crankK = -1; } } }
   G.cn.forEach((t,i)=>{ if (!t && Math.hypot(level.cn[i][0]-me.x, level.cn[i][1]-me.z) < 1.1){ G.cn[i]=1; useReq({k:'cn',i}); me.cans++; sfx.pickup(); msg('Picked up a can. Throw it to make noise.', 2.5); } });
-  if (lightOn()) me.bat = Math.max(0, me.bat - dt*0.55);
+  if (lightOn()) me.bat = Math.max(0, me.bat - dt*0.55*(LK === 4 && G.bf === myPid ? 0.45 : 1));
   if (me.bat <= 0 && me.light){ me.light=false; msg('Your flashlight died.', 3); }
   // fuses
   G.fz.forEach((f,i)=>{ if (f[0]===0 && Math.hypot(f[1]-me.x, f[2]-me.z) < 1.2){ f[0]=1; f[3]=myPid; pickT = nowS(); useReq({k:'fuse',i}); me.loudT = 0.8; sfx.pickup(); const n=G.fz.filter(q=>q[0]>=1).length; msg(`You found a fuse. ${n}/${FUSES}`, 3); } });
@@ -4586,6 +5084,7 @@ function updateMe(dt){
   if (LK === 3 && G.kc){ const kc = G.kc;
     if (kc[0] === 0 && Math.hypot(kc[1]-me.x, kc[2]-me.z) < 1.2){ kc[0] = 1; kc[3] = myPid; useReq({ k:'kc' }); sfx.pickup(); me.loudT = 0.6; msg(`A keycard. ROOM ${level.roomNo}. Floor ${level.exitFloor+2}.`, 4); }
     if (kc[0] === 1 && kc[3] === myPid && !G.open && Math.hypot(level.exitPos[0]-me.x, level.exitPos[1]-me.z) < 1.9){ useReq({ k:'kcuse' }); if (!amHost()) kc[0] = 2; } }
+  if (LK === 4) mallSurvivor852(dt);
   const carrying = G.fz.filter(f=>f[0]===1 && f[3]===myPid).length;
   if (carrying && Math.hypot(level.breaker[0]-me.x, level.breaker[1]-me.z) < 1.8){
     if (amHost()) applyUse(myPid,{k:'place'});
@@ -4605,6 +5104,7 @@ function contextAction(){
     if (crankK >= 0) return { label:'STOP', key:'E', fn:()=>{ crankK = -1; } };
     const k = nearLocker(1.3); if (k>=0 && !lockerTaken(k)) return { label:'HIDE', key:'E', fn:()=>hide(k) };
     { const c = elevCall188(); if (c) return c; }
+    { const c = mallAction852(); if (c) return c; }
     if (LK >= 1 && G.gen){ const gi = level.gens.findIndex((gn,i)=>!G.gen[i] && Math.hypot(gn.x-me.x, gn.z-me.z) < 1.9); if (gi >= 0) return { label: LK === 2 ? 'TURN VALVE' : 'START GENERATOR', key:'E', fn:()=>{ crankK = gi; crankT = 0; crankS = 0; } }; }
   }
   if (role==='monster' && G.grace<=0 && G.stun<=0 && ventT<=0){ const c = elevCall188(); if (c) return c; }
@@ -4691,6 +5191,7 @@ function updateGuide(){
   if (LK === 3 && guide.fl >= 0){ const mf = floorAt188(me.x, me.z);
     if (mf !== guide.fl && level.lands){ let best = null, bd = 1e9; for (const ls of level.lands){ const l = ls[mf]; if (!l) continue; const d = Math.hypot(l.ex-me.x, l.ez-me.z); if (d < bd){ bd = d; best = l; } }
       if (best){ tx = best.ex; tz = best.ez; lbl = `elevator → floor ${guide.fl+2}`; } } }
+  if (LK === 4 && guide.fl >= 0){ const w = mallWayTo852(me.x, me.z, guide.fl); if (w){ [tx, tz] = w.p; lbl = `${w.ln.nm} → floor ${guide.fl+1}`; } }
   const dx = tx-me.x, dz = tz-me.z, [fx,,fz] = lookDir(me.yaw, 0), a = Math.atan2(-dx*fz + dz*fx, dx*fx + dz*fz), d = Math.hypot(dx, dz);
   el.style.display = 'block'; el.style.opacity = Math.min(1, (guide.until - nowS())/2).toFixed(2);
   $('garr').style.transform = `rotate(${a.toFixed(3)}rad)`; const t = `${lbl} · ${Math.round(d)} m`; if ($('glbl').textContent !== t) $('glbl').textContent = t;
@@ -4706,6 +5207,10 @@ function answerPhone(i){
   if (G.lv === 3){ const kc = G.kc || [0,0,0]; if (G.open || kc[0] >= 1){ [tx,tz] = level.exitPos; what = `room ${level.roomNo}`; } else { tx = kc[1]; tz = kc[2]; what = 'the keycard'; }
     const fl = floorAt188(tx, tz), mf = floorAt188(me.x, me.z), who = ['A front desk clerk, very calm:','A child, whispering:','Your own voice:','Static, then a man:'][Math.floor(Math.random()*4)];
     setTimeout(()=>{ msg(fl === mf ? `${who} "…${what}… this floor… it's ${relDir(tx-me.x, tz-me.z)}…"` : `${who} "…${what}… floor ${fl+2}… take the elevator…"`, 6); setGuide(tx, tz, what, fl); }, 900); return; }
+  if (G.lv === 4){ [tx, tz, what] = mallTarget852();
+    const fl = floorAt852(tx, tz), mf = floorAt852(me.x, me.z), w = mallWayTo852(me.x, me.z, fl), who = ['A woman on the PA, very calm:','A child, whispering:','Your own voice:','Static, then a man:'][Math.floor(Math.random()*4)];
+    setTimeout(()=>msg(fl === mf ? `${who} "…${what}… this floor… it's ${relDir(tx-me.x, tz-me.z)}…"` : `${who} "…${what}… floor ${fl+1}… ${w ? w.ln.nm : 'the escalators'} are ${relDir(w ? w.p[0]-me.x : 0, w ? w.p[1]-me.z : 1)}…"`, 6), 900);
+    setTimeout(()=>setGuide(tx, tz, what, fl), 900); return; }
   if (G.lv === 2){ [tx,tz]=level.stairBase || level.exitPos; what = 'the stairs'; }
   else if (G.open){ [tx,tz]=level.exitPos; what = 'the door'; }
   else if (G.lv === 1){ const off = level.gens.filter((gn,i)=>!G.gen[i]).sort((a,b)=>Math.hypot(a.x-me.x,a.z-me.z)-Math.hypot(b.x-me.x,b.z-me.z))[0] || level.gens[0]; tx = off.x; tz = off.z; what = G.lv === 2 ? 'a valve' : 'a generator'; }
@@ -4812,7 +5317,7 @@ function updateLights(dt){
     const md = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
     if (md < 10 && Math.random() < 0.22*(1-md/10)) f *= Math.random()*0.4;
     if (me.bat < 15 && Math.random() < 0.08) f *= Math.random()*0.4;
-    s0.intensity = SPOT_I*f;
+    const big = LK === 4 && G.bf === myPid; s0.intensity = SPOT_I*f*(big ? 1.45 : 1); s0.angle = big ? 0.56 : 0.42; s0.distance = big ? 34 : 26;
     const [lx,ly,lz] = lookDir(me.yaw, me.pitch);
     const sn=Math.sin(me.yaw), cs=Math.cos(me.yaw);
     s0.position.set(me.x + cs*0.2 - sn*0.1, camera.position.y-0.25, me.z - sn*0.2 - cs*0.1);
@@ -4824,7 +5329,7 @@ function updateLights(dt){
     if (r.pid===G.mo || isDead(r.pid) || isEsc(r.pid) || !r.l) continue;
     const s = spots[si++]; const [lx,ly,lz] = lookDir(r.yaw, r.pitch); const sn=Math.sin(r.yaw), cs=Math.cos(r.yaw);
     const rfy = floorY(r.x, r.z); s.position.set(r.x + cs*0.28 + lx*0.3, (mode==='spect'&&r.pid===specPid ? EYE-0.25 : 1.25) + rfy, r.z - sn*0.28 + lz*0.3);
-    s.target.position.set(r.x+lx*10, rfy+EYE+ly*10, r.z+lz*10); s.intensity = SPOT_I;
+    s.target.position.set(r.x+lx*10, rfy+EYE+ly*10, r.z+lz*10); s.intensity = SPOT_I; s.angle = LK === 4 && G.bf === r.pid ? 0.56 : 0.42;
   }
   for (; si<spots.length; si++) spots[si].intensity = 0;
   if (G.open) exitLight.intensity = 7 + Math.sin(nowS()*3)*1.5;
@@ -4986,25 +5491,27 @@ function updateHUD(dt){
   const obj = $('obj');
   if (role === 'monster'){
     const left = allPlayers().filter(p=>p.pid!==G.mo && !isDead(p.pid) && !isEsc(p.pid)).length;
-    if (G.grace > 0 && mode==='play') { $('blacksub').textContent = LK === 2 ? `You are the thing in the water. By day you can't strike: stay unseen, get close without being looked at to bring the night sooner. At night, hunt. You can only leave the water to lunge.` : LK === 3 ? `They wake on another floor. The elevators are the only way between floors, and everyone hears the ding. Listen for them.` : `You can't see them through walls. Listen. Running footsteps, voices and gasping give them away. Use the vents to get around.`; const c = String(Math.ceil(G.grace)); if ($('blackcount').textContent !== c) $('blackcount').textContent = c; }
+    if (G.grace > 0 && mode==='play') { $('blacksub').textContent = LK === 2 ? `You are the thing in the water. By day you can't strike: stay unseen, get close without being looked at to bring the night sooner. At night, hunt. You can only leave the water to lunge.` : LK === 3 ? `They wake on another floor. The elevators are the only way between floors, and everyone hears the ding. Listen for them.` : LK === 4 ? `They wake at the entrance, two floors below you. Escalators and two stairwells join the floors. They need receipts, the security office and the loading dock. Listen for them.` : `You can't see them through walls. Listen. Running footsteps, voices and gasping give them away. Use the vents to get around.`; const c = String(Math.ceil(G.grace)); if ($('blackcount').textContent !== c) $('blackcount').textContent = c; }
     if (G.grace <= 0 && $('blackcount').textContent) $('blackcount').textContent = '';
     $('objLbl').textContent = 'THE OCCUPANT';
     obj.textContent = G.grace > 0 ? `They wake in ${Math.ceil(G.grace)}…` : G.stun > 0 ? 'Blinded…' : ventT > 0 ? 'In the vents…' : G.dg > 0 ? `Disguised · ${Math.ceil(G.dg)}s · ${left} left` : G.lv === 2 ? (isNight() ? `Night. Hunt. ${left} left · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}` : `Daylight: stay unseen · stalk ${Math.round(G.stk||0)}% · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}`) : G.lv === 3 ? `Listen for them. ${left} left · ${G.open ? 'the room is open' : G.kc && G.kc[0] >= 1 ? 'they have the keycard' : 'the keycard is still out there'} · floor ${floorAt188(me.x, me.z)+2}` : G.open ? `The exit is open. ${left} left.` : ( G.lv === 1 ? `Listen for them. ${left} left · generators ${(G.gen||[]).filter(Boolean).length}/${(G.gen||[]).length}` : `Listen for them. ${left} left · fuses ${G.pl}/${FUSES}`);
     if (G.grace <= 0 && $('black').style.opacity === '1' && mode==='play') $('black').style.opacity = 0;
-    $('kit').style.display = 'none';
+    $('kit').style.display = 'none'; $('side').style.display = 'none';
     { const st = $('stam'); st.style.opacity = me.stam < 99 ? 1 : 0; $('stamf').style.width = me.stam+'%'; st.classList.toggle('adr', false); st.classList.toggle('winded', !!me.winded); }
   } else if (role === 'survivor'){
     const found = G.fz.filter(f=>f[0]>=1).length, mine = G.fz.filter(f=>f[0]===1 && f[3]===myPid).length;
     $('objLbl').textContent = me.hidden >= 0 ? 'HIDING' : 'OBJECTIVE';
     const gOn = (G.gen||[]).filter(Boolean).length;
-    if (G.lv === 3){ const kc = G.kc || [0], f = floorAt188(me.x, me.z) + 2, ef = level.exitFloor + 2, who = kc[3] === myPid ? 'You have' : ((allPlayers().find(p=>p.pid === kc[3])||{}).n || 'Someone') + ' has';
+    if (G.lv === 4) obj.textContent = mallObj852();
+    else if (G.lv === 3){ const kc = G.kc || [0], f = floorAt188(me.x, me.z) + 2, ef = level.exitFloor + 2, who = kc[3] === myPid ? 'You have' : ((allPlayers().find(p=>p.pid === kc[3])||{}).n || 'Someone') + ' has';
       obj.textContent = G.open ? `ROOM ${level.roomNo} is open · floor ${ef} · you're on ${f}` : kc[0] === 0 ? `Find the keycard · you're on floor ${f}` : `${who} the keycard · ROOM ${level.roomNo}, floor ${ef} · you're on ${f}`; }
     else obj.textContent = G.lv === 2 ? `Find the staircase · ${(()=>{ const c = ((G.tod||0)%CYC+CYC)%CYC, r = Math.ceil(c < DAY_LEN ? DAY_LEN-c : CYC-c); return (c < DAY_LEN ? 'DAY ' : 'NIGHT ') + Math.floor(r/60)+':'+String(r%60).padStart(2,'0'); })()}` : G.open ? 'The exit is open. Find the door.' : G.lv === 1 ? `Start the generators · ${gOn}/${G.gen.length}` : found >= FUSES ? `Bring the fuses to the breaker · ${G.pl}/${FUSES}` : `Find the fuses · ${found}/${FUSES}` + (mine ? ` · carrying ${mine}` : '');
     $('kit').style.display = '';
+    { const sd = $('side'), want = LK === 4 && G.lv === 4 ? mallSide852() : ''; if (sd.textContent !== want) sd.textContent = want; sd.style.display = want ? 'block' : 'none'; }
     $('batfill').style.width = me.bat+'%'; $('batfill').style.background = me.bat < 20 ? '#e25a44' : '#e8de9e';
     const st = $('stam'); st.style.opacity = me.stam < 99 && me.hidden < 0 ? 1 : 0; $('stamf').style.width = me.stam+'%'; st.classList.toggle('adr', !!me.adren); st.classList.toggle('winded', !!me.winded);
-    const cranking = crankK >= 0, showStun = stunCharge > 0.05 || cranking; $('stun').style.display = showStun ? 'block' : 'none'; $('stunTxt').style.display = showStun ? 'block' : 'none';
-    if (showStun){ $('stun').style.setProperty('--p', (cranking ? crankT/GEN_T*100 : stunCharge/0.7*100).toFixed(0)); const tt = cranking ? 'STARTING…' : 'BLINDING…'; if ($('stunTxt').textContent !== tt) $('stunTxt').textContent = tt; }
+    const cranking = crankK >= 0 || !!mallHold, showStun = stunCharge > 0.05 || cranking; $('stun').style.display = showStun ? 'block' : 'none'; $('stunTxt').style.display = showStun ? 'block' : 'none';
+    if (showStun){ $('stun').style.setProperty('--p', (mallHold ? mallHold.t/mallHold.T*100 : cranking ? crankT/GEN_T*100 : stunCharge/0.7*100).toFixed(0)); const tt = mallHold ? ({ gate:'CRANKING…', og:'CRANKING…', code:'ENTERING CODE…', claw:'PLAYING…' })[mallHold.k] : cranking ? 'STARTING…' : 'BLINDING…'; if ($('stunTxt').textContent !== tt) $('stunTxt').textContent = tt; }
   }
   if (!net.solo){
     const el = $('plist'); const rows = [];
@@ -5147,7 +5654,7 @@ function frame(now){
     if (sees) lastSeen = t;
     updateVHS(dt);
     updateLowRes(dt, sees);
-    updateCans(dt); updateVent(dt); update37(dt); update188(dt); updateMall(dt);
+    updateCans(dt); updateVent(dt); update37(dt); update188(dt); updateMall(dt); updateMallMap(dt);
     updateCamFx(dt);
     updateMonsterSenses(dt);
     updateAmbience(dt);
@@ -5156,14 +5663,14 @@ function frame(now){
     updateItems();
   }
   updateVoice(dt);
-  if (LK === 3) visPass188();
+  if (LK === 3 || LK === 4) visPass188();
   renderer.render(scene, camera);
-  if (LK === 3) visRestore188();
+  if (LK === 3 || LK === 4) visRestore188();
   grain();
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
+window.__hp = { floorAt852, laneAt852, MLANES, mallObj852, mallTarget852, mallWayTo852, aiTick852, mallMove852, get mallHold(){ return mallHold; }, get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
 </script>
 </body>
 </html>
