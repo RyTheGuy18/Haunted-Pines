@@ -171,7 +171,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.25.0</div>
+<div class="osd" id="ver">v0.26.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -228,7 +228,7 @@
     <span id="controls"></span>
   </details>
   <div class="foot">Headphones on. Listen to the hum.</div>
-  <div class="foot" style="font-size:15px;opacity:.7">The Crawler: <a href="https://sketchfab.com/3d-models/goose-c0cf164370124d81b2737e864bf38205" target="_blank" rel="noopener" style="color:inherit">"Goose" by nodoxi</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (re-textured smaller, rigged in code)</div>
+  <div class="foot" style="font-size:15px;opacity:.7">The Crawler: <a href="https://sketchfab.com/3d-models/goose-c0cf164370124d81b2737e864bf38205" target="_blank" rel="noopener" style="color:inherit">"Goose" by nodoxi</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (re-textured smaller, rigged in code) · Flashlight: <a href="https://sketchfab.com/3d-models/pro-flashlight-4c421693ab9d4d24af19cf151f4569a0" target="_blank" rel="noopener" style="color:inherit">"Pro Flashlight" by Chancleto870</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (simplified, smaller texture)</div>
 </div></div>
 
 <div class="screen" id="lobby"><div class="col">
@@ -1863,7 +1863,28 @@ function fillAvatar(A){
   A.mx = new THREE.AnimationMixer(o); A.act = {};
   for (const c of survSrc.animations){ const ac = A.mx.clipAction(c); ac.play(); ac.setEffectiveWeight(c.name === 'Idle' ? 1 : 0); A.act[c.name] = ac; }
   A.cur = 'Idle'; A.ready = true;
+  if (!A.fake){ if (flSrc) attachFL(A); else flWait.push(A); }
 }
+// the flashlight (models/flashlight.glb: points along +x, button on +y, 0.2 m long)
+let flSrc = null; const flWait = [];
+function attachFL(A){
+  const hand = A.g.getObjectByName('mixamorigRightHand'); if (!hand) return;
+  A.g.updateMatrixWorld(true); const ws = hand.getWorldScale(new THREE.Vector3()).x / Math.max(A.g.scale.x, 1e-6);
+  // point it the way the fingers point (hand → index knuckle, in the hand bone's own space)
+  const idx = A.g.getObjectByName('mixamorigRightHandIndex1'), th = A.g.getObjectByName('mixamorigRightHandThumb1');
+  const dir = idx ? idx.position.clone().normalize() : new THREE.Vector3(0,1,0);
+  const f = flSrc.clone(); f.scale.setScalar(1/ws); f.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0), dir);
+  const mid = idx ? idx.position.clone().multiplyScalar(0.55) : new THREE.Vector3(0, 0.07/ws, 0); if (th) mid.lerp(th.position, 0.25);
+  f.position.copy(mid); hand.add(f); A.fl = f;
+}
+new GLTFLoader().load('models/flashlight.glb', gl=>{
+  const m = []; gl.scene.traverse(c=>{ if (c.isMesh){ const map = c.material.map; if (map){ map.magFilter = THREE.NearestFilter; map.colorSpace = THREE.SRGBColorSpace; } c.material = lam(0xffffff, { map }); c.frustumCulled = false; } });
+  flSrc = gl.scene; while (flWait.length) attachFL(flWait.pop());
+  // first person: the real flashlight in the glove instead of the old box
+  for (const c of VM.children) if (c.material === FL_BODY) c.visible = false;
+  const v = flSrc.clone(); v.rotation.y = Math.PI/2; v.scale.setScalar(1.3); v.position.set(0, 0.03, -0.16); VM.add(v);
+  const lens = VM.userData.lens; lens.geometry.dispose(); lens.geometry = new THREE.CircleGeometry(0.034, 12); lens.position.set(0, 0.03, -0.16 - 0.077*1.3); lens.rotation.set(0, Math.PI, 0);
+}, undefined, e=>console.warn('flashlight model failed to load', e));
 new GLTFLoader().load('models/survivor.glb', gl=>{
   gl.scene.traverse(c=>{ if (c.isMesh && !gl.map) gl.map = c.material.map; });
   if (gl.map){ gl.map.magFilter = THREE.NearestFilter; gl.map.colorSpace = THREE.SRGBColorSpace; }
@@ -1871,8 +1892,8 @@ new GLTFLoader().load('models/survivor.glb', gl=>{
   try { buildFPArm(gl); } catch(e){ console.warn('first-person arm failed', e); }
 }, undefined, e=>console.warn('survivor model failed to load', e));
 const BAND = jackets.map(c=>lam(c));
-function makeAvatar(pid){
-  const g = new THREE.Group(), A = { g, pid, ready:false };
+function makeAvatar(pid, fake){
+  const g = new THREE.Group(), A = { g, pid, ready:false, fake:!!fake };
   if (survSrc) fillAvatar(A); else survWait.push(A);
   scene.add(g); return A;
 }
@@ -2167,6 +2188,11 @@ function applyUse(pid, m){
   else if (m.k === 'noise'){
     if (G.mo === 'AI' && H.ai.mode !== 'chase'){ H.ai.mode='hunt'; H.ai.lx=+m.x||0; H.ai.lz=+m.z||0; H.ai.lt=10; H.ai.rp=0; }
   }
+  else if (m.k === 'bite'){   // a player Occupant reports touching a survivor on its own screen
+    if (pid !== G.mo || G.grace > 0 || G.stun > 0 || (LK === 2 && (!isNight() || G.asub > 0))) return;
+    const ps = allPlayers(), mp = ps.find(p=>p.pid===G.mo), v = ps.find(p=>p.pid===m.v);
+    if (mp && v && !mp.vt && !v.hd && v.pid !== G.mo && !isDead(v.pid) && !isEsc(v.pid) && Math.hypot(v.x-mp.x, v.z-mp.z) < 5) killSurvivor(v);
+  }
   else if (m.k === 'crank'){   // someone is starting a generator: the whole garage hears it, the computer comes straight for it
     if (G.mo === 'AI' && H.ai.mode !== 'chase'){ H.ai.mode='hunt'; H.ai.lx=+m.x||0; H.ai.lz=+m.z||0; H.ai.lt=GEN_T + 20; H.ai.rp=0; }
   }
@@ -2427,7 +2453,7 @@ function onState(m){
   afterState();
 }
 function onUse(m){ if (!amHost() || !m) return; applyUse(String(m.pid||''), m); }
-function onSnd(m){ if (!m) return; if (m.k === 'lure' && m.pid !== myPid) return; playEventSound(m.k, +m.x||0, +m.z||0); }
+function onSnd(m){ if (!m) return; if (m.k === 'lure' && m.pid !== myPid) return; playEventSound(m.k, +m.x||0, +m.z||0, m); }
 /* ---- PeerJS networking (same approach as Hordefall): host's browser is the hub ---- */
 const PEER_PREFIX = 'level0-v1-';
 class Emitter{constructor(){this._h={}}on(e,f){(this._h[e]=this._h[e]||[]).push(f);return this}emit(e,...a){(this._h[e]||[]).forEach(f=>{try{f(...a)}catch(err){console.error(err)}})}}
@@ -2685,7 +2711,7 @@ function updateVoice(dt){
       const rMon = r.pid === G.mo, rGone = isDead(r.pid) || isEsc(r.pid) || !r.a;
       if (rMon){ g = 0; if (G.ov && !iAmDead){ const d = Math.hypot(r.x-cx, r.z-cz); g = Math.pow(clamp(1 - (d-1.5)/9, 0, 1), 1.4); px = r.x; pz = r.z; } }
       else if (rGone) g = iAmDead ? 1 : 0;
-      else { const d = Math.hypot(r.x-cx, r.z-cz); g = Math.pow(clamp(1 - (d-1.5)/10.5, 0, 1), 1.6); if (g > 0 && !losClear(cx, cz, r.x, r.z)) g *= 0.55; px = r.x; pz = r.z; }
+      else { const hunter = role === 'monster' && G.mo === myPid, d = Math.hypot(r.x-cx, r.z-cz); g = Math.pow(clamp(1 - (d-1.5)/(hunter ? 16.5 : 10.5), 0, 1), hunter ? 1.25 : 1.6); if (g > 0 && !losClear(cx, cz, r.x, r.z)) g *= hunter ? 0.7 : 0.55; px = r.x; pz = r.z; }
     }
     const asMon = !!(r && playing && r.pid === G.mo && G.ov);
     if (asMon && !c.mv && c.src){ c.mv = monsterVoice(sfx.ctx); c.src.connect(c.mv.inp); c.mv.out.connect(c.g); }
@@ -2757,7 +2783,7 @@ function afterState(){
     if (G.lv >= 1 && G.gen) G.gen.forEach((v,k)=>{ if (!v || genSeen[k]) return; genSeen[k] = 1; const gn = level.gens[k]; if (!gn) return;
       gn.led.material.color.setHex(0x30ff60);
       const n = G.gen.filter(Boolean).length;
-      { sfx.genStart(gn.x, gn.z); startGenLoop(gn);
+      { if (!(LK === 1 && sfx.samples.genRun)) sfx.genStart(gn.x, gn.z); startGenLoop(gn);
         if (n < G.gen.length) msg(role==='monster' ? `A generator roared to life. ${n}/${G.gen.length}` : `A generator is running. ${n}/${G.gen.length}`, 3); } });
     if (G.open && !seenOpen){ seenOpen = 1; powerOn(); }
     if (G.stun > 0 && !seenStun){ seenStun = true; sfx.recoil(mDisp.x, mDisp.z); if (role==='monster'){ $('white').style.transition='none'; $('white').style.opacity=0.85; setTimeout(()=>{ $('white').style.transition='opacity 3s'; $('white').style.opacity=0; },60); msg('BLINDED.', 2.5); } }
@@ -2910,7 +2936,7 @@ const sfx = {
   },
   samples:{},
   loadSamples(){
-    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3' };
+    const c = this.ctx, files = { crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', genStart:'sfx/gen-start.mp3', genRun:'sfx/gen-run.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3' };
     for (const [k, url] of Object.entries(files)) fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(buf=>{ this.samples[k] = buf; if (k==='crawl' || k==='heavy' || k==='groan') this.startLoop(k); }).catch(e=>console.warn('sound failed', url, e));
   },
   loops:{},
@@ -3079,8 +3105,30 @@ let growlT = 2;
 function muteOccLoops(){ for (const lp of Object.values(sfx.loops)) lp.g.gain.value *= 0.9; }
 function occStep(pos, run){ if (MON === MONS[CRAWLER]) sfx.skitter(pos, run); else sfx.stomp(pos, run); }
 function dashSound(x, z){ playEventSound('dash', x, z); safe(()=>net.room && net.room.emit('snd',{k:'dash',x,z})); }
+// the generator recording: the start-up part loops while someone is starting it, the running part loops once it's on
+function genCrankSound(i, on, x, z){
+  const gn = level && level.gens[i]; if (!gn || !sfx.ctx) return;
+  if (!on){ if (gn.crk){ const c = gn.crk; gn.crk = null; try { c.g.gain.setTargetAtTime(0, sfx.ctx.currentTime, 0.08); c.src.stop(sfx.ctx.currentTime + 0.4); } catch(e){} } return; }
+  if (gn.crk){ gn.crk.until = nowS() + GEN_T + 3; return; }
+  if (!sfx.samples.genStart){ sfx.genCough(gn.x, gn.z); return; }
+  const c = sfx.ctx, src = c.createBufferSource(); src.buffer = sfx.samples.genStart; src.loop = true; src.loopStart = 0.03; src.loopEnd = src.buffer.duration - 0.05;
+  const g = c.createGain(); g.gain.value = 1.0; src.connect(g).connect(sfx.panner(gn.x, 0.6, gn.z, 14)); src.start(); level.sounds.push(src);
+  gn.crk = { src, g, until: nowS() + GEN_T + 3 };
+}
+let lastCrank = -1;
+function crankWatch(){
+  if (crankK !== lastCrank){
+    if (lastCrank >= 0){ genCrankSound(lastCrank, false); safe(()=>net.room && net.room.emit('snd',{k:'crankStop', i:lastCrank})); }
+    if (crankK >= 0 && LK === 1){ const gn = level.gens[crankK];
+      if (gn){ useReq({ k:'crank', x:+gn.x.toFixed(2), z:+gn.z.toFixed(2) }); genCrankSound(crankK, true); safe(()=>net.room && net.room.emit('snd',{k:'crank', i:crankK, x:gn.x, z:gn.z})); } }
+    lastCrank = crankK;
+  }
+  if (level && level.gens) for (const gn of level.gens) if (gn.crk && nowS() > gn.crk.until) genCrankSound(level.gens.indexOf(gn), false);
+}
 function startGenLoop(gn){
   if (!sfx.ctx || gn.loop) return; const c = sfx.ctx, gl = c.createGain(); gl.gain.value = LK === 1 ? 0.3 : 0.16; gl.connect(sfx.panner(gn.x, 0.6, gn.z, LK === 1 ? 5 : 2.5)); gn.loop = gl;
+  genCrankSound(level.gens.indexOf(gn), false);
+  if (LK === 1 && sfx.samples.genRun){ const s = c.createBufferSource(); s.buffer = sfx.samples.genRun; s.loop = true; s.loopStart = 0.03; s.loopEnd = s.buffer.duration - 0.05; gl.gain.value = 0.85; s.connect(gl); s.start(c.currentTime, Math.random()*8); level.sounds.push(s); return; }
   const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 31; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220; o.connect(lp).connect(gl); o.start(); level.sounds.push(o);
   const n = c.createBufferSource(); n.buffer = sfx.brown; n.loop = true; const nf = c.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 400; n.connect(nf).connect(gl); n.start(); level.sounds.push(n);
 }
@@ -3099,13 +3147,14 @@ function lureBehind(){
     t += gap;
   }
 }
-function playEventSound(k, x, z){
+function playEventSound(k, x, z, m){
   if (!sfx.ctx) return;
   if (k === 'can'){ if (LK === 2 && k37(x, z) !== K37.DRY && k37(x, z) !== K37.BALC) sfx.plop(x, z); else sfx.clatter(x, z); return; }
   if (k === 'bang'){ sfx.bang(x, z); return; }
   if (k === 'vent'){ sfx.vent(x, z); return; }
   if (k === 'dash'){ sfx.dash(x, z); return; }
-  if (k === 'crank'){ sfx.genCough(x, z); if (role === 'monster') msg('Somewhere in the garage, someone is starting a generator.', 3.5); return; }
+  if (k === 'crank'){ genCrankSound(m ? m.i|0 : -1, true, x, z); if (role === 'monster') msg('Somewhere in the garage, someone is starting a generator.', 3.5); return; }
+  if (k === 'crankStop'){ genCrankSound(m ? m.i|0 : -1, false); return; }
   if (k === 'gasp'){ const o=sfx.panner(x,1.5,z,role==='monster'?4:2); sfx.noise(o,{dur:0.9,type:'bandpass',freq:900,q:0.7,gain:0.5,attack:0.05}); return; }
   if (k === 'lure'){ if (role === 'survivor' && me.alive && !me.esc) lureBehind(); }
 }
@@ -3293,6 +3342,7 @@ function toLobby(){
 $('bMenu').onclick = ()=>{ leaveRoom(); goMenu(''); };
 
 /* ================= per-frame ================= */
+const biteT = {};
 let fallT=0, fallY=0, fallV=0, curZone=-1, seenZones=new Set(), deathT=0, escT=0, powerFlash=0, surgeT=0, nextSurge=40, stingCD=0, lastSeen=-99, heartT=0, farT=12, whisperT=20, breathT=0, monStepT=0, halluT=30, halluLife=0, specIdx=0, specPid=null, pickT=0, lastNearB=1;
 const mDisp = { x:0, z:0, ry:0, mv:0 };
 const pings = new Map();
@@ -3346,6 +3396,11 @@ function updateMe(dt){
   }
   me.moving = want;
   me.loudT = Math.max(0, me.loudT - dt);
+  // a player Occupant eats what it sees: touching a survivor on its own screen claims the kill (the host double-checks)
+  if (role === 'monster' && G.mo === myPid && G.grace <= 0 && G.stun <= 0 && ventT <= 0){ const reach = dashT > 0 ? 1.7 : 1.15, now = nowS();
+    for (const r of remotes.values()){ if (r.pid === G.mo || !r.a || r.hd || isDead(r.pid) || isEsc(r.pid)) continue;
+      const d = Math.min(Math.hypot(r.x-me.x, r.z-me.z), Math.hypot((r.tx ?? r.x)-me.x, (r.tz ?? r.z)-me.z));
+      if (d < reach && !(biteT[r.pid] > now)){ biteT[r.pid] = now + 0.4; useReq({ k:'bite', v:r.pid }); } } }
   if (want){
     me.bob += dt*(me.running?11:me.crouch?5:7.5);
     me.step += dt*(role==='monster' && MON === MONS[CRAWLER] ? (me.running?5:4) : me.running?2.6:me.crouch?1.1:1.7);
@@ -3360,7 +3415,7 @@ function updateMe(dt){
   updateStun(dt);
   if (crankK >= 0){ const gn = level.gens[crankK];
     if (!gn || (G.gen && G.gen[crankK]) || me.hidden >= 0 || Math.hypot(gn.x-me.x, gn.z-me.z) > 2.3) crankK = -1;
-    else { crankT += dt; crankS -= dt; if (gn.wheel) gn.wheel.rotation.y -= dt*2.2; if (crankS <= 0){ crankS = 0.55; if (LK === 2) sfx.valve(gn.x, gn.z); else sfx.crank(gn.x, gn.z); vibrate(15); }
+    else { crankT += dt; crankS -= dt; if (gn.wheel) gn.wheel.rotation.y -= dt*2.2; if (crankS <= 0){ crankS = 0.55; if (LK === 2) sfx.valve(gn.x, gn.z); else if (!sfx.samples.genStart) sfx.crank(gn.x, gn.z); vibrate(15); }
       if (crankT >= GEN_T){ useReq({ k:'gen', i:crankK }); me.loudT = 1.2; crankK = -1; } } }
   G.cn.forEach((t,i)=>{ if (!t && Math.hypot(level.cn[i][0]-me.x, level.cn[i][1]-me.z) < 1.1){ G.cn[i]=1; useReq({k:'cn',i}); me.cans++; sfx.pickup(); msg('Picked up a can. Throw it to make noise.', 2.5); } });
   if (lightOn()) me.bat = Math.max(0, me.bat - dt*0.55);
@@ -3386,7 +3441,7 @@ function contextAction(){
     if (me.hidden >= 0) return { label:'LEAVE', key:'E', fn:()=>unhide() };
     if (crankK >= 0) return { label:'STOP', key:'E', fn:()=>{ crankK = -1; } };
     const k = nearLocker(1.3); if (k>=0 && !lockerTaken(k)) return { label:'HIDE', key:'E', fn:()=>hide(k) };
-    if (LK >= 1 && G.gen){ const gi = level.gens.findIndex((gn,i)=>!G.gen[i] && Math.hypot(gn.x-me.x, gn.z-me.z) < 1.9); if (gi >= 0) return { label: LK === 2 ? 'TURN VALVE' : 'START GENERATOR', key:'E', fn:()=>{ crankK = gi; crankT = 0; crankS = 0; if (LK === 1){ const gn = level.gens[gi]; useReq({ k:'crank', x:+gn.x.toFixed(2), z:+gn.z.toFixed(2) }); playEventSound('crank', gn.x, gn.z); safe(()=>net.room && net.room.emit('snd',{k:'crank',x:gn.x,z:gn.z})); } } }; }
+    if (LK >= 1 && G.gen){ const gi = level.gens.findIndex((gn,i)=>!G.gen[i] && Math.hypot(gn.x-me.x, gn.z-me.z) < 1.9); if (gi >= 0) return { label: LK === 2 ? 'TURN VALVE' : 'START GENERATOR', key:'E', fn:()=>{ crankK = gi; crankT = 0; crankS = 0; } }; }
   }
   if (role==='monster' && G.grace<=0 && G.stun<=0 && ventT<=0){ const k = nearVent(1.5); if (k>=0 && ventCD<=0) return { label:'VENT', key:'E', fn:()=>enterVent(k) }; }
   return null;
@@ -3491,7 +3546,7 @@ function updateRemotes(dt){
   }
 }
 const fakes = new Map();
-function fakeFor(pid){ let f = fakes.get(pid); if (!f){ f = makeAvatar(pid); f.g.visible = false; fakes.set(pid, f); } return f; }
+function fakeFor(pid){ let f = fakes.get(pid); if (!f){ f = makeAvatar(pid, true); f.g.visible = false; fakes.set(pid, f); } return f; }
 function updateMonsterDisplay(dt){
   let x, z, ry, mv;
   if (G.mo === 'AI'){
@@ -3542,14 +3597,17 @@ function updatePanels(t){
   // point light pool from nearest panels
   const cx = cellOf(camera.position.x), cz = cellOf(camera.position.z);
   const near = [];
-  for (let i=cx-3;i<=cx+3;i++) for (let j=cz-3;j<=cz+3;j++){ if (!inGrid(i,j)) continue; const k=L.panelAt[i*N+j]; if (k<0) continue; const p=L.panels[k]; near.push([Math.hypot(p.x-camera.position.x, p.z-camera.position.z), p]); }
-  near.sort((a,b)=>a[0]-b[0]);
+  for (let i=cx-3;i<=cx+3;i++) for (let j=cz-3;j<=cz+3;j++){ if (!inGrid(i,j)) continue; const k=L.panelAt[i*N+j]; if (k<0) continue; const p=L.panels[k]; if (LK === 1 && p.b < 0.02 && p.gk < 0) continue; near.push([Math.hypot(p.x-camera.position.x, p.z-camera.position.z), p]); }
+  // Level 1: a running generator's lamp keeps its light however far away you are
+  if (LK === 1) for (const p of L.panels) if (p.gk >= 0 && p.b > 0.02 && !near.some(e=>e[1] === p)) near.push([Math.hypot(p.x-camera.position.x, p.z-camera.position.z), p]);
+  near.sort((a,b)=>(LK === 1 ? (a[1].b < 0.02) - (b[1].b < 0.02) : 0) || a[0]-b[0]);
   localLight = 0;
   for (let k=0;k<PL.length;k++){
     const l = PL[k], e = near[k];
     if (!e){ l.intensity = 0; continue; }
     const p = e[1];
     l.position.set(p.x, p.t===2 ? ZH[2]-0.25 : WH-0.25, p.z);
+    l.distance = LK === 1 && p.gk >= 0 ? 13 : 9.5;
     l.intensity = LI * Math.min(1.3, p.b) * (p.t===2 ? 1.25 : 1);
     l.color.setHex(p.red ? 0xff3018 : p.t===1 ? 0xd8ffe6 : p.t===2 ? 0xfff6dc : 0xfff0c0);
     localLight = Math.max(localLight, p.b * clamp(1 - e[0]/6.5, 0, 1));
@@ -3847,7 +3905,8 @@ function frame(now){
   const dt = Math.min(0.05, (now-last)/1000); last = now;
   const t = nowS();
   if (mode==='play' && myRound===G.r && !soloPaused()) updateMe(dt);
-  if (!(mode==='play' && myRound===G.r && !soloPaused() && G.ph==='play')){ sfx.wade(me, 0, null); sfx.puff(0); me.puffing = false; }
+  if (!(mode==='play' && myRound===G.r && !soloPaused() && G.ph==='play')){ sfx.wade(me, 0, null); sfx.puff(0); me.puffing = false; crankK = -1; }
+  crankWatch();
   if (amHost()){
     if (!soloPaused()) hostTick(dt); afterState();
     stateT -= dt; if (stateT <= 0){ stateT = G.ph==='play' ? 0.1 : 0.5; broadcastState(); }
