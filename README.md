@@ -39,3 +39,4 @@ v0.27.1: soda vending machines in the hotel, wood footsteps on Level 188, the Cr
 v0.28.0: the Lurker stalks Level 0 and the hotel (don't stare at it, use your light, it comes in blackouts), new wallpaper and carpet, bigger Level 0 without the clean office, darker hotel halls with a bright courtyard.
 v0.28.1: better iPhone controls (push the stick all the way to run, smoother look, no zooming), louder and more reliable voice chat, mic boost and microphone/speaker pickers in settings.
 v0.28.2: touch buttons are all the same size in one line on the right edge, and the joystick stays locked where your thumb lands.
+v0.28.3: smaller touch buttons.
