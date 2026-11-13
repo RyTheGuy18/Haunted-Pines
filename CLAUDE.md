@@ -6,7 +6,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 - Live: https://rytheguy18.github.io/Haunted-Pines/ (GitHub Pages, `main` branch, repo root)
 - Owner: Ryan (GitHub `rytheguy18` / `RyTheGuy18`). Plays it with friends and younger brothers, mostly on phones.
-- Current version: **v0.20.0** (shown bottom-right of the menu, `#ver`)
+- Current version: **v0.20.1** (shown bottom-right of the menu, `#ver`)
 
 ## Files
 
@@ -77,7 +77,7 @@ All in the `sfx` object (Web Audio, HRTF panners). Procedural sounds for most th
 PeerJS, host's browser is the hub (star). Room code = 4 letters, peer id `level0-v1-CODE`. Max 4 players.
 - Host owns the authoritative state `G` (see `freshState()`), broadcasts it every 0.1 s in play; clients send `presence` (position, flags) every 0.1 s and `use` requests (`useReq` → `applyUse` on the host). One-off sounds go over `snd`.
 - `G.lv` = level (0/1), `G.gen` generators, `G.fz` fuses, `G.dead/esc/kl`, `G.dg` disguise, `G.ov` Occupant voice option, etc. Level geometry is rebuilt identically on every client from a seed (`baseSeed`, `lvSeed(k)`), walls synced as a hex bitmask.
-- Lobby: host picks who's the Occupant (random / computer / a player), skins per player, OCCUPANT VOICE option, COMPUTER difficulty (`G.df`). End screen: PLAY AGAIN or **BACK TO LOBBY** (keeps the room together).
+- Lobby: host picks who's the Occupant (random / computer / a player), skins per player, OCCUPANT VOICE option, COMPUTER difficulty (`G.df`), START AT level (`G.sl` 0/1/2 = Level 0/1/37; menu button `bLv1` for solo, lobby `bLv` for host; `localStorage['lvl0_start']`). `setupLevel(k)` builds a level into `G` (used by `advanceLevel` and by `hostStartRound` when starting later). End screen: PLAY AGAIN or **BACK TO LOBBY** (keeps the room together).
 - `#localnet` in the URL swaps PeerJS for a BroadcastChannel transport (same-browser tabs) — used for automated tests. It has **no voice calls**.
 
 **Proximity voice chat** (`voice` object): PeerJS audio calls, one per pair (lower peer id calls). Opt-in via VOICE CHAT button (menu, lobby, settings). Rules: lobby/end = everyone full volume; in a round survivors fade out by ~12 m (muffled through walls); the Occupant hears survivors; **nobody hears the Occupant** unless the host turned on **OCCUPANT VOICE: MONSTER** — then survivors within ~10 m hear it through `monsterVoice()` (delay-line pitch shifter ~10 semitones down + 38 Hz growl ring-mod + distortion + echo, applied on the receiving side); dead players only talk to dead players. Mic meter under the objective (quiet / HEARD / LOUD). V mutes. Confirmed working by Ryan with real players.
@@ -86,7 +86,7 @@ PeerJS, host's browser is the hub (star). Room code = 4 letters, peer id `level0
 
 Esc (desktop), ⚙ button (phones), or SETTINGS in menu/lobby. Volume, voice volume, voice on/off, mic mute, look sensitivity, FOV (60–100), resume, leave. Saved in `localStorage['lvl0_set']`. Solo pauses; online keeps running.
 
-Other localStorage keys: `lvl0_name`, `lvl0_skin2` (skin), `lvl0_voice`, `lvl0_monvoice`, `lvl0_diff`.
+Other localStorage keys: `lvl0_name`, `lvl0_skin2` (skin), `lvl0_voice`, `lvl0_monvoice`, `lvl0_diff`, `lvl0_start`.
 
 Controls (desktop): WASD, Shift sprint, C crouch, Left click / F flashlight, Right click / G throw can, E hide / vent / start generator, V mute, Esc settings, Occupant 1–5. Phones: left thumb move, right thumb look, buttons bottom-right (Occupant gets 6 buttons incl. RUN and DASH), USE pops up near things.
 

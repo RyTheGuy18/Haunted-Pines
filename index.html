@@ -176,7 +176,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.20.0</div>
+<div class="osd" id="ver">v0.20.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div>
@@ -207,6 +207,7 @@
     <input id="name" maxlength="12" placeholder="WANDERER" autocomplete="off">
     <button class="btn primary" id="bSolo">PLAY SOLO</button>
     <button class="btn monb" id="bDiff1">COMPUTER: NORMAL</button>
+    <button class="btn" id="bLv1">START AT: LEVEL 0</button>
     <button class="btn" id="bHost">HOST ONLINE GAME</button>
     <div class="row code"><input id="joincode" maxlength="4" placeholder="CODE" autocomplete="off"><button class="btn" id="bJoin">JOIN</button></div>
     <button class="btn" id="bVoice">VOICE CHAT: OFF</button>
@@ -248,6 +249,7 @@
     <button class="btn monb" id="bMonVoice">OCCUPANT VOICE: OFF</button>
     <button class="btn monb" id="bMon">THE OCCUPANT: RANDOM</button>
     <button class="btn monb" id="bDiff">COMPUTER: NORMAL</button>
+    <button class="btn" id="bLv">START AT: LEVEL 0</button>
     <div id="monText"></div>
     <div class="picker"><button id="bSkin2L">◀</button><div class="pv" id="bSkin2"></div><button id="bSkin2R">▶</button></div>
   </div>
@@ -1432,6 +1434,8 @@ function skinLabel(){ return 'OCCUPANT SKIN: ' + SKIN_NAMES[mySkin].replace('THE
 
 /* ================= shared state ================= */
 let monVoiceOpt = 0; try { monVoiceOpt = +(localStorage.getItem('lvl0_monvoice')||0) ? 1 : 0; } catch(e){}
+let startOpt = 0; try { startOpt = clamp(+(localStorage.getItem('lvl0_start')||0)|0, 0, 2); } catch(e){}
+const LV_NAMES = ['LEVEL 0', 'LEVEL 1', 'LEVEL 37'];
 let diffOpt = 1; try { const v = localStorage.getItem('lvl0_diff'); if (v !== null) diffOpt = clamp(+v|0, 0, 3); } catch(e){}
 // how the computer Occupant plays at each difficulty. It is never faster than a sprinting survivor (5.0), and the flashlight always works on it.
 const AI_DIFF = [
@@ -1440,7 +1444,7 @@ const AI_DIFF = [
   { name:'HARD',       hear:1.35, see:19, near:7, spd:1.04, wander:2.4, drift:1,    persist:1.5, spr:1, dash:1, stun:0.8,  bo:1, vent:1, lead:0.6, obj:1 },
   { name:'IMPOSSIBLE', hear:1.8,  see:24, near:8, spd:1.08, wander:2.8, drift:1,    persist:2.2, spr:1, dash:1, stun:0.6,  bo:1, vent:2, lead:1.4, obj:2 },
 ];
-function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0, dg:0, dgp:'', lv:0, gen:[], ads:0, kl:[], ov:monVoiceOpt, df:diffOpt, ach:0, avt:0 }; }
+function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0, dg:0, dgp:'', lv:0, gen:[], ads:0, kl:[], ov:monVoiceOpt, df:diffOpt, sl:startOpt, ach:0, avt:0 }; }
 let G = freshState();
 const H = { ai:{}, shiftT:30, ringT:25, ringEnd:0 };
 let mode = 'menu';
@@ -1487,7 +1491,8 @@ function hostStartRound(){
     else if (monChoice !== 'ai' && ids.includes(monChoice)) mo = monChoice;
     else if (monChoice !== 'ai') mo = ids[Math.floor(Math.random()*ids.length)];
   }
-  G = freshState(G.r + 1);
+  const keepSl = G.sl ?? startOpt;
+  G = freshState(G.r + 1); G.sl = net.solo ? startOpt : keepSl;
   G.ph = 'play'; G.mo = mo; G.sk = mySkin;
   walls = level.base.slice(); G.w = wallsHex(); G.wv = 1;
   G.fz = level.fuses.map(f=>[0, +f[0].toFixed(2), +f[1].toFixed(2), '']);
@@ -1496,6 +1501,8 @@ function hostStartRound(){
   G.grace = mo === 'AI' ? 20 : 25;
   aiReset();
   H.shiftT = 26; H.ringT = 30; H.ringEnd = 0;
+  // the host can start the round on a later level
+  const sl = clamp(G.sl ?? startOpt, 0, 2); if (sl > 0){ const gr = G.grace; setupLevel(sl); G.grace = gr; }
   broadcastState(); afterState();
 }
 function applyUse(pid, m){
@@ -1686,16 +1693,19 @@ function aiTick(dt, alive){
   A.boT -= dt;
   if (D.bo && A.mode!=='wander' && A.boT <= 0){ A.boT = 45+Math.random()*30; G.bo.push([ax,az,15]); }
 }
-function advanceLevel(){
-  const k = Math.min(2, (G.lv|0) + 1);
+function setupLevel(k){
   buildLevel(lvSeed(k), k); sfx.bindLevel();
   walls = level.base.slice(); G.w = wallsHex(); G.wv++;
   G.lv = k; G.esc = []; G.dead = [];   // everyone caught on the last level wakes up here too
-  G.open = 0; G.fz = []; G.pl = 0; G.gen = level.gens.map(()=>0);
+  G.open = 0; G.fz = k === 0 ? level.fuses.map(f=>[0, +f[0].toFixed(2), +f[1].toFixed(2), '']) : []; G.pl = 0; G.gen = level.gens.map(()=>0);
   G.aw = level.aw.map(()=>0); G.bt = level.bt.map(()=>0); G.cn = level.cn.map(()=>0);
   G.bo = []; G.stun = 0; G.dg = 0; G.ring = -1; G.ads = 0;
-  G.ax = level.mspawn[0]; G.az = level.mspawn[1]; G.grace = G.mo === 'AI' ? 12 : 15;
+  G.ax = level.mspawn[0]; G.az = level.mspawn[1];
   aiReset(); H.shiftT = 26; H.ringT = 30; H.ringEnd = 0;
+}
+function advanceLevel(){
+  setupLevel(Math.min(2, (G.lv|0) + 1));
+  G.grace = G.mo === 'AI' ? 12 : 15;
   broadcastState(); afterState();
 }
 function hostTick(dt){
@@ -2069,6 +2079,7 @@ function renderLobby(){
   $('bMon').style.display = host ? '' : 'none';
   $('bMonVoice').textContent = 'OCCUPANT VOICE: ' + (G.ov ? 'MONSTER' : 'OFF') + (host ? '' : ' (host picks)'); $('bMonVoice').disabled = !host;
   $('bMon').textContent = 'THE OCCUPANT: ' + monLabel();
+  $('bLv').textContent = 'START AT: ' + LV_NAMES[clamp(G.sl ?? startOpt, 0, 2)] + (host ? '' : ' (host picks)'); $('bLv').disabled = !host;
   $('bDiff').textContent = 'COMPUTER: ' + AI_DIFF[clamp(G.df ?? diffOpt, 0, 3)].name + (host ? '' : ' (host picks)'); $('bDiff').disabled = !host;
   $('monText').textContent = host ? (remotes.size ? 'Tap to choose who hunts.' : 'Alone? The computer will hunt you.') : 'The host picks who becomes the Occupant.';
   $('bStart').style.display = host ? '' : 'none';
@@ -2141,7 +2152,8 @@ function startRoundLocal(){
     if (G.ov && voice.stream) setTimeout(()=>msg('Your mic is on. Survivors near you hear a monster.', 5), 1500);
     $('blacktext').textContent = 'YOU ARE THE OCCUPANT'; $('blacksub').textContent = 'They wake up in the halls. You can\'t run, but you walk faster than they do. Listen for them, and don\'t let them reach the exit.';
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
-  } else msg('Find 3 fuses. Something else is awake.', 5);
+  } else msg((G.lv|0) === 2 ? 'Turn the 3 drain valves. Something else is awake.' : (G.lv|0) === 1 ? 'Start the 3 generators. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
+  poolWL = POOL_WL[0]; if ((G.lv|0) > 0){ seenZones.add(1); seenZones.add(2); }
 }
 function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? .86 : LK === 2 ? 1.0 : .64})` : ''; }
 function enterLevel(){
@@ -2552,6 +2564,9 @@ function genCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ'; let s=''; for (let i=0;i
 function goFull(){ try { const el=document.documentElement; const r = el.requestFullscreen && el.requestFullscreen(); if (r && r.catch) r.catch(()=>{}); } catch(e){} }
 function diffLabel(){ $('bDiff1').textContent = 'COMPUTER: ' + AI_DIFF[diffOpt].name; }
 diffLabel();
+function lvLabel(){ $('bLv1').textContent = 'START AT: ' + LV_NAMES[startOpt]; }
+lvLabel();
+$('bLv1').onclick = ()=>{ startOpt = (startOpt + 1) % 3; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); };
 $('bDiff1').onclick = ()=>{ diffOpt = (diffOpt + 1) % 4; try { localStorage.setItem('lvl0_diff', diffOpt); } catch(e){} diffLabel(); };
 $('bSolo').onclick = ()=>{
   readName(); sfx.init(); if (isTouch) goFull();
@@ -2567,6 +2582,7 @@ $('bJoin').onclick = async ()=>{ if (voice.want && !voice.stream) voiceEnable(tr
   readName(); sfx.init(); if (isTouch) goFull(); if (await connect(c, false)) sfx.bindLevel();
 };
 $('joincode').addEventListener('input', e=>{ e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g,''); });
+$('bLv').onclick = ()=>{ if (!amHost()) return; startOpt = G.sl = ((G.sl ?? startOpt) + 1) % 3; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); broadcastState(); renderLobby(); };
 $('bDiff').onclick = ()=>{ if (!amHost()) return; diffOpt = G.df = ((G.df ?? diffOpt) + 1) % 4; try { localStorage.setItem('lvl0_diff', diffOpt); } catch(e){} diffLabel(); broadcastState(); renderLobby(); };
 $('bMonVoice').onclick = ()=>{ if (!amHost()) return; monVoiceOpt = G.ov = G.ov ? 0 : 1; try { localStorage.setItem('lvl0_monvoice', monVoiceOpt); } catch(e){} broadcastState(); renderLobby(); };
 $('bMon').onclick = ()=>{
