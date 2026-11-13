@@ -17,3 +17,4 @@ v0.16.0: recorded footsteps and attack sounds, mouse flashlight/throw.
 v0.17.0: proximity voice chat with a mic meter.
 v0.18.0: settings menu, caught players come back on Level 1.
 v0.18.1: louder Occupant steps, shorter voice range, height fixes.
+v0.19.0: optional monster voice for the Occupant.
