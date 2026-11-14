@@ -193,7 +193,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.35.2</div>
+<div class="osd" id="ver">v0.36.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -3136,7 +3136,7 @@ function buildLevel188(seed){
   // ---- materials
   const wallM = lam(0xffffff,{ map:hWallTex, emissive:0xffffff, emissiveMap:hWallTex, emissiveIntensity:0.12 }), facadeM = lam(0xffffff,{ map:hFacadeTex, emissive:0xffffff, emissiveMap:hFacadeTex, emissiveIntensity:0.16 }), revealM = lam(0xd8d4c8, { emissive:0x30302c }), steelM = lam(0xffffff,{ map:hSteelTex });
   const carpetM = lam(0xffffff,{ map:hCarpetTex, emissive:0xffffff, emissiveMap:hCarpetTex, emissiveIntensity:0.1 }), ceilM = lam(0xffffff,{ map:hCeilTex, emissive:0xffffff, emissiveMap:hCeilTex, emissiveIntensity:0.08 }), doorM = lam(0xffffff,{ map:hDoorTex }), frameM = lam(0x4a3a2c);
-  L.hm = { wallM, carpetM, ceilM, facadeM, lawn:null, open:0 };   // v0.28: hall materials dim deep inside, the courtyard stays bright (updateZoneEnv)
+  L.hm = { wallM, carpetM, ceilM, facadeM, lawn:null, open:0, glow:[{ m:revealM, e:0x30302c }] };   // glow: dimmed in a power outage (v0.36)   // v0.28: hall materials dim deep inside, the courtyard stays bright (updateZoneEnv)
   // ---- slabs (walls) and wall spots, per walkable cell
   const vSlabs = [], wins = [], spots = [];
   for (let f=0; f<3; f++) for (let li=0; li<HF; li++) for (let lj=0; lj<HF; lj++){
@@ -3185,13 +3185,13 @@ function buildLevel188(seed){
     const gm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.7,1.4), new THREE.MeshBasicMaterial({ color:0x2a3a44, transparent:true, opacity:0.2, depthWrite:false, side:THREE.DoubleSide }), glass.length);
     glass.forEach((p,k)=>{ tmpQ.setFromAxisAngle(UP, p.th); tmpV.set(p.x, p.y, p.z); tmpS.set(1,1,1); tmpM.compose(tmpV,tmpQ,tmpS); gm.setMatrixAt(k,tmpM); });
     gm.frustumCulled = false; gm.renderOrder = 2; g.add(gm);
-    [lam(0x16130f), new THREE.MeshBasicMaterial({ color:0x8a7650 })].forEach((mat,b)=>{ if (!backs[b].length) return; const bm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.7,1.4), mat, backs[b].length);
+    [lam(0x16130f), new THREE.MeshBasicMaterial({ color:0x8a7650 })].forEach((mat,b)=>{ if (!backs[b].length) return; const bm = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.7,1.4), mat, backs[b].length); if (b) L.hm.glow.push({ m:mat, c:0x8a7650 });
       backs[b].forEach((p,k)=>{ tmpQ.setFromAxisAngle(UP, p.th); tmpV.set(p.x, p.y, p.z); tmpS.set(1,1,1); tmpM.compose(tmpV,tmpQ,tmpS); bm.setMatrixAt(k,tmpM); }); bm.frustumCulled = false; g.add(bm); });
     const cw = (HCY1-HCY0+1)*CS, cmid = (HCY0*CS + (HCY1+1)*CS)/2;
     const lawnM = lam(0xffffff,{ map:hLawnTex, emissive:0xffffff, emissiveMap:hLawnTex, emissiveIntensity:0.7 }); L.hm.lawn = lawnM;
     const lawn = new THREE.Mesh(new THREE.PlaneGeometry(cw, cw), lawnM); lawn.rotation.x = -Math.PI/2; lawn.position.set(cmid, 0.01, cmid); g.add(lawn);
-    const roof = new THREE.Mesh(new THREE.PlaneGeometry(cw, cw), lam(0x8a867c, { emissive:0x4a4844 })); roof.rotation.x = Math.PI/2; roof.position.set(cmid, 5*HFH, cmid); g.add(roof);
-    for (const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]]){ const p = new THREE.Mesh(new THREE.PlaneGeometry(3.2,3.2), new THREE.MeshBasicMaterial({ color:0xd8d2b8 })); p.rotation.x = Math.PI/2; p.position.set(cmid + a*6, 5*HFH - 0.02, cmid + b*6); g.add(p); }
+    const roofM = lam(0x8a867c, { emissive:0x4a4844 }); L.hm.glow.push({ m:roofM, e:0x4a4844 }); const roof = new THREE.Mesh(new THREE.PlaneGeometry(cw, cw), roofM); roof.rotation.x = Math.PI/2; roof.position.set(cmid, 5*HFH, cmid); g.add(roof);
+    for (const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]]){ const skM = new THREE.MeshBasicMaterial({ color:0xd8d2b8 }); L.hm.glow.push({ m:skM, c:0xd8d2b8, keep:0.25 }); const p = new THREE.Mesh(new THREE.PlaneGeometry(3.2,3.2), skM); p.rotation.x = Math.PI/2; p.position.set(cmid + a*6, 5*HFH - 0.02, cmid + b*6); g.add(p); }
     // a planter and a fence in the courtyard, like the photo
     const fence = new THREE.InstancedMesh(new THREE.BoxGeometry(0.04,0.9,0.04), lam(0x8a8a84), 40);
     for (let k=0;k<40;k++){ tmpM.makeTranslation(HCY0*CS + 1 + k*(cw-2)/39, 0.45, HCY0*CS + 1.2); fence.setMatrixAt(k, tmpM); } g.add(fence);
@@ -3913,6 +3913,10 @@ function animLurker(L, t, dt, st, spd){
   }
 }
 // ---- host side ----
+// v0.36 (Ryan): the hotel loses ALL its power now and then: every light on every floor, the courtyard goes dark too (G.hb = seconds left)
+function hostOutage188(dt){ if (G.ph !== 'play') return; if (H.hbT == null) H.hbT = 50 + Math.random()*40;
+  if ((G.hb||0) > 0){ G.hb = Math.max(0, +(G.hb - dt).toFixed(2)); if (G.hb === 0) H.hbT = 70 + Math.random()*60; return; }
+  H.hbT -= dt; if (H.hbT <= 0) G.hb = +(15 + Math.random()*9).toFixed(1); }
 function lrBlackout(x, z){ for (const b of G.bo) if (Math.hypot(x-b[0], z-b[1]) < 12.5) return true; return false; }
 function lrSeen(x, z, ps, far=34){ for (const p of ps){ const dx = x-p.x, dz = z-p.z, d = Math.hypot(dx,dz); if (d > far) continue; if (d < 3) return true; const [fx,,fz] = lookDir(p.yaw||0, 0); if ((dx*fx+dz*fz)/d > -0.2 && losClear(p.x, p.z, x, z)) return true; } return false; }
 const lrBlock = () => { if (LK !== 0) return null; const b = new Uint8Array(N*N); for (let i=0;i<N;i++) for (let j=0;j<N;j++) if (zoneOf(i,j) === 2) b[i*N+j] = 1; return b; };
@@ -4337,6 +4341,7 @@ function setupLevel(k){
   else { G.mk = null; G.td = null; G.pa = 0; G.pam = null; G.bf = ''; }
   if (k === 5){ G.w = ''; G.bc = [0, +level.cutters[0].toFixed(2), +level.cutters[1].toFixed(2), '']; G.pv = 0; G.pc = 0; G.po = []; }   // Level 2: walls never shift
   else { G.bc = null; G.pv = 0; G.pc = 0; G.po = []; }
+  G.hb = 0; H.hbT = null;   // v0.36: Level 188 power outages
 }
 function advanceLevel(){
   setupLevel(Math.min(5, (G.lv|0) + 1));
@@ -4362,6 +4367,7 @@ function hostTick(dt){
     if (G.kc && G.kc[0] === 1 && !ps.some(p=>p.pid === G.kc[3])){ G.kc[0] = 0; G.kc[1] = +level.kc[0].toFixed(2); G.kc[2] = +level.kc[1].toFixed(2); G.kc[3] = ''; } }   // whoever had it left the game
   if (LK === 4) hostMall852(dt, ps);
   if (LK === 5) hostPipe2(dt, ps);
+  if (LK === 3) hostOutage188(dt);
   if (G.mo === 'AI'){ (LK === 2 ? aiTick37 : LK === 3 ? aiTick188 : LK === 4 ? aiTick852 : aiTick)(dt, alive); mp = { x:G.ax, z:G.az }; }
   else {
     const m = ps.find(p=>p.pid===G.mo);
@@ -5824,6 +5830,7 @@ function updateMonsterDisplay(dt){
 }
 
 function panelBright(p, t, mx, mz){
+  if (LK === 3 && G.hb > 0) return G.hb < 1.6 && h01(p.idx*5+Math.floor(t*14)) < (1 - G.hb/1.6)*0.9 ? 0.9 : 0;   // hotel outage: everything, elevator cars too; stutters back on at the end
   if (p.car != null){ const el = G.el && G.el[p.car]; return el && el.a === p.L ? 1 : 0; }   // Level 188: the light in an elevator car
   if (p.dead) return 0;
   if (p.circ != null && G.po && G.po.some(q=>q[0] === p.circ)) return 0;   // Level 2: a whole series circuit is out
@@ -5852,6 +5859,7 @@ function updatePanels(t){
     else if (p.t===1) tmpC.setRGB(0.06+0.8*p.b, 0.07+0.93*p.b, 0.07+0.86*p.b);
     else if (p.t===2) tmpC.setRGB(0.08+0.92*p.b, 0.08+0.92*p.b, 0.07+0.86*p.b);
     else tmpC.setRGB(0.07+0.93*p.b, 0.07+0.9*p.b, 0.05+0.78*p.b);
+    if (LK === 3 && G.hb > 0 && p.b === 0) tmpC.setRGB(0.012, 0.012, 0.012);   // hotel outage: the tubes are dead black
     L.panelMesh.setColorAt(p.idx, tmpC);
   }
   if (L.panelMesh.instanceColor) L.panelMesh.instanceColor.needsUpdate = true;
@@ -5910,19 +5918,30 @@ function updateZoneEnv(dt){
   if (z !== curZone){ curZone = z; if (mode==='play' && role==='survivor' && z && ZNAME[z] && !seenZones.has(z)){ seenZones.add(z); msg('— ' + ZNAME[z] + ' —', 3); } }
   const k = 1 - Math.exp(-2.5*dt);
   if (LK === 3){   // the hotel: bright at the courtyard windows (you can see right across), dark deeper in the halls (v0.28)
-    const op = hotelOpen188(camera.position.x, camera.position.z), hm = level.hm; if (hm){ hm.open = lerp(hm.open, op, 1 - Math.exp(-3*dt));
-      const o = role === 'monster' ? Math.max(0.6, hm.open) : hm.open;
-      hm.wallM.emissiveIntensity = lerp(0.012, 0.12, o); hm.carpetM.emissiveIntensity = lerp(0.008, 0.1, o); hm.ceilM.emissiveIntensity = lerp(0.006, 0.08, o); hm.facadeM.emissiveIntensity = 0.5; }
-    const o = hm ? hm.open : 1;
-    _fogT.setHex(role==='monster' ? 0x2a1e14 : 0x1a140d); if (role !== 'monster') _fogT.multiplyScalar(0.45 + 0.55*o); scene.fog.color.lerp(_fogT, k); scene.background.copy(scene.fog.color);
-    scene.fog.density = lerp(scene.fog.density, role==='monster' ? 0.02 : lerp(0.085, 0.024, o), k);
-    amb.intensity = lerp(amb.intensity, role==='monster' ? 1.0 : lerp(0.06, 0.42, o), k); amb.color.lerp(H188_SKY, k); amb.groundColor.lerp(H188_GND, k); return; }
-  _fogT.copy(ZFOG[z]); if (role==='monster') _fogT.multiplyScalar(LK === 1 ? 1.4 : LK === 2 ? 1 : 0.7);
+    const op = hotelOpen188(camera.position.x, camera.position.z), hm = level.hm; let bk = 0; if (hm){ hm.open = lerp(hm.open, op, 1 - Math.exp(-3*dt));
+      // v0.36 outage: bk 0..1 (fast off, the lights stutter back at the end)
+      const out = G.ph === 'play' && G.hb > 0.4; hm.bk = lerp(hm.bk || 0, out ? 1 : 0, 1 - Math.exp(-(out ? 9 : 2.5)*dt)); bk = hm.bk;
+      if (out !== !!hm.out){ hm.out = out; outage188(out); }
+      const o = (role === 'monster' ? Math.max(0.6, hm.open) : hm.open)*(1 - bk*(role === 'monster' ? 0.5 : 0.97)), f = 1 - bk*(role === 'monster' ? 0.6 : 0.94);
+      hm.wallM.emissiveIntensity = lerp(0.012, 0.12, o)*(1-bk); hm.carpetM.emissiveIntensity = lerp(0.008, 0.1, o)*(1-bk); hm.ceilM.emissiveIntensity = lerp(0.006, 0.08, o)*(1-bk); hm.facadeM.emissiveIntensity = 0.5*f; if (hm.lawn) hm.lawn.emissiveIntensity = 0.7*f;
+      if (hm.glow && Math.abs(bk - (hm.gbk ?? -1)) > 0.003){ hm.gbk = bk; for (const q of hm.glow){ const s2 = 1 - bk*(1 - (q.keep ?? 0.1)); if (q.c != null) q.m.color.setHex(q.c).multiplyScalar(s2); else q.m.emissive.setHex(q.e).multiplyScalar(s2); } } }
+    const o = (hm ? hm.open : 1)*(1 - bk*0.9);
+    _fogT.setHex(role==='monster' ? 0x2a1e14 : 0x1a140d); if (role !== 'monster') _fogT.multiplyScalar((0.45 + 0.55*o)*(1 - bk*0.85)); scene.fog.color.lerp(_fogT, k); scene.background.copy(scene.fog.color);
+    scene.fog.density = lerp(scene.fog.density, role==='monster' ? 0.02 + bk*0.02 : lerp(lerp(0.085, 0.024, o), 0.1, bk), k);
+    amb.intensity = lerp(amb.intensity, role==='monster' ? 1.0 - bk*0.45 : lerp(lerp(0.06, 0.42, o), 0.012, bk), k); amb.color.lerp(H188_SKY, k); amb.groundColor.lerp(H188_GND, k); return; }
+  const lit1 = LK === 1 && G.open;   // v0.36 (Ryan): the garage with every generator on is bright all the way down, you can see far
+  if (lit1) _fogT.setHex(0x4a4c4e); else { _fogT.copy(ZFOG[z]); if (role==='monster') _fogT.multiplyScalar(LK === 1 ? 1.4 : LK === 2 ? 1 : 0.7); }
   scene.fog.color.lerp(_fogT, k); scene.background.copy(scene.fog.color);
-  scene.fog.density = lerp(scene.fog.density, role==='monster' ? (LK === 1 ? 0.06 : LK === 2 ? 0.03 : LK === 4 ? 0.05 : LK === 5 ? 0.05 : 0.11) : ZDENS[z]*(LK === 0 && mode !== 'menu' && mode !== 'lobby' && mode !== 'end' ? 1.45 : 1), k);
-  amb.intensity = lerp(amb.intensity, role==='monster' ? (LK === 1 ? 1.5 : LK === 2 ? lerp(0.6, 1.1, dayK(G.tod||0)) : 0.34) : LK === 2 ? lerp(0.2, 1.0, dayK(G.tod||0)) : LK === 1 ? 0.09 : 0.16, k);
-  amb.color.lerp(ZSKY[z], k); amb.groundColor.lerp(ZGND[z], k);
+  scene.fog.density = lerp(scene.fog.density, lit1 ? 0.016 : role==='monster' ? (LK === 1 ? 0.06 : LK === 2 ? 0.03 : LK === 4 ? 0.05 : LK === 5 ? 0.05 : 0.11) : ZDENS[z]*(LK === 0 && mode !== 'menu' && mode !== 'lobby' && mode !== 'end' ? 1.45 : 1), k);
+  amb.intensity = lerp(amb.intensity, lit1 ? (role === 'monster' ? 1.5 : 0.75) : role==='monster' ? (LK === 1 ? 1.5 : LK === 2 ? lerp(0.6, 1.1, dayK(G.tod||0)) : 0.34) : LK === 2 ? lerp(0.2, 1.0, dayK(G.tod||0)) : LK === 1 ? 0.09 : 0.16, k);
+  if (lit1){ amb.color.lerp(_lit1S, k); amb.groundColor.lerp(_lit1G, k); } else { amb.color.lerp(ZSKY[z], k); amb.groundColor.lerp(ZGND[z], k); }
 }
+const _lit1S = new THREE.Color(0xd8dce2), _lit1G = new THREE.Color(0x7a7874);
+function outage188(on){   // the hotel's power goes / comes back: sound + message for everyone
+  if (sfx.ctx){ const o = sfx.panner(me.x, 3.0, me.z, 30);
+    if (on){ sfx.tone(o,{ f:120, to:28, type:'sawtooth', dur:1.8, gain:0.12 }); sfx.noise(o,{ dur:0.5, type:'lowpass', freq:220, gain:0.9 }); sfx.noise(o,{ dur:0.12, type:'bandpass', freq:2600, q:2, gain:0.5, at:0.05 }); }
+    else { sfx.noise(o,{ dur:0.3, type:'lowpass', freq:300, gain:0.6 }); sfx.tone(o,{ f:40, to:120, type:'sawtooth', dur:1.2, gain:0.06, at:0.1 }); } }
+  if (mode === 'play' || mode === 'spect') msg(on ? (role === 'monster' ? 'The hotel\'s power is out. Every floor. They can\'t see.' : 'The power\'s out. All of it.') : 'The lights come back.', 3); }
 function survivorSeesMonster(){
   if (G.mo === myPid || role!=='survivor' || !me.alive) return false;
   const dx=mDisp.x-me.x, dz=mDisp.z-me.z, d=Math.hypot(dx,dz);
@@ -5942,7 +5961,7 @@ function updateAmbience(dt){
   const monSelf = role==='monster';
   const fooled = !monSelf && disguisedFrom(camera.position.x, camera.position.z);
   const mdT = fooled ? 99 : md;   // disguised: no drone, no heartbeat, the hum stays on
-  const humTarget = (silenced() ? 0 : 0.062) * Math.min(1.2, localLight) * (monSelf ? 1 : clamp((mdT-3)/10, 0, 1)) * ([1, 0.7, 0.25, 0, 0.6, 0.85][Math.max(0,curZone)] ?? 1) * (LK === 1 ? 0 : 1);
+  const humTarget = (silenced() ? 0 : 0.062) * Math.min(1.2, localLight) * (monSelf ? 1 : clamp((mdT-3)/10, 0, 1)) * ([1, 0.7, 0.25, 0, 0.6, 0.85][Math.max(0,curZone)] ?? 1) * (LK === 1 ? (G.open ? 0.8 : 0) : 1);
   sfx.windG.gain.value = lerp(sfx.windG.gain.value, curZone===2 && !silenced() ? 0.22 : 0, 0.03);
   sfx.waterG.gain.value = lerp(sfx.waterG.gain.value, curZone===3 && !silenced() ? 0.16 : 0, 0.03);
   if (sfx.verbG) sfx.verbG.gain.value = lerp(sfx.verbG.gain.value, LK === 2 ? 0.5 : 0, 0.05);
@@ -6243,7 +6262,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { buildLevel, pipeObj2, pipeTarget2, p2Diag, MQV, hostMannequins852, mqSeen852, floorAt852, laneAt852, MLANES, mallObj852, mallTarget852, mallWayTo852, aiTick852, mallMove852, get mallHold(){ return mallHold; }, get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
+window.__hp = { buildLevel, hotelOpen188, hostOutage188, pipeObj2, pipeTarget2, p2Diag, MQV, hostMannequins852, mqSeen852, floorAt852, laneAt852, MLANES, mallObj852, mallTarget852, mallWayTo852, aiTick852, mallMove852, get mallHold(){ return mallHold; }, get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
 </script>
 </body>
 </html>
