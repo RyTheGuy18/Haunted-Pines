@@ -63,3 +63,4 @@ v0.39.1: The observation booth in Async's lab is now a real room you can walk in
 v0.40.0: Level 0 layout update: a big field of + shaped pillars and two long winding hallways. The rest of the maze is the same.
 v0.40.1: Fixed the escape hatch's striped border glitching from far away.
 v0.41.0: Exploration mode: a MODE button on the menu and lobby that turns the monster (and the Lurker and mannequins) off so you can explore the levels in peace.
+v0.42.0: New power-out sound for every blackout (monster blackout, hotel outage, lab power failure, Pipe Dreams lights going dead), and real flickering-light sounds, including the lights stuttering back on when the power returns.
