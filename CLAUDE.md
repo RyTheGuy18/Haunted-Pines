@@ -6,7 +6,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 - Live: https://rytheguy18.github.io/Haunted-Pines/ (GitHub Pages, `main` branch, repo root)
 - Owner: Ryan (GitHub `rytheguy18` / `RyTheGuy18`). Plays it with friends and younger brothers, mostly on phones.
-- Current version: **v0.41.0** (shown bottom-right of the menu, `#ver`)
+- Current version: **v0.42.0** (shown bottom-right of the menu, `#ver`)
 
 ## Files
 
@@ -30,6 +30,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 | `models/crawler.glb` | Crawler skin: "Goose" by nodoxi (Sketchfab, **CC BY 4.0** — credit is in the menu footer, keep it), static mesh, rigged in code |
 | `sfx/*.mp3` | crawler-steps (spider walking loop), heavy-steps (loop), spider-attack-1/2/4 (kill sounds, boosted +14 dB with a limiter in v0.20), monster-roar (computer catch), monster-growl (one-shots while the computer chases), monster-groans (20 s loop while the computer chases), water-walk / water-run (v0.24: Ryan's wading recording, 0.39–8.06 s = walk loop, 48.25–52.25 s = the quicker run section), breathing (v0.24: out-of-breath loop), gen-start / gen-run (v0.26: Ryan's diesel generator recording: 0.9–4.6 s start-up: first pull 0–0.89 s, starter turn 0.89–1.17 s loops (`GS_LOOP`) while someone cranks, then on success `genCrankFinish` lets the engine-catching tail play out and the running loop fades in after it (snd `crankDone`), 20–32 s = running loop, normalised). steps-carpet / steps-concrete / steps-tile (v0.26.6: survivor footsteps; single steps cut from Ryan's uploads — a "Footsteps Walking on Short Carpet" clip, a concrete walk, a tile walk — peak-normalised, one step per 0.42 s slot, 10/7/10 steps). Mono. Pixabay-style sources Ryan uploaded |
 | `sfx/lurker-steps.mp3`, `sfx/phone-ring.mp3`, `sfx/phone-pickup.mp3` | v0.30, Ryan's uploads. lurker-steps: 18 single soft steps cut from a 30 s freesound walk (onset detection), each normalised in a 0.25 s slot (0.2 s + fade); played at ×1.2–1.5 rate. phone-ring: one 2 s ring burst (the file rings 2 s on / 2 s off). phone-pickup: 0.77 s receiver pick-up, normalised |
+| `sfx/power-out.mp3`, `sfx/light-flicker.mp3` | v0.42, Ryan's uploads. power-out: a 4.5 s power-down (`pout`, leading silence cut, loudnorm, mono 64 kbps) — plays for every blackout: the Occupant's Blackout (`sfx.powerDown`, positional), the hotel outage (`outage188`, not doubled), the lab power failure, a Pipe Dreams circuit going dead. light-flicker: from his screen recording (0.45–10.6 s, ×6 + limiter, 10.15 s): buzzing tube with clicks; `FLICK_CLICKS` = click onsets used by `sfx.flick` (0.3–0.5 s slices via `sfx.slice`, ≥0.12 s apart, when the nearest panel flickers), `FLICK_ON` = 7.0 s + 3.1 s stutter = `sfx.lightsOn` when the power comes back (lab, hotel, and where an Occupant blackout ends if you're within 22 m, `liveBo`) |
 | `sw.js` | Service worker. **Bump `const V='level0-vX-Y'` every release** or phones keep the old version. CORE list must include every new asset |
 | `manifest.webmanifest`, icons | PWA |
 | `README.md` | Short description + one line per version (see Publishing) |
