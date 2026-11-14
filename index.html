@@ -193,7 +193,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.38.0</div>
+<div class="osd" id="ver">v0.38.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -6113,7 +6113,7 @@ function updateLowRes(dt, sees){
   let target = 0;
   if (role==='survivor' && G.ph==='play' && (mode==='play' || mode==='deadAnim')){
     const d = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
-    target = mode==='deadAnim' ? 1 : Math.max(t - lastSeenK < 0.6 ? 1 : 0, disguisedFrom(me.x, me.z) ? 0 : clamp(1 - (d-1.5)/5, 0, 1)*0.6);
+    target = mode==='deadAnim' ? 1 : Math.max(t - lastSeenK < 0.6 ? 0.45 : 0, disguisedFrom(me.x, me.z) ? 0 : clamp(1 - (d-1.5)/5, 0, 1)*0.28);   // v0.38.1: softer (Ryan: too fuzzy)
   }
   lowK = lerp(lowK, target, 1-Math.exp(-(target > lowK ? 9 : 2.5)*dt));
   const h = lowK < 0.02 ? RH : Math.max(96, Math.round(RH * (1 - 0.62*lowK) / 12) * 12);   // stepped so it snaps like a camera dropping quality
@@ -6123,7 +6123,7 @@ function updateVHS(dt){
   let target = 0;
   if (role==='survivor' && G.ph==='play' && (mode==='play' || mode==='deadAnim')){
     const d = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
-    target = mode==='deadAnim' ? 1 : disguisedFrom(me.x, me.z) ? 0 : clamp(1 - (d-2)/9, 0, 1);
+    target = mode==='deadAnim' ? 1 : disguisedFrom(me.x, me.z) ? 0 : clamp(1 - (d-2)/9, 0, 1)*0.5;
   }
   vhsK = lerp(vhsK, target, 1-Math.exp(-6*dt));
   const el = $('vhs'); el.style.opacity = vhsK > 0.02 ? Math.min(1, vhsK*1.2) : 0;
@@ -6131,8 +6131,8 @@ function updateVHS(dt){
 }
 function updateCamFx(dt){
   if (role!=='survivor' || !me.alive || me.esc) return;
-  const v = vhsK, jit = v > 0.05 ? (Math.random()-0.5)*v*14 : 0;
-  canvas.style.filter = v > 0.05 ? `drop-shadow(${(3+v*5).toFixed(1)}px 0 0 rgba(255,40,40,.45)) drop-shadow(${(-3-v*5).toFixed(1)}px 0 0 rgba(40,200,255,.35))` : '';
+  const v = vhsK, jit = v > 0.05 ? (Math.random()-0.5)*v*7 : 0;
+  canvas.style.filter = v > 0.05 ? `drop-shadow(${(1.5+v*3).toFixed(1)}px 0 0 rgba(255,40,40,.3)) drop-shadow(${(-1.5-v*3).toFixed(1)}px 0 0 rgba(40,200,255,.22))` : '';
   canvas.style.transform = jit ? `translateX(${jit.toFixed(1)}px)` : '';
 }
 
