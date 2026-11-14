@@ -60,3 +60,4 @@ v0.38.0: Poolrooms: an old radio at the foot of the exit stairs plays music that
 v0.38.1: Less fuzzy vision when the monster is close or in sight. The static, colour split and shake are still there, just softer.
 v0.39.0: Async's lab: a safe room at the edge of Level 0 where you spawn, facing the portal into the Backrooms. The computer monster can't get in. The blast door seals it, but its power drains, and when it runs out the door opens and every light on Level 0 goes out. A one-way escape hatch lets you sneak out somewhere far away. The monster's Lure ability is gone.
 v0.39.1: The observation booth in Async's lab is now a real room you can walk into (window, door, desk, monitors, corkboard). Fixed signs, the floor hatch and other details flickering or clipping into walls in the lab.
+v0.40.0: Level 0 layout update: a big field of + shaped pillars and two long winding hallways. The rest of the maze is the same.
