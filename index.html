@@ -193,7 +193,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.39.1</div>
+<div class="osd" id="ver">v0.40.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -353,6 +353,9 @@ let N = 16, W = N*CS, VN = (N+1)*N, E = 2*VN;
 const GRID_N = k => k === 1 ? 28 : k === 3 ? HN : k === 0 ? 19 : k === 4 ? MALL_N : k === 5 ? P2_N : 16;   // v0.28: Level 0 grew from 16 to 19
 function setGrid(n){ N = n; W = N*CS; VN = (N+1)*N; E = 2*VN; }
 const FUSES = 3;
+// v0.40 (Ryan, inspired by a Backrooms map): Level 0 gets a big field of + shaped pillars and two long winding hallways.
+// Set to false to go back to the v0.39 layout exactly (same seeds give the same old mazes).
+const LAYOUT2 = true;
 const MON_SPEED = 4.0;   // the Occupant never runs: ~1.5x a survivor's walk (2.6), still under their sprint (5.0)
 const DISGUISE_T = 12, DISGUISE_RANGE = 5;
 const vIdx = (i,j) => i*N+j;
@@ -620,6 +623,23 @@ function genWalls(rng){
     // the Great Pool hall sits in the middle; one more open hall and a single tight maze block somewhere else
     const great = { i0:5, j0:5, i1:10, j1:10 }; for (let i=5;i<=10;i++) for (let j=5;j<=10;j++) kind[i*N+j] = 1;
     halls = [great, place(4,3,1)].filter(Boolean); tight = [place(3,3,2)].filter(Boolean);
+  } else if (LK === 0 && LAYOUT2){
+    // kind 4 = the pillar field, kind 5 = a long hallway
+    const field = place(6,4,4,150) || place(4,6,4,150) || place(5,4,4,150) || place(4,4,4,150);
+    halls = [place(4,4,1)].filter(Boolean);
+    tight = [place(4,3,2), place(3,3,2)].filter(Boolean);
+    const okC = (i,j) => inGrid(i,j) && zoneOf(i,j) === Z0 && !kind[i*N+j] && !(i<=5 && j<=3);
+    const corrs = [];
+    for (let c=0;c<2;c++) for (let t=0;t<200;t++){
+      const d1 = nbr4[Math.floor(rng()*4)], d2 = nbr4.filter(d=>d[0] !== d1[0] && d[1] !== d1[1] ? true : false).filter(d=>d[0]*d1[0]+d[1]*d1[1] === 0)[Math.floor(rng()*2)];
+      const a = 4 + Math.floor(rng()*4), b = 2 + Math.floor(rng()*4);
+      let i = Math.floor(rng()*N), j = Math.floor(rng()*N); const path = [[i,j]];
+      for (let k=1;k<a;k++){ i += d1[0]; j += d1[1]; path.push([i,j]); }
+      for (let k=0;k<b;k++){ i += d2[0]; j += d2[1]; path.push([i,j]); }
+      // keep a free cell all round so it reads as a hallway, not part of a block
+      if (!path.every(([i,j])=>okC(i,j) && nbr4.every(([x,y])=>!inGrid(i+x,j+y) || (kind[(i+x)*N+j+y] !== 4 && kind[(i+x)*N+j+y] !== 5)))) continue;
+      for (const [i,j] of path) kind[i*N+j] = 5; corrs.push({ path, d1, d2 }); break; }
+    var LAY2 = { field, corrs };
   } else {
     halls = [place(5,4,1), place(4,4,1)].filter(Boolean);
     tight = [place(4,3,2), place(3,4,2), place(3,3,2)].filter(Boolean);
@@ -629,6 +649,7 @@ function genWalls(rng){
     const [a,b]=edgeCells(e); const za=zoneOf(a[0],a[1]), zb=zoneOf(b[0],b[1]);
     const ka=kind[a[0]*N+a[1]], kb=kind[b[0]*N+b[1]];
     if (ka===2 || kb===2) continue;                         // tight blocks stay a maze
+    if (ka>=4 || kb>=4) continue;                           // v0.40: the pillar field and long hallways are carved below
     if (ka===1 && kb===1){ w[e]=0; continue; }              // halls are wide open
     if (za===1 && zb===1){ if (rng()<0.8) w[e]=0; continue; }
     if (za===2 && zb===2){ w[e]=0; continue; }
@@ -636,8 +657,23 @@ function genWalls(rng){
   }
   const rooms = [...halls];
   for (let k=0;k<3;k++){ const r = place(2+Math.floor(rng()*2), 2+Math.floor(rng()*2), 3, 40); if (r){ rooms.push(r); for (let i=r.i0;i<=r.i1;i++) for (let j=r.j0;j<=r.j1;j++){ kind[i*N+j]=0; if (i<r.i1) w[edgeBetween(i,j,i+1,j)]=0; if (j<r.j1) w[edgeBetween(i,j,i,j+1)]=0; } } }
-  if (LK === 0) labWalls(w, rng);   // v0.39: the Async lab in the corner
-  return { w, rooms, halls, tight, kind };
+  let field = null, corrs = [];
+  if (LK === 0 && LAYOUT2 && typeof LAY2 !== 'undefined'){ field = LAY2.field; corrs = LAY2.corrs;
+    const inF = (i,j) => field && i>=field.i0 && i<=field.i1 && j>=field.j0 && j<=field.j1;
+    if (field){ const doors = [];
+      for (let i=field.i0;i<=field.i1;i++) for (let j=field.j0;j<=field.j1;j++) for (const [a,b] of nbr4){ const ni=i+a, nj=j+b; if (!inGrid(ni,nj)) continue; const e = edgeBetween(i,j,ni,nj);
+        if (inF(ni,nj)) w[e] = 0; else { w[e] = 1; if (kind[ni*N+nj] !== 2 && kind[ni*N+nj] !== 5 && zoneOf(ni,nj) === 0 && !(ni<=4 && nj<=2)) doors.push(e); } }
+      for (let k=doors.length-1;k>0;k--){ const r = Math.floor(rng()*(k+1)); [doors[k], doors[r]] = [doors[r], doors[k]]; }
+      for (const e of doors.slice(0, 4)) w[e] = 0; }
+    for (const c of corrs){ const P = c.path, on = new Set(P.map(([i,j])=>i*N+j));
+      for (const [i,j] of P) for (const [a,b] of nbr4){ const ni=i+a, nj=j+b; if (!inGrid(ni,nj)) continue; w[edgeBetween(i,j,ni,nj)] = on.has(ni*N+nj) ? (Math.abs(P.findIndex(q=>q[0]===ni&&q[1]===nj) - P.findIndex(q=>q[0]===i&&q[1]===j)) === 1 ? 0 : 1) : 1; }
+      // open both ends, and sometimes one side door in the middle
+      const [s0, s1] = [P[0], P[P.length-1]], st = [s0[0]-c.d1[0], s0[1]-c.d1[1]], en = [s1[0]+c.d2[0], s1[1]+c.d2[1]];
+      if (inGrid(st[0],st[1])) w[edgeBetween(s0[0],s0[1],st[0],st[1])] = 0;
+      if (inGrid(en[0],en[1])) w[edgeBetween(s1[0],s1[1],en[0],en[1])] = 0;
+      if (rng() < 0.6){ const m = P[Math.floor(P.length/2)], sd = [[c.d1[1],c.d1[0]],[-c.d1[1],-c.d1[0]]][Math.floor(rng()*2)]; if (inGrid(m[0]+sd[0], m[1]+sd[1]) && !on.has((m[0]+sd[0])*N+m[1]+sd[1])) w[edgeBetween(m[0],m[1],m[0]+sd[0],m[1]+sd[1])] = 0; } } }
+  if (LK === 0) labWalls(w, rng, kind);   // v0.39: the Async lab in the corner (also reconnects the maze)
+  return { w, rooms, halls, tight, kind, field, corrs };
 }
 function slotPos(side,k){
   if (side===0) return { x:0, z:cc(k), ry:Math.PI/2, nx:1, nz:0, i:0, j:k };
@@ -1941,6 +1977,13 @@ function buildLevel(seed, kind=0){
   L.wallMeshes = [0,1,2,3,4].map(z=>{ const m = new THREE.InstancedMesh(new THREE.BoxGeometry(CS+0.2, ZH[z], 0.2), wmats[z], E); for (let e=0;e<E;e++) m.setMatrixAt(e, tmpM); m.frustumCulled=false; g.add(m); return m; });
   applyWalls(true);
   // pillars: in every other office room, and in a grid across the parking garage
+  // v0.40: the pillar field + long hallways never shift; + shaped pillars on the field's inner corners
+  if (kind === 0 && gen.field){ const f = gen.field; L.field = f;
+    for (let i=f.i0;i<=f.i1;i++) for (let j=f.j0;j<=f.j1;j++) for (const e of [vIdx(i,j), vIdx(i+1,j), hIdx(i,j), hIdx(i,j+1)]) L.fixed[e] = 1;
+    const crosses = []; for (let i=f.i0+1;i<=f.i1;i++) for (let j=f.j0+1;j<=f.j1;j++) crosses.push([i*CS, j*CS]);
+    const AL = 1.7, AT = 0.42;   // drawn with the other slabs (tight blocks) just below
+    for (const [x,z] of crosses) L.slabs.push([x-AL/2, x+AL/2, z-AT/2, z+AT/2], [x-AT/2, x+AT/2, z-AL/2, z+AL/2]); }
+  if (kind === 0) for (const c of gen.corrs || []) for (const [i,j] of c.path) for (const e of [vIdx(i,j), vIdx(i+1,j), hIdx(i,j), hIdx(i,j+1)]) L.fixed[e] = 1;
   const pil = [[],[]];
   ((kind === 2 ? gen.halls[1] : gen.halls[0]) ? [kind === 2 ? gen.halls[1] : gen.halls[0]] : []).forEach(r=>{ for (let i=r.i0+1;i<=r.i1;i+=2) for (let j=r.j0+1;j<=r.j1;j+=2) pil[0].push([i,j]); });
   if (kind === 1){ for (let i=2;i<N;i+=2) for (let j=2;j<N;j+=2) if (!(i<=2 && j<=2)) pil[1].push([i,j]); }
@@ -3015,7 +3058,7 @@ function inLab(x, z){ return LK === 0 && !!level && !!level.lab && x >= 0 && z >
 const labPE = () => hIdx(2, 3);
 function labBlk(){ const b = new Uint8Array(N*N); for (let i=0;i<=4;i++) for (let j=0;j<=2;j++) b[i*N+j] = 1; return b; }
 // genWalls: open the lab inside, wall it off from the maze except the portal, then make sure the rest of the maze is still one piece
-function labWalls(w, rng){
+function labWalls(w, rng, kind){
   for (let e=0;e<E;e++){ const cs = edgeCells(e).filter(([i,j])=>inGrid(i,j)); const n = cs.filter(([i,j])=>inLabCell(i,j)).length;
     if (!n) continue; w[e] = (n === 2) ? 0 : 1; }
   w[labPE()] = 0;
@@ -3028,7 +3071,9 @@ function labWalls(w, rng){
     for (let i=0;i<N;i++) for (let j=0;j<N;j++){ if (blk[i*N+j] || d[i*N+j] < 0) continue;
       for (const [a,b] of nbr4){ const ni=i+a, nj=j+b; if (inGrid(ni,nj) && !blk[ni*N+nj] && d[ni*N+nj] < 0) cand.push(edgeBetween(i,j,ni,nj)); } }
     if (!cand.length) break;
-    w[cand[Math.floor(rng()*cand.length)]] = 0;
+    const soft = kind ? cand.filter(e=>edgeCells(e).every(([i,j])=>!inGrid(i,j) || kind[i*N+j] < 4)) : cand;
+    const pool = soft.length ? soft : cand;
+    w[pool[Math.floor(rng()*pool.length)]] = 0;
   }
 }
 const labTileTex = canvasTex(64,64,(g,w,h)=>{
