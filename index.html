@@ -193,7 +193,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.39.0</div>
+<div class="osd" id="ver">v0.39.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -3061,14 +3061,6 @@ const cabTex = canvasTex(32,64,(g,w,h)=>{ g.fillStyle='#69716b'; g.fillRect(0,0,
   g.strokeStyle='#3a3f3b'; g.lineWidth=1; g.strokeRect(2.5,2.5,w-5,h-5); g.fillStyle='#2e322f'; g.fillRect(4,6,w-8,10);
   for (let y=44;y<58;y+=3){ g.fillStyle='#2a2e2b'; g.fillRect(6,y,w-12,1); }
   g.fillStyle='#c8ccc4'; g.fillRect(w-7,28,2,8); g.fillStyle='#e8e4d0'; g.fillRect(8,20,14,5); });
-const labWinTex = canvasTex(128,48,(g,w,h)=>{
-  g.fillStyle='#e8cf62'; g.fillRect(0,0,w,h); g.fillStyle='rgba(255,245,200,.5)'; g.fillRect(0,0,w,10);
-  g.fillStyle='#b99a3a'; g.fillRect(0,32,w,16); g.fillStyle='#6b5a2a'; g.fillRect(14,30,46,3); g.fillRect(16,33,2,12); g.fillRect(56,33,2,12);
-  g.fillStyle='#2a2a2a'; g.fillRect(28,14,20,15); g.fillStyle='#4a7aa8'; g.fillRect(30,16,16,11); g.fillStyle='#2a2a2a'; g.fillRect(35,29,6,2);
-  g.fillStyle='#3a3226'; g.fillRect(74,20,12,14); g.fillRect(76,34,2,10); g.fillRect(84,34,2,10);
-  g.fillStyle='#d8d4c0'; g.fillRect(96,8,22,24); g.fillStyle='#9a9480'; for (let y=12;y<30;y+=4) g.fillRect(99,y,14,1);
-  g.fillStyle='rgba(255,255,255,.18)'; g.beginPath(); g.moveTo(10,0); g.lineTo(30,0); g.lineTo(6,h); g.lineTo(-14,h); g.fill();
-  g.fillStyle='#3d3e3a'; g.fillRect(0,0,w,2); g.fillRect(0,h-2,w,2); g.fillRect(0,0,2,h); g.fillRect(w-2,0,2,h); g.fillRect(63,0,2,h); });
 const labDispC = document.createElement('canvas'); labDispC.width = 128; labDispC.height = 80;
 const labDispTex = new THREE.CanvasTexture(labDispC); labDispTex.magFilter = THREE.NearestFilter; labDispTex.minFilter = THREE.LinearFilter; labDispTex.colorSpace = THREE.SRGBColorSpace;
 const portalMat = new THREE.ShaderMaterial({ uniforms:{ uT:{ value:0 }, uO:{ value:1 } }, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide,
@@ -3083,13 +3075,15 @@ function labText(lines, w, h, bg, fg){ return textTex('', w, h, (c,W,H)=>{ c.fil
 // the lab's ceiling lights go into level.panels (built before the panel mesh)
 function labPanels(L){
   const at = [[0,0],[2,0],[4,0],[1,1],[3,1],[0,2],[2,2],[4,2]], idx = [];
-  for (const [i,j] of at){ const p = { idx:L.panels.length, i, j, t:0, x:cc(i), z:cc(j), y:LAB_H-0.03, sx:1.4, sy:0.06, sz:0.66, faulty:false, dead:false, red:false, ph:0, b:1, gk:-1, lab:1, dist:11 }; L.panels.push(p); idx.push(p); }
+  for (const [i,j] of at){ const bo = i === 0 && j === 0;   // over the observation booth: its own light under its ceiling
+    const p = { idx:L.panels.length, i, j, t:0, x:bo ? 2.35 : cc(i), z:bo ? 2.0 : cc(j), y:bo ? 2.66 : LAB_H-0.03, sx:bo ? 1.0 : 1.4, sy:0.06, sz:bo ? 0.5 : 0.66, faulty:false, dead:false, red:false, ph:0, b:1, gk:-1, lab:1, dist:bo ? 7 : 11 }; L.panels.push(p); idx.push(p); }
   for (let i=0;i<=4;i++) for (let j=0;j<=2;j++){ let best = idx[0], bd = 1e9; for (const p of idx){ const d = Math.hypot(p.x-cc(i), p.z-cc(j)); if (d < bd){ bd = d; best = p; } } L.panelAt[i*N+j] = best.idx; }
 }
 function buildLab(L, g, rng, dist0, far){
   const lab = L.lab = { sh:0, ld:0, glow:[], bo:false, dispT:0, beepT:0, exits:[] };
   const steel = lam(0x585d58), dark = lam(0x2c2e2b), wallM = lam(0xffffff, { map:labWallTex }), hz = lam(0xffffff, { map:hazardTex });
   const glow = (m, c) => { lab.glow.push({ m, c }); return m; };
+  const dec = m => { m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -6; return m; };   // decals: never fight the surface under them (PSX snapping)
   // floor, ceiling, concrete walls (in front of the shared wallpaper wall boxes)
   const fl = labPlane(LAB_W, LAB_D, LAB_W/0.6, LAB_D/0.6, lam(0xffffff, { map:labTileTex })); fl.rotation.x = -Math.PI/2; fl.position.set(LAB_W/2, 0.003, LAB_D/2); g.add(fl);
   const ce = labPlane(LAB_W, LAB_D, LAB_W/1.2, LAB_D/1.2, lam(0xffffff, { map:labCeilTex })); ce.rotation.x = Math.PI/2; ce.position.set(LAB_W/2, LAB_H, LAB_D/2); g.add(ce);
@@ -3111,16 +3105,16 @@ function buildLab(L, g, rng, dist0, far){
   lab.shutter = new THREE.Mesh(shGeo, lam(0xffffff, { map:shTex })); lab.shutter.position.set(LAB_GX, 2.7, LAB_GZ); lab.shutter.scale.y = 0.03; g.add(lab.shutter);
   const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 3.8, 10), steel); drum.rotation.z = Math.PI/2; drum.position.set(LAB_GX, 3.02, LAB_GZ-0.6); g.add(drum);
   lab.portal = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.7), portalMat); lab.portal.position.set(LAB_GX, 1.35, LAB_GZ-0.08); g.add(lab.portal);
-  const tape = labPlane(4.2, 0.22, 12, 0.6, hz); tape.rotation.x = -Math.PI/2; tape.position.set(LAB_GX, 0.006, LAB_GZ-1.4); g.add(tape);
-  { const s = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.5), lam(0xffffff, { map: labText([['PORTAL 01',20,22,'#111'],['AUTHORIZED STAFF ONLY',9,40,'#7a1a10']], 96, 48, '#d8d6cc', '#111') }));
-    s.position.set(6.2, 2.1, LAB_D-I-0.01); s.rotation.y = Math.PI; g.add(s); }
+  const tape = labPlane(4.2, 0.22, 12, 0.6, dec(lam(0xffffff, { map:hazardTex }))); tape.rotation.x = -Math.PI/2; tape.position.set(LAB_GX, 0.012, LAB_GZ-1.4); g.add(tape);
+  { const s = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.5), dec(lam(0xffffff, { map: labText([['PORTAL 01',20,22,'#111'],['AUTHORIZED STAFF ONLY',9,40,'#7a1a10']], 96, 48, '#d8d6cc', '#111') })));
+    s.position.set(6.2, 2.1, LAB_D-I-0.04); s.rotation.y = Math.PI; g.add(s); }
   // the BLAST DOOR control panel, right of the gate
   { const p = new THREE.Group(); p.position.set(LAB_PANEL[0], 0, LAB_D-I); p.rotation.y = Math.PI; g.add(p);
     bx(p, 0.72, 0.95, 0.14, 0, 1.35, 0.07, steel); bx(p, 0.76, 0.05, 0.16, 0, 1.85, 0.07, dark);
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.36), glow(new THREE.MeshBasicMaterial({ map:labDispTex }), 0xffffff)); scr.position.set(0, 1.52, 0.142); p.add(scr);
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.36), dec(glow(new THREE.MeshBasicMaterial({ map:labDispTex }), 0xffffff))); scr.position.set(0, 1.52, 0.152); p.add(scr);
     const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 0.07, 14), glow(new THREE.MeshBasicMaterial({ color:0xd8261a }), 0xd8261a)); btn.rotation.x = Math.PI/2; btn.position.set(0, 1.1, 0.17); p.add(btn); lab.btn = btn;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.02, 6, 16), hz); ring.position.set(0, 1.1, 0.145); p.add(ring);
-    const lb = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.09), lam(0xffffff, { map: labText([['BLAST DOOR',13,16,'#111']], 96, 20, '#d9b21e', '#111') })); lb.position.set(0, 1.26, 0.142); p.add(lb);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.02, 6, 16), hz); ring.position.set(0, 1.1, 0.16); p.add(ring);
+    const lb = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.09), dec(lam(0xffffff, { map: labText([['BLAST DOOR',13,16,'#111']], 96, 20, '#d9b21e', '#111') }))); lb.position.set(0, 1.26, 0.152); p.add(lb);
     bx(p, 0.06, 1.0, 0.06, 0.6, 2.4, 0.04, dark); bx(p, 1.2, 0.06, 0.06, 1.2, 2.88, 0.04, dark); }
   // electrical cabinets along the east wall
   { const cm = lam(0xffffff, { map:cabTex }), sideM = lam(0x5e6660);
@@ -3128,38 +3122,83 @@ function buildLab(L, g, rng, dist0, far){
       for (let q=0;q<3;q++){ const c = [0x30ff60, 0xffb020, 0xff3020][Math.floor(rng()*3)]; bx(g, 0.02, 0.04, 0.04, LAB_W-0.79, 1.7 + q*0.07, z-0.25 + rng()*0.1, glow(new THREE.MeshBasicMaterial({ color:c }), c)); } }
     bx(g, 0.6, 0.12, 6.3, LAB_W-0.48, 2.16, 4.3, dark);
     L.slabs.push([LAB_W-0.8, LAB_W, 1.1, 7.35]); }
-  // the observation booth in the north-west corner: pale walls, a window onto a lit little office
-  { const bm = lam(0xc4bc98);
-    bx(g, 4.45, 2.7, 0.15, 2.37, 1.35, 3.8, bm); bx(g, 0.15, 2.7, 3.65, 4.6, 1.35, 1.97, bm); bx(g, 4.6, 0.1, 3.8, 2.3, 2.75, 1.95, lam(0x8a856c));
-    const win = new THREE.Mesh(new THREE.PlaneGeometry(3.1, 1.15), glow(new THREE.MeshBasicMaterial({ map:labWinTex }), 0xffffff)); win.position.set(2.2, 1.55, 3.885); g.add(win);
-    bx(g, 3.25, 0.08, 0.1, 2.2, 0.95, 3.9, dark); bx(g, 3.25, 0.06, 0.08, 2.2, 2.14, 3.9, dark);
-    const dr = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 2.05), lam(0x6f6a58)); dr.position.set(4.685, 1.02, 2.6); dr.rotation.y = Math.PI/2; g.add(dr);
-    const kn = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), steel); kn.position.set(4.72, 1.0, 2.25); g.add(kn);
-    const sg = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), lam(0xffffff, { map: labText([['LAB 4 · OBSERVATION',11,19,'#1a1a18']], 128, 30, '#d6d3c6', '#111') })); sg.position.set(2.2, 2.4, 3.885); g.add(sg);
-    L.slabs.push([0, 4.72, 0, 3.92]); }
+  // the observation booth in the north-west corner: a real little room you can walk into (Ryan: not a flat picture)
+  { const bm = lam(0xc4bc98), paperM = dec(lam(0xffffff, { map:paperTex })), X1 = 4.6, Z1 = 3.8, T = 0.15, BH = 2.7, WX0 = 0.65, WX1 = 3.75, WY0 = 0.95, WY1 = 2.15, DZ0 = 2.3, DZ1 = 3.25, DH = 2.15;
+    const paper = (w, h, x, y, z, ry) => { const m = labPlane(w, h, w/4, h/2.8, paperM); m.position.set(x, y, z); m.rotation.y = ry; g.add(m); };
+    // front wall (window) and east wall (doorway), drawn in pieces around the openings
+    bx(g, WX0-I, BH, T, (I+WX0)/2, BH/2, Z1, bm); bx(g, X1+T/2-WX1, BH, T, (WX1+X1+T/2)/2, BH/2, Z1, bm);
+    bx(g, WX1-WX0, WY0, T, (WX0+WX1)/2, WY0/2, Z1, bm); bx(g, WX1-WX0, BH-WY1, T, (WX0+WX1)/2, (WY1+BH)/2, Z1, bm);
+    bx(g, T, BH, DZ0-I, X1, BH/2, (I+DZ0)/2, bm); bx(g, T, BH, Z1-T/2-DZ1, X1, BH/2, (DZ1+Z1-T/2)/2, bm); bx(g, T, BH-DH, DZ1-DZ0, X1, (DH+BH)/2, (DZ0+DZ1)/2, bm);
+    bx(g, X1+T/2, 0.1, Z1+T/2, (X1+T/2)/2, BH+0.05, (Z1+T/2)/2, lam(0x8a856c));
+    // inside: yellow wallpaper, carpet, ceiling tiles
+    const zi = Z1-T/2-0.012, xi = X1-T/2-0.012;
+    paper(WX0-I, BH, (I+WX0)/2, BH/2, zi, Math.PI); paper(xi-WX1, BH, (WX1+xi)/2, BH/2, zi, Math.PI);
+    paper(WX1-WX0, WY0, (WX0+WX1)/2, WY0/2, zi, Math.PI); paper(WX1-WX0, BH-WY1, (WX0+WX1)/2, (WY1+BH)/2, zi, Math.PI);
+    paper(DZ0-I, BH, xi, BH/2, (I+DZ0)/2, -Math.PI/2); paper(zi-DZ1, BH, xi, BH/2, (DZ1+zi)/2, -Math.PI/2); paper(DZ1-DZ0, BH-DH, xi, (DH+BH)/2, (DZ0+DZ1)/2, -Math.PI/2);
+    paper(xi-I, BH, (I+xi)/2, BH/2, I+0.03, 0); paper(zi-I, BH, I+0.03, BH/2, (I+zi)/2, Math.PI/2);
+    const cp = labPlane(xi-I, zi-I, (xi-I)/2, (zi-I)/2, dec(lam(0xffffff, { map:rugTex }))); cp.rotation.x = -Math.PI/2; cp.position.set((I+xi)/2, 0.01, (I+zi)/2); g.add(cp);
+    const cl = labPlane(xi-I, zi-I, (xi-I)/1.2, (zi-I)/1.2, lam(0xffffff, { map:ceilTex })); cl.rotation.x = Math.PI/2; cl.position.set((I+xi)/2, BH-0.005, (I+zi)/2); g.add(cl);
+    // the window: glass, a mullion, a sill
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(WX1-WX0, WY1-WY0), new THREE.MeshBasicMaterial({ color:0xa8c4bc, transparent:true, opacity:0.1, depthWrite:false, side:THREE.DoubleSide })); glass.position.set((WX0+WX1)/2, (WY0+WY1)/2, Z1); g.add(glass);
+    bx(g, 0.06, WY1-WY0, 0.1, (WX0+WX1)/2, (WY0+WY1)/2, Z1, dark); bx(g, WX1-WX0+0.1, 0.05, 0.3, (WX0+WX1)/2, WY0, Z1, lam(0x8a856c));
+    for (const x of [WX0, WX1]) bx(g, 0.04, WY1-WY0, 0.17, x, (WY0+WY1)/2, Z1, dark); bx(g, WX1-WX0, 0.04, 0.17, (WX0+WX1)/2, WY1, Z1, dark);
+    // the door, swung open inside; a frame around the doorway
+    const leaf = new THREE.Group(); leaf.position.set(xi, 0, DZ1); leaf.rotation.y = Math.PI + 0.25; g.add(leaf);
+    bx(leaf, 0.92, 2.08, 0.04, 0.46, 1.04, -0.03, lam(0x6f6a58)); const kn = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), steel); kn.position.set(0.82, 1.0, -0.08); leaf.add(kn);
+    L.circles.push({ x:xi-0.25, z:DZ1+0.1, r:0.12 }, { x:xi-0.62, z:DZ1+0.2, r:0.12 });
+    for (const z of [DZ0, DZ1]) bx(g, 0.2, DH, 0.05, X1, DH/2, z, dark); bx(g, 0.2, 0.05, DZ1-DZ0+0.05, X1, DH, (DZ0+DZ1)/2, dark);
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), dec(lam(0xffffff, { map: labText([['LAB 4 · OBSERVATION',11,19,'#1a1a18']], 128, 30, '#d6d3c6', '#111') }))); sg.position.set((WX0+WX1)/2, 2.43, Z1+T/2+0.02); g.add(sg);
+    // a desk with two CRTs (one repeats the blast door panel), a keyboard, a chair, a filing cabinet, a corkboard, a clock, a desk lamp
+    const wood = lam(0x7a5e3c), legM = lam(0x4a3c2a), beige = lam(0xbdb7a2);
+    bx(g, 2.0, 0.05, 0.7, 1.6, 0.75, 0.55, wood); for (const [lx,lz] of [[-0.95,-0.3],[0.95,-0.3],[-0.95,0.3],[0.95,0.3]]) bx(g, 0.05, 0.73, 0.05, 1.6+lx, 0.365, 0.55+lz, legM);
+    bx(g, 0.5, 0.6, 0.6, 2.35, 0.3, 0.55, wood);
+    const crt = (x, z, ry, scrM) => { const c = new THREE.Group(); c.position.set(x, 0.775, z); c.rotation.y = ry; g.add(c); bx(c, 0.42, 0.36, 0.4, 0, 0.18, 0, beige); bx(c, 0.3, 0.26, 0.2, 0, 0.18, -0.25, beige);
+      const s = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.24), scrM); s.position.set(0, 0.19, 0.205); c.add(s); };
+    crt(1.15, 0.5, 0.15, dec(glow(new THREE.MeshBasicMaterial({ color:0x2f6a48 }), 0x2f6a48))); crt(1.95, 0.5, -0.15, dec(glow(new THREE.MeshBasicMaterial({ map:labDispTex }), 0xffffff)));
+    bx(g, 0.45, 0.025, 0.16, 1.55, 0.79, 0.82, beige);
+    for (let k=0;k<4;k++){ const pp = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.3), dec(lam(0xf2f0e6))); pp.rotation.set(-Math.PI/2, 0, rng()*Math.PI); pp.position.set(0.85 + rng()*1.4, 0.78, 0.7 + (rng()-0.5)*0.2); g.add(pp); }
+    { const lp = new THREE.Group(); lp.position.set(2.45, 0.775, 0.4); g.add(lp); bx(lp, 0.14, 0.02, 0.14, 0, 0.01, 0, dark); bx(lp, 0.02, 0.35, 0.02, 0, 0.18, 0, dark);
+      const sh = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.13, 10, 1, true), lam(0x2a4a2a, { side:THREE.DoubleSide })); sh.position.set(0, 0.38, 0.04); sh.rotation.x = 0.4; lp.add(sh);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), glow(new THREE.MeshBasicMaterial({ color:0xfff0b0 }), 0xfff0b0)); bulb.position.set(0, 0.34, 0.06); lp.add(bulb); }
+    L.slabs.push([0.55, 2.65, I, 0.95]);
+    { const c = new THREE.Group(); c.position.set(1.6, 0, 1.45); c.rotation.y = 0.2; g.add(c); const cm = lam(0x2a2826);
+      bx(c, 0.48, 0.07, 0.46, 0, 0.5, 0, cm); bx(c, 0.46, 0.55, 0.06, 0, 0.82, 0.24, cm); bx(c, 0.05, 0.45, 0.05, 0, 0.25, 0, dark); bx(c, 0.55, 0.03, 0.06, 0, 0.04, 0, dark); bx(c, 0.06, 0.03, 0.55, 0, 0.04, 0, dark); L.circles.push({ x:1.6, z:1.45, r:0.28 }); }
+    { const fc = new THREE.Group(); fc.position.set(3.75, 0, 0.5); g.add(fc); bx(fc, 0.5, 1.32, 0.6, 0, 0.66, 0, lam(0x6a6e66));
+      for (let k=0;k<4;k++){ bx(fc, 0.44, 0.27, 0.02, 0, 0.18 + k*0.31, 0.305, lam(0x7a7e76)); bx(fc, 0.14, 0.03, 0.03, 0, 0.26 + k*0.31, 0.325, dark); }
+      bx(fc, 0.3, 0.06, 0.24, -0.05, 1.35, 0, lam(0x2d4a7a)); L.slabs.push([3.48, 4.02, I, 0.82]); }
+    const cork = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.85), dec(lam(0xffffff, { map: textTex('', 104, 68, (c,W,H)=>{ c.fillStyle = '#9a6e3e'; c.fillRect(0,0,W,H); c.strokeStyle = '#5a3e1e'; c.lineWidth = 3; c.strokeRect(1.5,1.5,W-3,H-3);
+      const notes = [[8,8,26,32,'#efeadc'],[40,6,22,18,'#f2e27a'],[66,10,30,24,'#efeadc'],[38,30,28,32,'#dfe8ef'],[72,40,22,20,'#f2e27a'],[10,44,24,18,'#efeadc']];
+      for (const [x,y,w,h,col] of notes){ c.fillStyle = col; c.fillRect(x,y,w,h); c.fillStyle = 'rgba(40,40,40,.6)'; for (let yy=y+5; yy<y+h-2; yy+=4) c.fillRect(x+3, yy, w-6, 1); c.fillStyle = '#b02020'; c.fillRect(x+w/2-1, y+1, 3, 3); }
+      c.strokeStyle = '#b02020'; c.lineWidth = 1; c.beginPath(); c.moveTo(21,26); c.lineTo(52,46); c.lineTo(82,50); c.stroke(); }) })));
+    cork.position.set(I+0.05, 1.55, 2.2); cork.rotation.y = Math.PI/2; g.add(cork);
+    const clock = new THREE.Mesh(new THREE.CircleGeometry(0.16, 16), dec(lam(0xffffff, { map: textTex('', 48, 48, (c,W,H)=>{ c.fillStyle = '#efece2'; c.beginPath(); c.arc(24,24,23,0,7); c.fill(); c.strokeStyle = '#222'; c.lineWidth = 2; c.stroke();
+      for (let k=0;k<12;k++){ const a = k/12*Math.PI*2; c.fillStyle = '#222'; c.fillRect(24+Math.sin(a)*18-1, 24-Math.cos(a)*18-1, 2, 2); }
+      c.beginPath(); c.moveTo(24,24); c.lineTo(24,10); c.moveTo(24,24); c.lineTo(34,28); c.stroke(); }) })));
+    clock.position.set(1.6, 2.15, I+0.05); g.add(clock);
+    L.slabs.push([I, X1+T/2, Z1-T/2, Z1+T/2], [X1-T/2, X1+T/2, I, DZ0], [X1-T/2, X1+T/2, DZ1, Z1+T/2]); }
   // ASYNC on the back wall
   { const s = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.9), lam(0xffffff, { map: textTex('', 256, 64, (c,W,H)=>{ c.fillStyle = '#2b2d2a'; c.fillRect(0,0,W,H); c.fillStyle = '#e8e6dc'; c.font = 'bold 34px monospace'; c.textAlign = 'center'; c.fillText('A S Y N C', W/2, 36); c.font = 'bold 11px monospace'; c.fillStyle = '#b9b6a8'; c.fillText('RESEARCH INSTITUTE · PORTAL TEST SITE 4', W/2, 54); }) }));
-    s.position.set(11.5, 2.9, I+0.01); g.add(s); }
+    dec(s.material); s.position.set(11.5, 2.9, I+0.04); g.add(s); }
   // desks, chairs, papers, the A mug, a CRT, binders (the foreground of Ryan's picture)
   { const top = lam(0xe6e4dc), leg = lam(0x7d7f79), chairM = lam(0x2a2826);
     const desk = (x, z) => { bx(g, 2.6, 0.05, 0.95, x, 0.76, z, top); for (const [lx,lz] of [[-1.22,-0.4],[1.22,-0.4],[-1.22,0.4],[1.22,0.4]]) bx(g, 0.05, 0.74, 0.05, x+lx, 0.37, z+lz, leg); L.slabs.push([x-1.32, x+1.32, z-0.5, z+0.5]); };
     desk(4.6, 7.4); desk(4.6, 9.6);
     const chair = (x, z, ry) => { const c = new THREE.Group(); c.position.set(x, 0, z); c.rotation.y = ry; g.add(c); bx(c, 0.5, 0.08, 0.48, 0, 0.5, 0, chairM); bx(c, 0.48, 0.6, 0.07, 0, 0.86, -0.24, chairM); bx(c, 0.05, 0.42, 0.05, 0, 0.25, 0, leg); bx(c, 0.5, 0.03, 0.06, 0, 0.04, 0, leg); bx(c, 0.06, 0.03, 0.5, 0, 0.04, 0, leg); L.circles.push({ x, z, r:0.3 }); };
     chair(4.0, 8.35, 0.3); chair(5.5, 8.45, -2.8); chair(3.6, 10.55, Math.PI+0.2);
-    const paperM = lam(0xf2f0e6);
-    for (let k=0;k<6;k++){ const pp = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.3), paperM); pp.rotation.set(-Math.PI/2, 0, rng()*Math.PI); pp.position.set(3.6 + rng()*2.0, 0.787 + k*0.0005, (k < 3 ? 7.4 : 9.6) + (rng()-0.5)*0.5); g.add(pp); }
+    const paperM = dec(lam(0xf2f0e6));
+    for (let k=0;k<6;k++){ const pp = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.3), paperM); pp.rotation.set(-Math.PI/2, 0, rng()*Math.PI); pp.position.set(3.6 + rng()*2.0, 0.79 + k*0.001, (k < 3 ? 7.4 : 9.6) + (rng()-0.5)*0.5); g.add(pp); }
     const mugTex = textTex('', 64, 32, (c,W,H)=>{ c.fillStyle = '#f2efe6'; c.fillRect(0,0,W,H); c.fillStyle = '#1d1d1b'; c.font = 'bold 22px serif'; c.textAlign = 'center'; c.fillText('A', W*0.25, 24); });
     const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.11, 12), [lam(0xffffff, { map:mugTex }), lam(0xf2efe6), lam(0x3a2a1a)]); mug.position.set(5.35, 0.84, 7.25); mug.rotation.y = 2.4; g.add(mug);
     bx(g, 0.012, 0.055, 0.035, 5.4, 0.84, 7.2, lam(0xf2efe6));
     const crt = new THREE.Group(); crt.position.set(3.7, 0.785, 9.75); crt.rotation.y = 0.35; g.add(crt);
-    bx(crt, 0.46, 0.38, 0.44, 0, 0.19, 0, lam(0xbdb7a2)); const sc = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.26), glow(new THREE.MeshBasicMaterial({ color:0x3a6a4a }), 0x3a6a4a)); sc.position.set(0, 0.2, 0.221); crt.add(sc);
+    bx(crt, 0.46, 0.38, 0.44, 0, 0.19, 0, lam(0xbdb7a2)); const sc = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.26), dec(glow(new THREE.MeshBasicMaterial({ color:0x3a6a4a }), 0x3a6a4a))); sc.position.set(0, 0.2, 0.225); crt.add(sc);
     for (let k=0;k<3;k++) bx(g, 0.06, 0.3, 0.24, 5.6 + k*0.07, 0.94, 9.85, lam([0x2d4a7a, 0x7a2d2d, 0x2d6a3a][k]));
     bx(g, 0.14, 0.01, 0.01, 4.9, 0.79, 7.6, lam(0x1a3a8a)); }
   // a whiteboard on the west wall
   { const wb = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.2), lam(0xffffff, { map: textTex('', 192, 80, (c,W,H)=>{ c.fillStyle = '#eceae2'; c.fillRect(0,0,W,H); c.strokeStyle = '#555'; c.strokeRect(1,1,W-2,H-2);
-      c.fillStyle = '#1c3a8a'; c.font = 'bold 10px monospace'; c.fillText('PORTAL 01 - STABILITY', 8, 14); c.fillStyle = '#8a1a1a'; c.fillText('DO NOT HOLD THE DOOR', 8, 70); c.fillStyle = '#1c3a8a'; c.fillText('POWER LASTS ~40s', 110, 70);
-      c.strokeStyle = '#1c3a8a'; c.beginPath(); c.moveTo(10,50); for (let x=10;x<180;x+=6) c.lineTo(x, 40 - Math.sin(x*0.08)*12 - (x>120 ? (x-120)*0.3 : 0)); c.stroke(); }) }));
-    wb.position.set(I+0.01, 1.6, 7.6); wb.rotation.y = Math.PI/2; g.add(wb); }
+      c.fillStyle = '#1c3a8a'; c.font = 'bold 10px monospace'; c.fillText('PORTAL 01 - STABILITY', 8, 14); c.fillStyle = '#8a1a1a'; c.fillText('DO NOT HOLD THE DOOR', 8, 64); c.fillStyle = '#1c3a8a'; c.fillText('POWER LASTS ~40s', 8, 75);
+      c.strokeStyle = '#1c3a8a'; c.beginPath(); c.moveTo(10,50); for (let x=10;x<180;x+=6) c.lineTo(x, 36 - Math.sin(x*0.08)*10 - (x>120 ? (x-120)*0.3 : 0)); c.stroke(); }) }));
+    dec(wb.material); wb.position.set(I+0.04, 1.6, 7.6); wb.rotation.y = Math.PI/2; g.add(wb); }
   // a blue-and-white barrier by the gate
   { const b = new THREE.Group(); b.position.set(6.6, 0, 10.7); b.rotation.y = 0.25; g.add(b);
     bx(b, 1.5, 0.22, 0.05, 0, 0.82, 0, lam(0xffffff, { map:barrierTex })); bx(b, 1.5, 0.12, 0.05, 0, 0.45, 0, lam(0xffffff, { map:barrierTex }));
@@ -3167,11 +3206,11 @@ function buildLab(L, g, rng, dist0, far){
     L.circles.push({ x:6.0, z:10.55, r:0.3 }, { x:7.2, z:10.85, r:0.3 }); }
   // the one-way EMERGENCY HATCH in the floor
   { const h = new THREE.Group(); h.position.set(LAB_HATCH[0], 0, LAB_HATCH[1]); g.add(h);
-    const hb = labPlane(1.3, 1.3, 4, 4, hz); hb.rotation.x = -Math.PI/2; hb.position.y = 0.006; h.add(hb);
+    const hb = labPlane(1.3, 1.3, 4, 4, dec(lam(0xffffff, { map:hazardTex }))); hb.rotation.x = -Math.PI/2; hb.position.y = 0.012; h.add(hb);
     bx(h, 1.0, 0.04, 1.0, 0, 0.02, 0, lam(0x3c403c)); bx(h, 0.5, 0.05, 0.06, 0, 0.06, 0.3, steel);
     for (let k=-3;k<=3;k++) bx(h, 0.9, 0.005, 0.02, 0, 0.042, k*0.12, dark);
-    const lb = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.32), lam(0xffffff, { map: labText([['EMERGENCY EXIT',14,15,'#d9b21e'],['ONE WAY · DO NOT RETURN',8,27,'#d8d6cc']], 128, 32, '#1c1b18', '#d9b21e') }));
-    lb.rotation.x = -Math.PI/2; lb.position.set(0, 0.007, 1.0); h.add(lb); }
+    const lb = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.32), dec(lam(0xffffff, { map: labText([['EMERGENCY EXIT',14,15,'#d9b21e'],['ONE WAY · DO NOT RETURN',8,27,'#d8d6cc']], 128, 32, '#1c1b18', '#d9b21e') })));
+    lb.rotation.x = -Math.PI/2; lb.position.set(0, 0.012, 1.0); h.add(lb); }
   // ...and where it comes out: 3 maintenance hatches far out in the halls (never the pitfalls, never a tight maze block)
   { const cand = []; for (let i=0;i<N;i++) for (let j=0;j<N;j++){ const k = i*N+j, d = dist0[k]; if (d < far*0.35 || L.used.has(k) || zoneOf(i,j) === 2 || L.kind[k] === 2 || Math.hypot(cc(i)-LAB_GX, cc(j)-LAB_GZ) < 26) continue; cand.push([i,j]); }
     for (let k=cand.length-1;k>0;k--){ const r = Math.floor(rng()*(k+1)); [cand[k], cand[r]] = [cand[r], cand[k]]; }
