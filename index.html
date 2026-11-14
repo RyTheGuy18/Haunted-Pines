@@ -193,7 +193,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.40.0</div>
+<div class="osd" id="ver">v0.41.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -235,6 +235,7 @@
     <button class="btn primary" id="bSolo">PLAY SOLO</button>
     <button class="btn monb" id="bDiff1">COMPUTER: NORMAL</button>
     <button class="btn" id="bLv1">START AT: LEVEL 0</button>
+    <button class="btn" id="bEx1">MODE: NORMAL</button>
     <button class="btn" id="bHost">HOST ONLINE GAME</button>
     <div class="row code"><input id="joincode" maxlength="4" placeholder="CODE" autocomplete="off"><button class="btn" id="bJoin">JOIN</button></div>
     <button class="btn" id="bVoice">VOICE CHAT: OFF</button>
@@ -277,6 +278,7 @@
     <button class="btn monb" id="bMon">THE OCCUPANT: RANDOM</button>
     <button class="btn monb" id="bDiff">COMPUTER: NORMAL</button>
     <button class="btn" id="bLv">START AT: LEVEL 0</button>
+    <button class="btn" id="bEx">MODE: NORMAL</button>
     <div id="monText"></div>
     <div class="picker"><button id="bSkin2L">◀</button><div class="pv" id="bSkin2"></div><button id="bSkin2R">▶</button></div>
   </div>
@@ -3251,7 +3253,8 @@ function buildLab(L, g, rng, dist0, far){
     L.circles.push({ x:6.0, z:10.55, r:0.3 }, { x:7.2, z:10.85, r:0.3 }); }
   // the one-way EMERGENCY HATCH in the floor
   { const h = new THREE.Group(); h.position.set(LAB_HATCH[0], 0, LAB_HATCH[1]); g.add(h);
-    const hb = labPlane(1.3, 1.3, 4, 4, dec(lam(0xffffff, { map:hazardTex }))); hb.rotation.x = -Math.PI/2; hb.position.y = 0.012; h.add(hb);
+    const hzM = lam(0xffffff, { map:hazardTex });   // v0.40.1: a striped frame AROUND the lid (a decal under it showed through from far away)
+    for (const [w,d,x,z] of [[1.3,0.15,0,-0.575],[1.3,0.15,0,0.575],[0.15,1.0,-0.575,0],[0.15,1.0,0.575,0]]){ const st = labPlane(w, d, w/0.3, d/0.3, hzM); st.rotation.x = -Math.PI/2; st.position.set(x, 0.02, z); h.add(st); }
     bx(h, 1.0, 0.04, 1.0, 0, 0.02, 0, lam(0x3c403c)); bx(h, 0.5, 0.05, 0.06, 0, 0.06, 0.3, steel);
     for (let k=-3;k<=3;k++) bx(h, 0.9, 0.005, 0.02, 0, 0.042, k*0.12, dark);
     const lb = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.32), dec(lam(0xffffff, { map: labText([['EMERGENCY EXIT',14,15,'#d9b21e'],['ONE WAY · DO NOT RETURN',8,27,'#d8d6cc']], 128, 32, '#1c1b18', '#d9b21e') })));
@@ -4445,6 +4448,7 @@ let scareLurk = false, seenLkd = 0;
 let monVoiceOpt = 0; try { monVoiceOpt = +(localStorage.getItem('lvl0_monvoice')||0) ? 1 : 0; } catch(e){}
 let startOpt = 0; try { startOpt = clamp(+(localStorage.getItem('lvl0_start')||0)|0, 0, 5); } catch(e){}
 const LV_NAMES = ['LEVEL 0', 'LEVEL 1', 'LEVEL 37', 'LEVEL 188', 'LEVEL 852', 'LEVEL 2'];
+let exOpt = 0; try { exOpt = +(localStorage.getItem('lvl0_explore')||0) ? 1 : 0; } catch(e){}   // v0.41: exploration mode = no monster at all
 let diffOpt = 1; try { const v = localStorage.getItem('lvl0_diff'); if (v !== null) diffOpt = clamp(+v|0, 0, 3); } catch(e){}
 // how the computer Occupant plays at each difficulty. It is never faster than a sprinting survivor (5.0), and the flashlight always works on it.
 // v0.37 (Ryan: more deadly in the dark, proportional to difficulty): while a survivor stands in event darkness (inDark) within range
@@ -4463,7 +4467,7 @@ const AI_DIFF = [
   { name:'HARD',       hear:1.35, see:19, near:7, spd:1.04, wander:2.4, drift:1,    persist:1.5, spr:1, dash:1, stun:0.8,  bo:1, vent:1, lead:0.6, obj:1 },
   { name:'IMPOSSIBLE', hear:1.8,  see:24, near:8, spd:1.08, wander:2.8, drift:1,    persist:2.2, spr:1, dash:1, stun:0.6,  bo:1, vent:2, lead:1.4, obj:2 },
 ];
-function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0, dg:0, dgp:'', lv:0, gen:[], ads:0, kl:[], ov:monVoiceOpt, df:diffOpt, sl:startOpt, ach:0, avt:0, tod:0, asub:0, stk:0, lr:[0,0,0,0,0], lkd:[], ld:0, lp:100, lbo:0 }; }
+function freshState(r=0){ return { ph:'lobby', r, mo:'AI', ax:0, az:0, ay:0, amv:0, w:'', wv:0, fz:[], pl:0, open:0, ring:-1, aw:[], bt:[], bo:[], dead:[], esc:[], grace:0, sk:0, cn:[], stun:0, t0:0, dg:0, dgp:'', lv:0, gen:[], ads:0, kl:[], ov:monVoiceOpt, df:diffOpt, sl:startOpt, ach:0, avt:0, tod:0, asub:0, stk:0, lr:[0,0,0,0,0], lkd:[], ld:0, lp:100, lbo:0, ex:exOpt }; }
 let G = freshState();
 const H = { ai:{}, shiftT:30, ringT:25, ringEnd:0 };
 let mode = 'menu';
@@ -4511,18 +4515,20 @@ function hostStartRound(){
     else if (monChoice !== 'ai' && ids.includes(monChoice)) mo = monChoice;
     else if (monChoice !== 'ai') mo = ids[Math.floor(Math.random()*ids.length)];
   }
-  const keepSl = G.sl ?? startOpt;
-  G = freshState(G.r + 1); G.sl = net.solo ? startOpt : keepSl;
+  const keepSl = G.sl ?? startOpt, keepEx = net.solo ? exOpt : (G.ex|0);
+  if (keepEx) mo = 'AI';   // exploration: nobody is the monster
+  G = freshState(G.r + 1); G.sl = net.solo ? startOpt : keepSl; G.ex = keepEx;
   G.ph = 'play'; G.mo = mo; G.sk = mySkin;
   walls = level.base.slice(); G.w = wallsHex(); G.wv = 1;
   G.fz = level.fuses.map(f=>[0, +f[0].toFixed(2), +f[1].toFixed(2), '']);
   G.aw = level.aw.map(()=>0); G.bt = level.bt.map(()=>0); G.cn = level.cn.map(()=>0); G.stun = 0;
   G.ax = level.mspawn[0]; G.az = level.mspawn[1];
-  G.grace = mo === 'AI' ? 20 : 25;
+  G.grace = G.ex ? 0 : mo === 'AI' ? 20 : 25;
   aiReset();
   H.shiftT = 26; H.ringT = 30; H.ringEnd = 0;
   // the host can start the round on a later level
   const sl = clamp(G.sl ?? startOpt, 0, 5); if (sl > 0){ const gr = G.grace; setupLevel(sl); G.grace = gr; }
+  if (G.ex){ G.ax = G.az = -999; }
   broadcastState(); afterState();
 }
 function applyUse(pid, m){
@@ -4776,7 +4782,7 @@ function setupLevel(k){
 }
 function advanceLevel(){
   setupLevel(Math.min(5, (G.lv|0) + 1));
-  G.grace = G.mo === 'AI' ? 12 : 15;
+  G.grace = G.ex ? 0 : G.mo === 'AI' ? 12 : 15; if (G.ex){ G.ax = G.az = -999; }
   broadcastState(); afterState();
 }
 function hostTick(dt){
@@ -4800,6 +4806,13 @@ function hostTick(dt){
   if (LK === 5) hostPipe2(dt, ps);
   if (LK === 3) hostOutage188(dt);
   if (LK === 0) hostLab(dt);
+  if (G.ex){   // exploration mode: no Occupant, no Lurker, no mannequins
+    G.ax = G.az = -999; G.amv = 0; G.ach = 0; G.bo = []; G.lr = [0,0,0,0,0]; G.mq = [];
+    if (LK === 3){ hostElev188(dt); hostOutage188(dt); } if (LK === 4) hostMall852(dt, ps); if (LK === 5) hostPipe2(dt, ps); if (LK === 2) hostDay37(dt, alive, { x:-999, z:-999 }); if (LK === 0) hostLab(dt);
+    H.ringT -= dt; if (G.ring < 0 && H.ringT <= 0 && level.phones.length){ const tgt = alive[Math.floor(Math.random()*alive.length)]; let best = 0, bd = 1e9; level.phones.forEach((ph,k)=>{ const d=Math.hypot(ph.x-tgt.x, ph.z-tgt.z); if (d<bd){ bd=d; best=k; } }); G.ring = best; H.ringEnd = nowS() + 16; }
+    if (G.ring >= 0 && nowS() > H.ringEnd){ G.ring = -1; H.ringT = 25+Math.random()*30; }
+    H.shiftT -= dt; if (H.shiftT <= 0 && (G.lv|0) === 0){ H.shiftT = 20+Math.random()*15; doShift(null, 0, 0, 9); }
+    return; }
   if (G.mo === 'AI') darkHunt(dt, alive);
   if (G.mo === 'AI'){ (LK === 2 ? aiTick37 : LK === 3 ? aiTick188 : LK === 4 ? aiTick852 : aiTick)(dt, alive); mp = { x:G.ax, z:G.az }; }
   else {
@@ -5321,6 +5334,7 @@ function renderLobby(){
   $('bMon').textContent = 'THE OCCUPANT: ' + monLabel();
   $('bLv').textContent = 'START AT: ' + LV_NAMES[clamp(G.sl ?? startOpt, 0, 5)] + (host ? '' : ' (host picks)'); $('bLv').disabled = !host;
   $('bDiff').textContent = 'COMPUTER: ' + AI_DIFF[clamp(G.df ?? diffOpt, 0, 3)].name + (host ? '' : ' (host picks)'); $('bDiff').disabled = !host;
+  $('bEx').textContent = 'MODE: ' + (G.ex ? 'EXPLORATION (NO MONSTER)' : 'NORMAL') + (host ? '' : ' (host picks)'); $('bEx').disabled = !host;
   $('monText').textContent = host ? (remotes.size ? 'Tap to choose who hunts.' : 'Alone? The computer will hunt you.') : 'The host picks who becomes the Occupant.';
   $('bStart').style.display = host ? '' : 'none';
   $('lwait').style.display = host ? 'none' : '';
@@ -5393,7 +5407,8 @@ function startRoundLocal(){
     if (G.ov && voice.stream) setTimeout(()=>msg('Your mic is on. Survivors near you hear a monster.', 5), 1500);
     $('blacktext').textContent = 'YOU ARE THE OCCUPANT'; $('blacksub').textContent = (G.lv|0) === 0 && level.lab ? 'They start in a lab behind a portal at the edge of the halls. Its blast door shuts, but its power never lasts. Listen for them, and don\'t let them reach the exit.' : 'They wake up in the halls. You can\'t run, but you walk faster than they do. Listen for them, and don\'t let them reach the exit.';
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
-  } else msg((G.lv|0) === 0 && level.lab ? 'ASYNC LAB 4. The portal is open. Find 3 fuses out there. Something else is awake.' : (G.lv|0) === 5 ? 'Vent the 4 red pressure valves and find bolt cutters. The EXIT door is chained shut somewhere in these tunnels.' : (G.lv|0) === 4 ? 'Find the 4 receipts. Each one has a number of the security code. Three floors. Nobody is shopping.' : (G.lv|0) === 3 ? 'Find the keycard. The elevators work. Something else uses them too.' : (G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
+  } else if (G.ex) msg('EXPLORATION MODE. Nothing is hunting you. Take your time.', 5);
+  else msg((G.lv|0) === 0 && level.lab ? 'ASYNC LAB 4. The portal is open. Find 3 fuses out there. Something else is awake.' : (G.lv|0) === 5 ? 'Vent the 4 red pressure valves and find bolt cutters. The EXIT door is chained shut somewhere in these tunnels.' : (G.lv|0) === 4 ? 'Find the 4 receipts. Each one has a number of the security code. Three floors. Nobody is shopping.' : (G.lv|0) === 3 ? 'Find the keycard. The elevators work. Something else uses them too.' : (G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
   if ((G.lv|0) > 0){ seenZones.add(1); seenZones.add(2); }
 }
 function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? .86 : LK === 2 ? 1.0 : LK === 3 || LK === 4 ? .82 : .64})` : ''; }
@@ -5956,6 +5971,9 @@ function readName(){ myName = ($('name').value.trim() || 'Wanderer').slice(0,12)
 function genCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ'; let s=''; for (let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
 function goFull(){ try { const el=document.documentElement; const r = el.requestFullscreen && el.requestFullscreen(); if (r && r.catch) r.catch(()=>{}); } catch(e){} }
 function diffLabel(){ $('bDiff1').textContent = 'COMPUTER: ' + AI_DIFF[diffOpt].name; }
+function exLabel(){ $('bEx1').textContent = 'MODE: ' + (exOpt ? 'EXPLORATION (NO MONSTER)' : 'NORMAL'); }
+exLabel();
+$('bEx1').onclick = ()=>{ exOpt = exOpt ? 0 : 1; try { localStorage.setItem('lvl0_explore', exOpt); } catch(e){} exLabel(); };
 diffLabel();
 function lvLabel(){ $('bLv1').textContent = 'START AT: ' + LV_NAMES[startOpt]; }
 lvLabel();
@@ -5976,6 +5994,7 @@ $('bJoin').onclick = async ()=>{ if (voice.want && !voice.stream) voiceEnable(tr
 };
 $('joincode').addEventListener('input', e=>{ e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g,''); });
 $('bLv').onclick = ()=>{ if (!amHost()) return; startOpt = G.sl = ((G.sl ?? startOpt) + 1) % 6; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); broadcastState(); renderLobby(); };
+$('bEx').onclick = ()=>{ if (!amHost()) return; exOpt = G.ex = G.ex ? 0 : 1; try { localStorage.setItem('lvl0_explore', exOpt); } catch(e){} exLabel(); broadcastState(); renderLobby(); };
 $('bDiff').onclick = ()=>{ if (!amHost()) return; diffOpt = G.df = ((G.df ?? diffOpt) + 1) % 4; try { localStorage.setItem('lvl0_diff', diffOpt); } catch(e){} diffLabel(); broadcastState(); renderLobby(); };
 $('bMonVoice').onclick = ()=>{ if (!amHost()) return; monVoiceOpt = G.ov = G.ov ? 0 : 1; try { localStorage.setItem('lvl0_monvoice', monVoiceOpt); } catch(e){} broadcastState(); renderLobby(); };
 $('bMon').onclick = ()=>{
@@ -6256,7 +6275,8 @@ function updateMonsterDisplay(dt){
   } else if (G.mo === myPid){ mDisp.x=me.x; mDisp.z=me.z; mDisp.ry=me.yaw+Math.PI; mDisp.mv = me.moving ? (me.running?2:1) : 0; }
   else { const r = remotes.get(G.mo); if (r){ mDisp.x=r.x; mDisp.z=r.z; mDisp.ry=r.yaw+Math.PI; mDisp.mv=r.mv; if (r.vt || (LK === 2 && G.asub > 0)){ mDisp.x=-999; mDisp.z=-999; mDisp.mv=0; } } }
   useSkin(LK === 2 ? EEL : G.mo === 'AI' ? G.sk : G.mo === myPid ? mySkin : ((remotes.get(G.mo)||{}).sk|0));
-  const showMon = G.mo !== myPid && myRound===G.r && (mode==='play'||mode==='spect'||mode==='deadAnim') && G.ph==='play';
+  if (G.ex){ mDisp.x = -999; mDisp.z = -999; mDisp.mv = 0; }
+  const showMon = !G.ex && G.mo !== myPid && myRound===G.r && (mode==='play'||mode==='spect'||mode==='deadAnim') && G.ph==='play';
   const fooled = showMon && mode !== 'deadAnim' && disguisedFrom(camera.position.x, camera.position.z);
   MON.g.visible = showMon && !fooled;
   for (const [pid, f] of fakes) if (!fooled || pid !== G.dgp) f.g.visible = false;

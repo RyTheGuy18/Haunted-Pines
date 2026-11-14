@@ -6,7 +6,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 - Live: https://rytheguy18.github.io/Haunted-Pines/ (GitHub Pages, `main` branch, repo root)
 - Owner: Ryan (GitHub `rytheguy18` / `RyTheGuy18`). Plays it with friends and younger brothers, mostly on phones.
-- Current version: **v0.40.0** (shown bottom-right of the menu, `#ver`)
+- Current version: **v0.41.0** (shown bottom-right of the menu, `#ver`)
 
 ## Files
 
@@ -150,6 +150,10 @@ All in the `sfx` object (Web Audio, HRTF panners). Procedural sounds for most th
 - **v0.29 (Ryan: "weird breathing")**: the random breathy whispers behind you (`whisperT`, dead code now), the procedural low-stamina breaths (`sfx.breath` at stamina < 35) and the whisper at the end of the Occupant's LURE are gone. The LURE is only heavy thumping footsteps running up behind you (brown-noise thud + 52→30 Hz tone, louder than before). The recorded out-of-breath loop and the locker gasp stay.
 - Ambience: fluorescent hum (fades when the Occupant is near), room tone, drips, TV static, distant random events (quiet), elevator dings, ceiling creaks + dust, **silence events** (8 s of total quiet), dread drone, heartbeat + phone vibration when it's close.
 - **Removed on purpose**: the musical "sting" when you spot the Occupant, and the 8-bit horror noise loop. Don't add them back.
+
+## Exploration mode (v0.41, Ryan)
+
+MODE button (menu `bEx1` for solo, lobby `bEx` for the host; `localStorage['lvl0_explore']`, `exOpt`, `G.ex`): **no monster at all**. `hostStartRound` forces `G.mo = 'AI'` (everyone is a survivor) and grace 0; `hostTick` returns early after the level's own systems (lab, elevators, mall, pipes, day/night, phones, wall shifts) with `G.ax/az = -999`, no AI tick, no kills, no Lurker (`G.lr` zero), no mannequins, no blackouts; `updateMonsterDisplay` hides the Occupant. Pits still kill. v0.40.1: the lab's escape hatch border is 4 striped strips round the lid at 0.02 m (the old full decal under the lid drew over it from far away).
 
 ## Multiplayer
 
