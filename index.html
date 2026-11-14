@@ -23,6 +23,8 @@
   @keyframes scarej{0%{transform:translate(0,0)}50%{transform:translate(-6px,4px)}100%{transform:translate(5px,-3px)}}
   #flash{position:fixed;inset:0;pointer-events:none;background:#8a0000;opacity:0}
   #white{position:fixed;inset:0;pointer-events:none;background:#fffbe8;opacity:0;transition:opacity 1.5s}
+  #zoomv{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 52%,rgba(0,0,0,.55) 78%,rgba(0,0,0,.92) 100%);z-index:3}
+  #ztxt{position:absolute;left:50%;bottom:9%;transform:translateX(-50%);font:12px/1 monospace;letter-spacing:2px;color:rgba(230,240,230,.8);text-shadow:0 0 3px #000}
   #vhs{position:fixed;inset:0;pointer-events:none;opacity:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.07) 0 1px,transparent 1px 3px)}
   #vband{position:absolute;left:0;right:0;height:12%;top:30%;background:linear-gradient(transparent,rgba(255,255,255,.22),rgba(120,200,255,.12),transparent)}
   #vtxt{position:absolute;left:max(18px,env(safe-area-inset-left));bottom:18%;font-size:26px;color:#e8f0ff;text-shadow:2px 0 #f33,-2px 0 #3cf;opacity:0}
@@ -187,13 +189,14 @@
 <div id="flash"></div>
 <div id="scare"></div>
 <div id="vhs"><div id="vband"></div><div id="vtxt">◄◄ TRACKING</div></div>
+<div id="zoomv"><div id="ztxt">⊕ 4.0×</div></div>
 <div id="white"></div>
 <div id="locker"><div id="breath">HOLD YOUR BREATH<i><b id="breathb"></b></i></div></div>
 
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.43.0</div>
+<div class="osd" id="ver">v0.44.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -2355,17 +2358,37 @@ function gen37(seed){
   const rooms = [], cors = [], wades = [], pillars = [], deeps = [], rots = [], grand = [];
   const add = r => { r.i = rooms.length; rooms.push(r); return r; };
   const rad = (R, ux, uz) => R.shape === 'circle' ? R.r : Math.min(Math.abs(ux) > 1e-3 ? R.w/2/Math.abs(ux) : 1e9, Math.abs(uz) > 1e-3 ? R.h/2/Math.abs(uz) : 1e9);
-  // ---- the spine
+  // ---- the spine. v0.44 (Ryan: "broken spine"): it comes three ways —
+  //  intact   : the long pool runs the whole way (v0.43)
+  //  causeway : a shallow causeway splits the long pool in two and links the wings across the middle; one wing's tunnel has caved in
+  //  collapse : the far half of the hall has fallen in — a chest-deep flooded ruin under a broken roof, reached through a breach from one wing
+  const spine = (()=>{ const q = rng(); return q < 0.3 ? 'intact' : q < 0.65 ? 'causeway' : 'collapse'; })();
+  const cutSide = rng() < 0.5 ? 1 : -1;
   const spawn = add({ kind:'locker', shape:'rrect', x:13, z:MZ, w:12, h:10, cr:1.6, dry:true, spawn:true });
-  const lp = add({ kind:'longpool', shape:'rrect', x:58, z:MZ, w:70, h:13, cr:2, dry:true, tall:9.5 });
+  const lp = add({ kind:'longpool', shape:'rrect', x: spine === 'collapse' ? 42 : 58, z:MZ, w: spine === 'collapse' ? 38 : 70, h:13, cr:2, dry:true, tall:9.5 });
   const sw = add({ kind:'stair', shape:'circle', x:99, z:MZ, r:9, dry:true });
   const ante = add({ kind:'round', shape:'circle', x:119, z:MZ, r:5.6, ante:true });
-  lp.suns = []; for (let k=-4;k<=4;k++) lp.suns.push([k*7, k%2 ? -2.7 : 2.7, 1.2]);
+  { const nS = Math.floor((lp.w/2 - 4)/7); lp.suns = []; for (let k=-nS;k<=nS;k++) lp.suns.push([k*7, k%2 ? -2.7 : 2.7, 1.2]); }
   grand.push(lp);
-  deeps.push({ shape:'rrect', x:57.5, z:MZ, w:62, h:lp.h + 6, cr:2.5, long:true, dh:0.3 });   // wall to wall: no walking down its sides
-  const cor = (A, B, o={}) => { const r = o.r ?? rr(1.45, 1.85), tunnel = o.tunnel ?? rng() < 0.4, P = [A.x, A.z], Q = [B.x, B.z], C = o.via;
-    const segs = (C && Math.hypot(C[0]-P[0], C[1]-P[1]) > 0.5 && Math.hypot(C[0]-Q[0], C[1]-Q[1]) > 0.5) ? [[P, C], [C, Q]] : [[P, Q]];
-    const out = segs.map(([a,b])=>({ a, b, ia:A.i, ib:B.i, r, tunnel, dry:!!o.dry })); cors.push(...out); return out; };
+  let lpE = null;
+  if (spine === 'collapse'){
+    lpE = add({ kind:'collapse', shape:'rrect', x:77, z:MZ, w:32, h:13, cr:2, tall:9.5, wade:true }); grand.push(lpE);
+    lpE.suns = [[-7, 2.4, 2.4], [3.5, -2.2, 3.4], [11, 3.4, 1.3]];   // where the roof fell in
+    wades.push({ shape:'rrect', x:76.5, z:MZ, w:25, h:11.4, cr:1.5 }); }
+  const cor = (A, B, o={}) => { let r = o.r ?? rr(1.45, 1.85), tunnel = o.tunnel ?? rng() < 0.4; const P = [A.x, A.z], Q = [B.x, B.z];
+    let pts = o.via ? [o.via] : [];
+    if (o.style === 'zig'){   // a winding tunnel: two kinks between the rooms
+      const dx = Q[0]-P[0], dz = Q[1]-P[1], l = Math.hypot(dx,dz) || 1, ux = dx/l, uz = dz/l, t0 = rad(A, ux, uz) + 1, t1 = l - rad(B, ux, uz) - 1;
+      if (t1 - t0 > 5){ const j = rr(2, 3)*(rng() < 0.5 ? -1 : 1), at = (t, s) => [P[0] + ux*t - uz*s, P[1] + uz*t + ux*s]; pts = [at(t0 + (t1-t0)*0.3, j), at(t0 + (t1-t0)*0.7, -j)]; }
+      tunnel = false; }
+    if (o.style === 'narrow'){ r = rr(0.95, 1.1); tunnel = false; }
+    if (o.style === 'wide'){ r = rr(2.2, 2.5); tunnel = false; }
+    const all = [P, ...pts.filter(C=>Math.hypot(C[0]-P[0], C[1]-P[1]) > 0.5 && Math.hypot(C[0]-Q[0], C[1]-Q[1]) > 0.5), Q], out = [];
+    for (let k=0;k<all.length-1;k++) out.push({ a:all[k], b:all[k+1], ia:A.i, ib:B.i, r, tunnel, dry:!!o.dry });
+    cors.push(...out);
+    if (o.style === 'wide') for (const s of out){ const l = Math.hypot(s.b[0]-s.a[0], s.b[1]-s.a[1]); for (let t = 1.5; t < l - 1.5; t += 3){ const x = lerp(s.a[0], s.b[0], t/l), z = lerp(s.a[1], s.b[1], t/l); if (rooms.some(rm=>sdShape(x,z,rm) < 1.8)) continue; pillars.push({ x, z, r:0.4 }); } }   // a row of columns down the middle
+    return out; };
+  const corStyle = () => { const q = rng(); return q < 0.2 ? 'zig' : q < 0.35 ? 'wide' : q < 0.52 ? 'narrow' : undefined; };
   // a corridor flooded chest-deep: the deep part starts just outside the rooms at either end (sunken rooms and the antechamber are deep already)
   const wadeCor = (segs, A, B) => segs.forEach((s,k)=>{ let a = s.a.slice(), b = s.b.slice(); const l = Math.hypot(b[0]-a[0], b[1]-a[1]) || 1, ux = (b[0]-a[0])/l, uz = (b[1]-a[1])/l, R = s.r + 2.2;
     let t0 = 0, t1 = l;
@@ -2376,37 +2399,71 @@ function gen37(seed){
   cors.push({ a:[spawn.x, MZ], b:[lp.x - lp.w/2 + 3, MZ], ia:spawn.i, ib:lp.i, r:2.0, tunnel:false, dry:true });
   cor(sw, ante, { r:1.7, tunnel:true });
   wades.push({ shape:'circle', x:ante.x, z:ante.z, r:ante.r - 0.2 });
+  // ---- room shapes (v0.44, Ryan: more variety in structure). Compound rooms are a main shape (corridors meet at its
+  // centre) plus 'part' shapes that only add open space.
+  const pillarRow = (x0, z0, x1, z1, step, r) => { const l = Math.hypot(x1-x0, z1-z0), n = Math.max(1, Math.round(l/step)); for (let k=0;k<=n;k++) pillars.push({ x:lerp(x0,x1,k/n), z:lerp(z0,z1,k/n), r }); };
+  const part = (o, P) => add({ kind:'part', parent:P.i, ...o });
+  const flood = R => { for (const q of [R, ...rooms.filter(o=>o.parent === R.i)]) wades.push(q.shape === 'circle' ? { shape:'circle', x:q.x, z:q.z, r:q.r - 0.8 } : { shape:'rrect', x:q.x, z:q.z, w:q.w - 1.6, h:q.h - 1.6, cr:Math.max(0.5, q.cr - 0.8) }); R.wade = true; };
+  const mkRoom = (kind, x, z, side) => { let R;   // side: away from the long pool
+    switch (kind){
+      case 'round': R = add({ kind:'round', shape:'circle', x, z, r:rr(5.8,7) }); break;
+      case 'hall': R = add({ kind:'hall', shape:'rrect', x, z, w:rr(12,15.5), h:rr(10,12.5), cr:rr(2,3.5) }); break;
+      case 'cross': { R = add({ kind:'cross', shape:'rrect', x, z, w:rr(14,16), h:rr(5.2,6.2), cr:1.2 }); part({ shape:'rrect', x, z, w:rr(5.2,6.2), h:rr(11,13), cr:1.2 }, R); pillars.push({ x, z, r:0.95 }); break; }
+      case 'lhall': { const w = rr(14,16), h = rr(5.4,6.4), dir = rng() < 0.5 ? -1 : 1, ph = rr(10,12); R = add({ kind:'lhall', shape:'rrect', x, z, w, h, cr:1.4 }); part({ shape:'rrect', x: x + dir*(w/2 - 3), z: z + side*(ph/2 - h/2), w:6, h:ph, cr:1.4 }, R); break; }
+      case 'colonnade': { const w = rr(15,17), h = rr(7,8); R = add({ kind:'colonnade', shape:'rrect', x, z, w, h, cr:1 }); for (const dz of [-1.3, 1.3]) pillarRow(x - w/2 + 2.2, z + dz, x + w/2 - 2.2, z + dz, 2.6, 0.32); break; }
+      case 'stadium': { const w = rr(14,16.5), h = rr(8,9.5); R = add({ kind:'stadium', shape:'rrect', x, z, w, h, cr:h/2 - 0.05 }); for (const o of [-w/4, w/4]) pillars.push({ x:x+o, z, r:0.9 }); break; }
+      case 'twin': { R = add({ kind:'twin', shape:'circle', x, z, r:2.6 }); for (const o of [-1, 1]) part({ shape:'circle', x: x + o*4.2, z: z + rr(-0.8,0.8), r:rr(3.9,4.3) }, R); break; }
+      case 'forest': { const w = rr(13,15), h = rr(10,12); R = add({ kind:'forest', shape:'rrect', x, z, w, h, cr:2 }); for (let i=-1.5;i<=1.5;i++) for (let j=-1;j<=1;j++) pillars.push({ x: x + i*3.1, z: z + j*3.1, r:0.38 }); break; }
+      case 'junction': R = add({ kind:'junction', shape:'circle', x, z, r:rr(2.6,3.2) }); break;
+    }
+    return R; };
+  const pickKinds = (pool, n) => { const out = []; const p = pool.slice(); for (let k=0;k<n;k++){ let tot = p.reduce((s,e)=>s+e[1],0), q = rng()*tot, i = 0; while (i < p.length-1 && (q -= p[i][1]) > 0) i++; out.push(p[i][0]); p.splice(i,1); } return out; };
+  const ROW0 = [['round',1.2],['hall',1],['cross',1],['lhall',0.9],['colonnade',0.9],['stadium',0.8],['twin',0.8],['forest',0.8],['junction',0.5]];
   // ---- the two wings
-  const COLS = [32, 54, 78, 98], first = rng() < 0.5 ? 1 : -1;
+  const COLS = [32, 54, 78, 98], first = rng() < 0.5 ? 1 : -1, wingW = {};
   for (const side of [first, -first]){
     const wi = side === first ? 0 : 1, rz0 = MZ + side*27, rz1 = MZ + side*49, W = [], U = [];
-    const sunk = 1 + Math.floor(rng()*2);
-    for (let c=0;c<4;c++){ const x = COLS[c] + rr(-1.8,1.8), z = rz0 + rr(-1.2,1.2); let r;
-      if (c === sunk) r = { kind:'sunken', shape:'rrect', x, z, w:rr(14,16.5), h:rr(11,12.5), cr:2.5, wade:true };
-      else if (rng() < 0.45) r = { kind:'round', shape:'circle', x, z, r:rr(5.8,7) };
-      else r = { kind:'hall', shape:'rrect', x, z, w:rr(12,15.5), h:rr(10,12.5), cr:rr(2,3.5) };
-      W[c] = add(r); }
+    const sunk = 1 + Math.floor(rng()*2), kinds = pickKinds(ROW0, 4);
+    for (let c=0;c<4;c++){ const x = COLS[c] + rr(-1.8,1.8), z = rz0 + rr(-1.2,1.2);
+      if (c === sunk) W[c] = add({ kind:'sunken', shape:'rrect', x, z, w:rr(14,16.5), h:rr(11,12.5), cr:2.5, wade:true });
+      else { W[c] = mkRoom(kinds[c], x, z, side); if (c > 0 && kinds[c] !== 'junction' && kinds[c] !== 'round' && kinds[c] !== 'hall' && rng() < 0.15) flood(W[c]); } }
+    wingW[side] = W;
     const a = rng() < 0.5 ? 1 : 2, b = 3 - a, oc = rng() < 0.5 ? 0 : 3, xc = 3 - oc;
     U[a] = add({ kind:'atrium', shape:'circle', x:COLS[a], z:rz1, r:9.6, ceil:9, pool:4, bal:6.8, bh:3.4, rot:true }); rots.push(U[a]);
     U[b] = wi === 0 ? add({ kind:'grand', shape:'rrect', x:COLS[b], z:rz1, w:22, h:18, cr:4, tall:7.6 })
-      : rng() < 0.5 ? add({ kind:'round', shape:'circle', x:COLS[b]+rr(-1.2,1.2), z:rz1+rr(-1,1), r:rr(6,7) })
-      : add({ kind:'hall', shape:'rrect', x:COLS[b]+rr(-1.2,1.2), z:rz1+rr(-1,1), w:rr(12,14), h:rr(10,12), cr:3 });
+      : mkRoom(pickKinds([['round',1],['hall',1],['forest',1],['cross',0.8],['colonnade',0.8]], 1)[0], COLS[b]+rr(-1.2,1.2), rz1+rr(-1,1), side);
     if (U[b].kind === 'grand') grand.push(U[b]);
     U[oc] = add({ kind:'office', shape:'rrect', x:COLS[oc] + rr(-1.5,1.5), z:rz1 + side*rr(0,2.5), w:7.6, h:6.2, cr:1.0, dry:true });
     U[xc] = wi === 1 ? add({ kind:'locker', shape:'rrect', x:COLS[xc] + rr(-1.5,1.5), z:rz1 + side*rr(-0.5,1.5), w:10, h:6.6, cr:1.4, dry:true })
-      : rng() < 0.65 ? add({ kind:'round', shape:'circle', x:COLS[xc]+rr(-1.5,1.5), z:rz1+rr(-1,1), r:rr(5.5,6) }) : null;
-    // the way through, along the long pool (one link sometimes flooded chest-deep)
+      : rng() < 0.7 ? mkRoom(pickKinds([['round',1],['twin',1],['junction',0.6]], 1)[0], COLS[xc]+rr(-1.2,1.2), rz1+rr(-1,1), side) : null;
+    // the way through, along the long pool (one link sometimes flooded chest-deep); the corridors come straight, winding, narrow or wide with columns
     const wc = rng() < 0.6 ? Math.floor(rng()*3) : -1;
-    for (let c=0;c<3;c++){ const s = cor(W[c], W[c+1], { via: rng() < 0.35 ? [W[c+1].x, W[c].z] : null, tunnel: c === wc ? true : undefined }); if (c === wc) wadeCor(s, W[c], W[c+1]); }
+    for (let c=0;c<3;c++){ const st = corStyle(), s = cor(W[c], W[c+1], { via: !st && rng() < 0.35 ? [W[c+1].x, W[c].z] : null, style: st, tunnel: c === wc ? true : undefined }); if (c === wc) wadeCor(s, W[c], W[c+1]); }
     // the outer row hangs off it; dry rooms are dead ends with a door straight out
     for (let c=0;c<4;c++){ const R = U[c]; if (!R) continue;
       if (R.dry){ if (Math.abs(R.x - W[c].x) < 0.6) R.x = W[c].x; const s = cor(R, W[c], { r:0.8, tunnel:false, via:[R.x, W[c].z] }); R.door = s[0]; continue; }
-      cor(R, W[c], { via: Math.abs(R.x - W[c].x) > 2.5 ? [R.x, W[c].z] : null }); }
+      const st = R.rot ? undefined : corStyle(); cor(R, W[c], { via: !st && Math.abs(R.x - W[c].x) > 2.5 ? [R.x, W[c].z] : null, style: st }); }
     // loops along the outer row (never into the rotunda: one way in keeps its balcony long)
-    if (U[0] && !U[0].dry && !U[1].rot && rng() < 0.6) cor(U[0], U[1]);
-    if (U[3] && !U[3].dry && !U[2].rot && rng() < 0.6) cor(U[3], U[2]);
+    if (U[0] && !U[0].dry && !U[1].rot && rng() < 0.6) cor(U[0], U[1], { style: corStyle() });
+    if (U[3] && !U[3].dry && !U[2].rot && rng() < 0.6) cor(U[3], U[2], { style: corStyle() });
     cor(spawn, W[0], { r:1.7, via:[spawn.x, W[0].z], tunnel:false });
-    const ex = cor(W[3], ante, { r:1.7, tunnel: rng() < 0.5, via:[ante.x, W[3].z] }); wadeCor(ex, W[3], ante);
+    if (spine === 'causeway' && side === cutSide){   // this wing's tunnel has caved in: a stub ending in rubble
+      const R = W[3]; cors.push({ a:[R.x, R.z], b:[R.x + 13, R.z], ia:R.i, ib:R.i, r:1.5, tunnel:false });
+      pillars.push({ x:R.x + 12.4, z:R.z + 0.6, r:1.0 }, { x:R.x + 11.6, z:R.z - 0.9, r:0.75 }, { x:R.x + 13.3, z:R.z - 0.2, r:0.9 }); }
+    else { const ex = cor(W[3], ante, { r:1.7, tunnel: rng() < 0.5, via:[ante.x, W[3].z] }); wadeCor(ex, W[3], ante); }
+  }
+  // ---- the long pool itself (always wider than the hall: no deck down its sides)
+  if (spine === 'intact') deeps.push({ shape:'rrect', x:57.5, z:MZ, w:62, h:lp.h + 6, cr:2.5, long:true, dh:0.3 });
+  if (spine === 'collapse'){
+    deeps.push({ shape:'rrect', x:42, z:MZ, w:31, h:lp.h + 6, cr:2.5, long:true, dh:0.3 });
+    const B = wingW[cutSide][2], s = cor(B, lpE, { r:1.6, tunnel:false }); wadeCor(s, B, lpE);   // the breach
+    for (let t=0, n=0; t<40 && n<8; t++){ const x = lpE.x + rr(-12, 11), z = MZ + rr(-4.6, 4.6); if (Math.abs(z - MZ) < 1.8 || Math.abs(x - B.x) < 2.8 || pillars.some(p=>Math.hypot(p.x-x, p.z-z) < 3)) continue; pillars.push({ x, z, r:rr(0.45, 1.05) }); n++; }   // fallen columns
+  }
+  if (spine === 'causeway'){
+    const N = wingW[1][1], S = wingW[-1][1], cx = (N.x + S.x)/2, half = Math.abs(N.x - S.x)/2 + 1.6 + 0.9, x0 = 26.5, x1 = 88.5;
+    deeps.push({ shape:'rrect', x:(x0 + cx - half)/2, z:MZ, w:(cx - half) - x0, h:lp.h + 6, cr:2.5, long:true, dh:0.3 });
+    deeps.push({ shape:'rrect', x:(cx + half + x1)/2, z:MZ, w:x1 - (cx + half), h:lp.h + 6, cr:2.5, long:true, dh:0.3 });
+    cor(N, S, { r:1.6, tunnel:false });   // shallow water straight across the hall (it isn't the hall's own corridor, so its floor is water)
   }
   // ---- inside features: railed deep pools, tiled pillars, the sunken halls
   for (const r of rooms){
@@ -2469,7 +2526,7 @@ function gen37(seed){
   }
   // the staircase: its foot faces down the long pool, under a glowing EXIT sign
   const stair = { x:sw.x, z:sw.z, r:sw.r, a0: Math.PI + 0.25, sweep: Math.PI*2*300/360, rIn:0.8, rOut:3.1, top:8.6, shaft:14 };
-  return { rooms, cors, pillars, deeps, rots, stair, spawn, grand, terr, sdT, wades, lp, ante };
+  return { rooms, cors, pillars, deeps, rots, stair, spawn, grand, terr, sdT, wades, lp, lpE, ante, spine };
 }
 // points around a pool's edge, pushed out by `off`, counter-clockwise, roughly every `step` metres
 function perim37(d, off, step){
@@ -2511,7 +2568,7 @@ function build37(seed){
     let kind = K37.WATER, h = 0;
     for (const r of b.r) if (r.dry && sdShape(x,z,r) < 0 && !b.c.some(c=>c.ia !== r.i && c.ib !== r.i && sdCap(x,z,c.a,c.b,c.r) < 0)){ kind = K37.DRY; h = 0.3; }
     if (kind === K37.WATER) for (const c of b.c) if (c.dry && sdCap(x,z,c.a,c.b,c.r) < 0){ kind = K37.DRY; h = 0.3; }
-    for (const d of b.d){ const sd = sdShape(x,z,d); if (sd < 0){ kind = K37.DEEP; h = 0; } else if (sd < DECK_W && kind === K37.WATER){ kind = K37.DRY; h = DECK_H; } }
+    for (const d of b.d){ const sd = sdShape(x,z,d); if (sd < 0){ kind = K37.DEEP; h = 0; } else if (sd < DECK_W && kind === K37.WATER && !d.long){ kind = K37.DRY; h = DECK_H; } }   // (the long pools have no deck: their basin wall stands in the water)
     for (const R of L.rots){ const da = Math.hypot(x-R.x, z-R.z);
       if (da < R.r && da >= R.bal && !b.c.some(c=>(c.ia===R.i || c.ib===R.i) && sdCap(x,z,c.a,c.b,c.r) < 0.3)){
         const rel = wrapA(Math.atan2(z-R.z, x-R.x) - R.balA), bl = R.balLen;
@@ -2744,14 +2801,14 @@ function buildLevel37(seed){
         const ms = new THREE.Mesh(new THREE.BoxGeometry(w, hh, len), mat); ms.rotation.copy(e); ms.position.set(cx + px*off + up.x*lift, t.th/2 + up.y*lift, cz + pz*off + up.z*lift); g.add(ms); }
       for (const s of [0.25, 0.55, 0.85]){ const a = -t.hl + run*s, hy = t.th*s - 0.04; if (hy < 0.15) continue; for (const off of [-t.hw*0.8, t.hw*0.8]) bx(g, 0.08, hy, 0.08, t.x + t.ux*a + px*off, hy/2, t.z + t.uz*a + pz*off, chuteMat); } }
     // tall dark arches in the walls of the big rooms (like doorways that go nowhere)
-    for (const R of L37.rooms){ if (R.kind !== 'grand' && R.kind !== 'hall' && R.kind !== 'longpool' && R.kind !== 'sunken') continue;
-      const big = R.kind === 'grand' || R.kind === 'longpool', w = big ? 2.3 : 1.6, h = big ? 3.6 : 2.5;
+    for (const R of L37.rooms){ if (!['grand', 'hall', 'longpool', 'sunken', 'collapse', 'colonnade', 'stadium', 'forest'].includes(R.kind)) continue;
+      const big = R.kind === 'grand' || R.kind === 'longpool' || R.kind === 'collapse', w = big ? 2.3 : 1.6, h = big ? 3.6 : 2.5;
       for (const p of perim37(R, 0, big ? 5.2 : 6.5)){ const [nx, nz] = gradN((x,z)=>sdShape(x,z,R), p[0], p[1]), tx = -nz, tz = nx;
         let ok = true; for (const o of [-w/2-0.4, 0, w/2+0.4]){ const qx = p[0]+tx*o, qz = p[1]+tz*o;
           if (d37(qx+nx*0.35, qz+nz*0.35) > -0.1 || d37(qx-nx*0.7, qz-nz*0.7) < 0.4 || terrH37(qx-nx*1.2, qz-nz*1.2) >= 0 || Math.abs(sdShape(qx, qz, R)) > 0.15) { ok = false; break; } }
         for (const o of [-w/2-0.3, w/2+0.3]){ const [mx, mz] = gradN((x,z)=>sdShape(x,z,R), p[0]+tx*o, p[1]+tz*o); if (mx*nx + mz*nz < 0.996) ok = false; }   // flat wall only
         if (!ok || (!big && rng() < 0.45)) continue;
-        addArch(p[0]-nx*0.025, R.kind === 'longpool' ? 0.25 : -0.05, p[1]-nz*0.025, -nx, -nz, w, h); } }
+        addArch(p[0]-nx*0.025, R.kind === 'longpool' ? 0.25 : R.kind === 'collapse' ? -0.9 : -0.05, p[1]-nz*0.025, -nx, -nz, w, h); } }
     if (arches.length) g.add(new THREE.Mesh(mergeGeometries(arches.map(a=>{ const o = a.toNonIndexed(); o.deleteAttribute('uv'); return o; })), archMat));
   }
   // ---- ceiling with sunroofs (+ the tall rotundas, the grand rooms, the long pool and the stairwell shaft)
@@ -5633,7 +5690,7 @@ function enterLevel(){
   else if ((G.lv|0) === 2){ $('blacktext').textContent = 'LEVEL 37'; $('blacksub').textContent = 'THE POOLROOMS · somewhere there is a staircase up to the sky. Find it. Stay out of the water at night.'; }
   else { $('blacktext').textContent = 'LEVEL 1'; $('blacksub').textContent = 'THE PARKING GARAGE · start all 5 generators, then find the exit'; }
   if (role === 'monster'){ me.x = level.mspawn[0]; me.z = level.mspawn[1]; me.yaw = Math.random()*6; abCD.dash = Math.max(abCD.dash, 6); mode = 'play'; }
-  else { const k = hashStr(myPid)%4, sp0 = level.spawn || [cc(1), cc(1)]; me.x = sp0[0] + [-0.8,0.8,-0.8,0.8][k]; me.z = sp0[1] + [-0.8,-0.8,0.8,0.8][k]; me.yaw = Math.PI*0.75; me.pitch = 0;
+  else { const k = hashStr(myPid)%4, sp0 = level.spawn || [cc(1), cc(1)]; me.x = sp0[0] + [-0.8,0.8,-0.8,0.8][k]; me.z = sp0[1] + [-0.8,-0.8,0.8,0.8][k]; me.yaw = level.spawnYaw ?? Math.PI*0.75; me.pitch = 0;
     me.alive = true; me.esc = false; me.light = false; me.stam = 100; me.bat = Math.max(me.bat, 60); me.crouch = false; me.breath = 100; mode = 'play'; $('bat').style.display = ''; }
   if (role === 'monster') canvas.style.filter = monFilter();
   $('hud').style.display = 'block'; setTouchUI(mode === 'play' || isTouch); if (mode !== 'play') $('btns').style.display = 'none'; setButtons();
@@ -6055,12 +6112,15 @@ canvas.addEventListener('mousedown', e=>{
   if (document.pointerLockElement !== canvas){ try { const r = canvas.requestPointerLock && canvas.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch(err){} return; }
   if (mode==='play' && role==='survivor' && me.alive){
     if (e.button === 0 && me.hidden < 0){ me.light = !me.light; sfx.click(); }
+    if (e.button === 2) zoomHeld = true;
   }
 });
+addEventListener('mouseup', e=>{ if (e.button === 2) zoomHeld = false; });
+addEventListener('blur', ()=>{ zoomHeld = false; });
 addEventListener('contextmenu', e=>{ if (document.pointerLockElement === canvas || e.target === canvas) e.preventDefault(); });
 addEventListener('mousemove', e=>{
   if (document.pointerLockElement !== canvas || mode!=='play') return;
-  const sv = 0.0022*SET.sens/100; me.yaw -= e.movementX*sv; me.pitch = clamp(me.pitch - e.movementY*sv, -1.35, 1.35);
+  const sv = 0.0022*SET.sens/100*(1 - 0.72*zK); me.yaw -= e.movementX*sv; me.pitch = clamp(me.pitch - e.movementY*sv, -1.35, 1.35);
 });
 /* touch controls (v0.28.1, Ryan: better iPhone controls):
    - the stick appears where your left thumb lands and stays locked there (v0.28.2), with a small dead zone
@@ -6095,7 +6155,7 @@ touch.addEventListener('touchmove', e=>{
       const now = performance.now(), dt = Math.max(8, now - lookT); lookT = now;
       const ddx = t.clientX-lookL[0], ddy = t.clientY-lookL[1], spd = Math.hypot(ddx,ddy)/dt;   // px per ms
       const acc = 1 + Math.min(1.2, Math.max(0, spd - 0.35)*0.9);
-      const sv = 0.0062*SET.sens/100*acc; me.yaw -= ddx*sv; me.pitch = clamp(me.pitch-ddy*sv*0.85, -1.35, 1.35);
+      const sv = 0.0062*SET.sens/100*acc*(1 - 0.72*zK); me.yaw -= ddx*sv; me.pitch = clamp(me.pitch-ddy*sv*0.85, -1.35, 1.35);
       lookL=[t.clientX,t.clientY];
     }
   }
@@ -6124,6 +6184,7 @@ const ICON = {
   walls:'<svg viewBox="0 0 24 24"><path d="M3 5h8v14H3zM13 5h8v14h-8"/><path d="M15 9l3 3-3 3"/></svg>',
   mask:'<svg viewBox="0 0 24 24"><path d="M4 6c5-2 11-2 16 0 0 7-3 12-8 13C7 18 4 13 4 6z"/><path d="M8 10h3M13 10h3M10 15c1 .8 3 .8 4 0"/></svg>',
   dash:'<svg viewBox="0 0 24 24"><path d="M3 12h11M3 7h7M3 17h7"/><path d="M14 6l7 6-7 6"/></svg>',
+  zoom:'<svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M15 15l6 6M10 7v6M7 10h6"/></svg>',
   lure:'<svg viewBox="0 0 24 24"><path d="M5 18c2 0 2-3 4-3s2 3 4 3M11 10c2 0 2-3 4-3s2 3 4 3"/><circle cx="6" cy="6" r="1.5"/></svg>',
 };
 function setButtons(){
@@ -6134,6 +6195,7 @@ function setButtons(){
     { label:'CROUCH', icon:'crouch', down:()=>{ me.crouch=!me.crouch; }, on:()=>me.crouch } ];
   else if (LK === 2) cfg = [ { label:'SPLASH', icon:'lure', m:1, down:()=>ability('lure'), cd:'lure' }, { label:'LUNGE', icon:'dash', m:1, down:()=>ability('dash'), cd:'dash' }, run ];
   else cfg = [ { label:'DARK', icon:'dark', m:1, down:()=>ability('blackout'), cd:'blackout' }, { label:'DISGUISE', icon:'mask', m:1, down:()=>ability('disguise'), cd:'disguise' }, { label:'DASH', icon:'dash', m:1, down:()=>ability('dash'), cd:'dash' }, run ];
+  if (role === 'survivor' && LK === 2) cfg.push({ label:'ZOOM', icon:'zoom', down:()=>{ zoomHeld = true; }, up:()=>{ zoomHeld = false; }, on:()=>zoomHeld });   // v0.44
   ['bA','bB','bC','bD','bE','bF'].forEach((id,k)=>{ const c=cfg[k]; BTN[id]=c; const b=$(id); b.style.display = c ? '' : 'none'; if (c){ b.innerHTML = ICON[c.icon] + c.label; b.classList.toggle('m', !!c.m); } });
   BTN.bUse = { down:()=>{ const a=contextAction(); if (a) a.fn(); } };
   fitButtons();
@@ -6275,7 +6337,7 @@ function updateMe(dt){
   me.adren = role==='survivor' && G.grace <= 0 && md < 10 && !disguisedFrom(me.x, me.z);
   if (me.stam <= 0.5) me.winded = true;
   if (me.winded && (role === 'monster' ? me.stam >= 100 : (me.stam >= 35 || (!runReq && me.stam >= 12)))) me.winded = false;
-  me.running = runReq && !me.winded && me.stam > 0.5;
+  me.running = runReq && !me.winded && me.stam > 0.5 && zK < 0.3;
   if (role === 'monster') me.stam = clamp(me.stam + (me.running ? -55 : 24)*dt, 0, 100);   // ~1.8s sprint, ~4s to recharge
   else me.stam = clamp(me.stam + (me.running ? (me.adren ? -8 : -14)*(sodaT > 0 ? 0.5 : 1) : 16*(sodaT > 0 ? 1.5 : 1))*dt, 0, 100);   // the mall's energy soda   // ~7s of sprint (~12s with adrenaline)
   let sp;
@@ -6283,7 +6345,8 @@ function updateMe(dt){
   else sp = me.crouch ? 1.35 : me.running ? (me.adren ? 5.6 : 5.0) : 2.6;
   if (LK === 2 && role === 'survivor'){ const dp = wadeDepth37(me.x, me.z);   // v0.43: wading chest-deep is slow, and you can't duck under
     if (dp > 0.05) sp *= 1 - 0.5*Math.min(1, dp/WADE_D);
-    if (dp > 0.45 && me.crouch){ me.crouch = false; if (!me.deepMsg){ me.deepMsg = 1; msg('Too deep to crouch.', 1.6); } } }
+    if (dp > 0.45 && me.crouch){ me.crouch = false; if (!me.deepMsg){ me.deepMsg = 1; msg('Too deep to crouch.', 1.6); } }
+    sp *= 1 - 0.45*zK; }
   const sn = Math.sin(me.yaw), cs = Math.cos(me.yaw);
   const vx = (fx*cs + fz*sn)*sp, vz = (-fx*sn + fz*cs)*sp;
   [me.x, me.z] = collide(me.x + vx*dt, me.z + vz*dt, role==='monster' ? 0.38 : 0.32, me.x, me.z, role==='monster' && LK === 2, false);
@@ -6625,7 +6688,7 @@ function updateZoneEnv(dt){
   const lit1 = LK === 1 && G.open;   // v0.36 (Ryan): the garage with every generator on is bright all the way down, you can see far
   if (lit1) _fogT.setHex(0x4a4c4e); else { _fogT.copy(ZFOG[z]); if (role==='monster') _fogT.multiplyScalar(LK === 1 ? 1.4 : LK === 2 ? 1 : 0.7); }
   scene.fog.color.lerp(_fogT, k); scene.background.copy(scene.fog.color);
-  scene.fog.density = lerp(scene.fog.density, lit1 ? 0.016 : role==='monster' ? (LK === 1 ? 0.06 : LK === 2 ? 0.03 : LK === 4 ? 0.05 : LK === 5 ? 0.05 : 0.11) : ZDENS[z]*(LK === 0 && mode !== 'menu' && mode !== 'lobby' && mode !== 'end' ? 1.45 : 1), k);
+  scene.fog.density = lerp(scene.fog.density, lit1 ? 0.016 : role==='monster' ? (LK === 1 ? 0.06 : LK === 2 ? 0.03 : LK === 4 ? 0.05 : LK === 5 ? 0.05 : 0.11) : ZDENS[z]*(LK === 0 && mode !== 'menu' && mode !== 'lobby' && mode !== 'end' ? 1.45 : 1)*(1 - 0.6*zK), k);
   amb.intensity = lerp(amb.intensity, lit1 ? (role === 'monster' ? 1.5 : 0.75) : role==='monster' ? (LK === 1 ? 1.5 : LK === 2 ? lerp(0.6, 1.1, dayK(G.tod||0)) : 0.34) : LK === 2 ? lerp(0.2, 1.0, dayK(G.tod||0)) : LK === 1 ? 0.09 : 0.16, k);
   if (lit1){ amb.color.lerp(_lit1S, k); amb.groundColor.lerp(_lit1G, k); } else { amb.color.lerp(ZSKY[z], k); amb.groundColor.lerp(ZGND[z], k); }
 }
@@ -6736,6 +6799,19 @@ function updateExtras(dt){
 }
 
 let vhsK = 0, lowK = 0, lastSeenK = -99;
+/* v0.44 (Ryan): on the Poolrooms survivors can zoom (hold Z or the right mouse button; the ZOOM button on phones):
+   a narrow field of view, a sharper (still grainy) picture and thinner haze, so you can make out the spiral stairs from the spawn room */
+let zoomHeld = false, zK = 0, zHint = '';
+const ZOOM_FOV = 13;
+const canZoom = () => LK === 2 && role === 'survivor' && mode === 'play' && me.alive && me.hidden < 0 && hatchT <= 0;
+function updateZoom(dt){
+  const want = canZoom() && (zoomHeld || keys.has('KeyZ'));
+  zK = lerp(zK, want ? 1 : 0, 1 - Math.exp(-(want ? 7 : 10)*dt)); if (zK < 0.002) zK = 0;
+  const el = $('zoomv'); el.style.opacity = zK > 0.01 ? Math.min(1, zK*1.1).toFixed(3) : 0;
+  if (zK > 0.01) $('ztxt').textContent = '⊕ ' + (SET.fov/lerp(SET.fov, ZOOM_FOV, zK)).toFixed(1) + '×';
+  const key = G.r + ':' + LK;
+  if (LK === 2 && role === 'survivor' && mode === 'play' && zHint !== key && G.ph === 'play'){ zHint = key; setTimeout(()=>{ if (LK === 2 && mode === 'play') msg(isTouch ? 'Hold ZOOM to look far down the halls.' : 'Hold Z (or the right mouse button) to zoom in.', 4); }, 7000); }
+}
 function updateLowRes(dt, sees){
   const t = nowS(); if (sees) lastSeenK = t;
   let target = 0;
@@ -6744,7 +6820,8 @@ function updateLowRes(dt, sees){
     target = mode==='deadAnim' ? 1 : Math.max(t - lastSeenK < 0.6 ? 0.45 : 0, disguisedFrom(me.x, me.z) ? 0 : clamp(1 - (d-1.5)/5, 0, 1)*0.28);   // v0.38.1: softer (Ryan: too fuzzy)
   }
   lowK = lerp(lowK, target, 1-Math.exp(-(target > lowK ? 9 : 2.5)*dt));
-  const h = lowK < 0.02 ? RH : Math.max(96, Math.round(RH * (1 - 0.62*lowK) / 12) * 12);   // stepped so it snaps like a camera dropping quality
+  const base = zK > 0.05 ? Math.round(RH*(1 + 0.6*zK)/24)*24 : RH;   // zoomed in: a bit more detail
+  const h = lowK < 0.02 ? base : Math.max(96, Math.round(base * (1 - 0.62*lowK) / 12) * 12);   // stepped so it snaps like a camera dropping quality
   if (h !== curRH){ curRH = h; resize(); }
 }
 function updateVHS(dt){
@@ -6815,7 +6892,7 @@ function placeCamera(dt){
     VM.position.set(0.28 + Math.sin(me.bob*0.5)*0.012, -0.3 + Math.abs(Math.cos(me.bob*0.5))*0.012 - me.vmRun*0.03, -0.5);
     VM.userData.lens.material.color.setHex(lightOn() ? 0xfff6d8 : 0x333333);
     camera.rotation.set(me.pitch, me.yaw, Math.sin(me.bob*0.5)*(role==='monster'?0.02:0.006));
-    { const fv = lerp(camera.fov, dashT > 0 ? SET.fov + 16 : SET.fov, 1-Math.exp(-14*dt)); if (Math.abs(fv-camera.fov) > 0.01){ camera.fov = fv; camera.updateProjectionMatrix(); } }
+    { const fv = lerp(camera.fov, dashT > 0 ? SET.fov + 16 : lerp(SET.fov, ZOOM_FOV, zK), 1-Math.exp(-14*dt)); if (Math.abs(fv-camera.fov) > 0.01){ camera.fov = fv; camera.updateProjectionMatrix(); } }
   } else if (mode==='deadAnim'){
     // JUMPSCARE: it snaps into your face, the camera zooms and shakes, the light strobes, then a hard cut to black
     deathT += dt;
@@ -6939,7 +7016,7 @@ function frame(now){
     stingCD -= dt;
     if (sees) lastSeen = t;
     updateVHS(dt);
-    updateLowRes(dt, sees);
+    updateZoom(dt); updateLowRes(dt, sees);
     updateCans(dt); updateVent(dt); update37(dt); updateRadio37(dt); update188(dt); updateLab(dt); updateMall(dt); updateMallMap(dt); updateMannequins852(dt); update2p(dt);
     updateCamFx(dt);
     updateMonsterSenses(dt);
