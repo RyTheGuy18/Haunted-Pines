@@ -196,7 +196,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.44.3</div>
+<div class="osd" id="ver">v0.44.4</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -5972,7 +5972,7 @@ const sfx = {
     const w = o.wd;
     if (pos && w.out.positionX){ w.out.positionX.value = pos.x; w.out.positionY.value = pos.y; w.out.positionZ.value = pos.z; }
     const dp = deep && !!w.l.wdeep, want = dp ? { wwalk:0, wrun:0, wdeep: mode ? (mode === 2 ? 1.25 : 1) : 0 } : { wwalk: mode === 1 || mode === 3 ? (mode === 3 ? 0.4 : 1) : 0, wrun: mode === 2 ? 1 : 0, wdeep:0 };
-    for (const k in want){ const L = w.l[k]; if (!L) continue; const v = want[k]*vol*(k === 'wrun' ? 1.6 : k === 'wdeep' ? 0.55 : 1.8);
+    for (const k in want){ const L = w.l[k]; if (!L) continue; const v = want[k]*vol*(k === 'wrun' ? 1.6 : k === 'wdeep' ? 0.42 : 1.8);
       if (Math.abs(v - L.on) > 0.01){ L.on = v; L.g.gain.setTargetAtTime(v, t, k === 'wdeep' ? 0.15 : 0.06); }
       L.src.playbackRate.value = k === 'wdeep' ? (mode === 2 ? 1.12 : 0.9) : mode === 3 ? 0.75 : 1; }
     return true; },
