@@ -196,7 +196,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.44.1</div>
+<div class="osd" id="ver">v0.44.2</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -5834,7 +5834,7 @@ const sfx = {
   },
   samples:{},
   loadSamples(){
-    const c = this.ctx, files = { pout:'sfx/power-out.mp3', flick:'sfx/light-flicker.mp3', lstep:'sfx/lurker-steps.mp3', phRing:'sfx/phone-ring.mp3', phPick:'sfx/phone-pickup.mp3', crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', genStart:'sfx/gen-start.mp3', genRun:'sfx/gen-run.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3', stepC:'sfx/steps-carpet.mp3', stepK:'sfx/steps-concrete.mp3', stepT:'sfx/steps-tile.mp3', stepW:'sfx/steps-wood.mp3' };
+    const c = this.ctx, files = { pout:'sfx/power-out.mp3', flick:'sfx/light-flicker.mp3', lstep:'sfx/lurker-steps.mp3', phRing:'sfx/phone-ring.mp3', phPick:'sfx/phone-pickup.mp3', crawl:'sfx/crawler-steps.mp3', heavy:'sfx/heavy-steps.mp3', atk1:'sfx/spider-attack-1.mp3', atk2:'sfx/spider-attack-2.mp3', atk4:'sfx/spider-attack-4.mp3', roar:'sfx/monster-roar.mp3', growl:'sfx/monster-growl.mp3', groan:'sfx/monster-groans.mp3', wwalk:'sfx/water-walk.mp3', wdeep:'sfx/water-deep.mp3', genStart:'sfx/gen-start.mp3', genRun:'sfx/gen-run.mp3', wrun:'sfx/water-run.mp3', breathL:'sfx/breathing.mp3', stepC:'sfx/steps-carpet.mp3', stepK:'sfx/steps-concrete.mp3', stepT:'sfx/steps-tile.mp3', stepW:'sfx/steps-wood.mp3' };
     for (const [k, url] of Object.entries(files)) fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(buf=>{ this.samples[k] = buf; if (k==='crawl' || k==='heavy' || k==='groan') this.startLoop(k); }).catch(e=>console.warn('sound failed', url, e));
   },
   loops:{},
@@ -5941,20 +5941,20 @@ const sfx = {
   whisper(pos){ if(!this.ctx) return; const o=this.out(pos); for (let k=0;k<3;k++) this.noise(o,{dur:0.35+Math.random()*0.3,type:'bandpass',freq:2400+Math.random()*1800,q:4,gain:0.3,attack:0.12,at:k*0.3}); },
   phoneStatic(){ if(!this.ctx) return; this.noise(this.master,{dur:1.8,type:'bandpass',freq:1600,q:1,gain:0.25,attack:0.05}); },
   // wading: two looping recordings (walk / run) per person, crossfaded; pos = null for yourself (not positional)
-  wade(o, mode, pos, vol=1){
+  wade(o, mode, pos, vol=1, deep=false){   // v0.44.2: deep = chest-deep water → Ryan's slow sloshing recording (water-deep.mp3) instead
     if (!this.ctx || !this.samples.wwalk || !this.samples.wrun) return false;
     const c = this.ctx, t = c.currentTime;
     if (!o.wd){ const out = pos ? c.createPanner() : c.createGain();
       if (pos){ out.panningModel = 'HRTF'; out.distanceModel = 'inverse'; out.refDistance = 3; out.maxDistance = 50; out.rolloffFactor = 1.2; }
       out.connect(this.master); o.wd = { out, l:{} };
-      for (const k of ['wwalk','wrun']){ const src = c.createBufferSource(); src.buffer = this.samples[k]; src.loop = true; src.loopStart = 0.03; src.loopEnd = src.buffer.duration - 0.05;
+      for (const k of ['wwalk','wrun','wdeep']){ if (!this.samples[k]) continue; const src = c.createBufferSource(); src.buffer = this.samples[k]; src.loop = true; src.loopStart = 0.03; src.loopEnd = src.buffer.duration - 0.05;
         const g = c.createGain(); g.gain.value = 0; src.connect(g).connect(out); src.start(t, Math.random()*2); o.wd.l[k] = { src, g, on:0 }; } }
     const w = o.wd;
     if (pos && w.out.positionX){ w.out.positionX.value = pos.x; w.out.positionY.value = pos.y; w.out.positionZ.value = pos.z; }
-    const want = { wwalk: mode === 1 || mode === 3 ? (mode === 3 ? 0.4 : 1) : 0, wrun: mode === 2 ? 1 : 0 };
-    for (const k in want){ const L = w.l[k], v = want[k]*vol*(k === 'wrun' ? 1.6 : 1.8);
-      if (Math.abs(v - L.on) > 0.01){ L.on = v; L.g.gain.setTargetAtTime(v, t, 0.06); }
-      L.src.playbackRate.value = mode === 3 ? 0.75 : 1; }
+    const dp = deep && !!w.l.wdeep, want = dp ? { wwalk:0, wrun:0, wdeep: mode ? (mode === 2 ? 1.25 : 1) : 0 } : { wwalk: mode === 1 || mode === 3 ? (mode === 3 ? 0.4 : 1) : 0, wrun: mode === 2 ? 1 : 0, wdeep:0 };
+    for (const k in want){ const L = w.l[k]; if (!L) continue; const v = want[k]*vol*(k === 'wrun' ? 1.6 : k === 'wdeep' ? 0.55 : 1.8);
+      if (Math.abs(v - L.on) > 0.01){ L.on = v; L.g.gain.setTargetAtTime(v, t, k === 'wdeep' ? 0.15 : 0.06); }
+      L.src.playbackRate.value = k === 'wdeep' ? (mode === 2 ? 1.12 : 0.9) : mode === 3 ? 0.75 : 1; }
     return true; },
   stopWade(o){ if (o && o.wd){ for (const k in o.wd.l){ try { o.wd.l[k].src.stop(); } catch(e){} } try { o.wd.out.disconnect(); } catch(e){} o.wd = null; } },
   // out-of-breath loop after running dry, fading as stamina comes back
@@ -6415,7 +6415,7 @@ function updateMe(dt){
       else if (!(role === 'survivor' && wadingAt(me.x, me.z) && sfx.samples.wwalk)) sfx.step(me.crouch?0.06:me.running?0.24:0.14, onWet(me.x,me.z) || LK === 2);
     }
   }
-  sfx.wade(me, role === 'survivor' && me.alive && me.hidden < 0 && want && wadingAt(me.x, me.z) ? (me.crouch ? 3 : me.running ? 2 : 1) : 0, null, 0.9);
+  sfx.wade(me, role === 'survivor' && me.alive && me.hidden < 0 && want && wadingAt(me.x, me.z) ? (me.crouch ? 3 : me.running ? 2 : 1) : 0, null, 0.9, wadeDepth37(me.x, me.z) > 0.4);
   if (role !== 'survivor') return;
   if (zoneAt(me.x, me.z) === 2 && inPit(me.x, me.z)){ startFall(); return; }
   updateStun(dt);
@@ -6592,7 +6592,7 @@ function updateRemotes(dt){
     r.mesh.visible = !isMon && !gone && !r.hd && !shadowed && !(mode==='spect' && r.pid===specPid) && myRound===G.r;
     r.mesh.position.set(r.x,floorY(r.x,r.z),r.z); r.mesh.rotation.y = r.yaw + Math.PI; animAvatar(r.av, dt, r.mv, r.c);
     const wades = !gone && !isMon && !r.hd && wadingAt(r.x, r.z) && !!sfx.samples.wwalk;
-    if (wades || r.wd) sfx.wade(r, wades && r.mv ? (r.c ? 3 : r.mv === 2 ? 2 : 1) : 0, {x:r.x, y:0.1, z:r.z}, role === 'monster' ? 1.8 : 0.9);
+    if (wades || r.wd) sfx.wade(r, wades && r.mv ? (r.c ? 3 : r.mv === 2 ? 2 : 1) : 0, {x:r.x, y:0.1, z:r.z}, role === 'monster' ? 1.8 : 0.9, wadeDepth37(r.x, r.z) > 0.4);
     if (!gone && r.mv && !isMon && !wades){ r.step += dt*(r.mv===2?2.6:1.7); if (r.step>=1){ r.step-=1; const hunt = role==='monster'; sfx.step((r.m===0?0.05:r.mv===2?0.22:0.14)*(hunt?2.2:1), onWet(r.x,r.z) || LK === 2, {x:r.x,y:0.1,z:r.z}, hunt?(r.m===0?2:6):1.5); } }
   }
 }
