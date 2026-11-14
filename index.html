@@ -179,6 +179,60 @@
   #micHelp{position:fixed;inset:0;z-index:50;display:none;touch-action:pan-y;-webkit-overflow-scrolling:touch;align-items:flex-start;justify-content:center;background:rgba(4,3,1,.92);padding:16px;overflow:auto}
   #micHelp .card{max-width:460px;font-size:18px;line-height:1.25;margin:auto} #micHelp .btn{font-size:20px;padding:8px 12px} #micHelp ol{margin:4px 0 0 18px;padding:0} #micHelp li{margin:4px 0} #micHelp h2{margin:0;font-size:28px;letter-spacing:.1em;color:var(--hot)}
   #iosHint{display:none;font-size:17px;color:#cfc49e;border:1px dashed var(--line);padding:8px 10px;line-height:1.3}
+
+  /* ---------- v0.46 main menu: VHS / CRT ---------- */
+  #menu{background:linear-gradient(90deg,rgba(4,6,10,.72) 0,rgba(4,6,10,.35) 45%,rgba(4,6,10,0) 75%);align-items:stretch;justify-content:stretch;padding:0;overflow:hidden}
+  #menu::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:4;border-radius:4vmin;box-shadow:inset 0 0 12vmin 4vmin rgba(0,0,0,.95),inset 0 0 0 1.6vmin #000;background:radial-gradient(ellipse at center,rgba(120,170,255,.05),transparent 60%,rgba(0,0,0,.55) 100%)}
+  #menu.sub{background:rgba(4,6,10,.82)}
+  .mmR{display:none!important}
+  body:has(#menu.show) .osd:not(#ver){display:none!important}
+  #menu::after{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px);z-index:3}
+  #menu .mm{display:flex;width:100%;height:100%;align-items:center;gap:4vw;padding:max(16px,env(safe-area-inset-top)) max(4vw,env(safe-area-inset-right)) 16px max(5vw,env(safe-area-inset-left));box-sizing:border-box}
+  #menu.sub .mm{display:none}
+  .mmL{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:clamp(4px,1.4vh,12px);min-width:200px}
+  .mtitle h1{font-family:'Special Elite',monospace;font-size:clamp(34px,7vw,74px);margin:0;color:#e9d27c;letter-spacing:.06em;text-shadow:3px 0 rgba(255,40,40,.45),-3px 0 rgba(40,200,255,.4),0 0 18px rgba(233,210,124,.35);animation:crtflick 4s infinite}
+  @keyframes crtflick{0%,100%{opacity:1}48%{opacity:1}50%{opacity:.82}52%{opacity:1}}
+  .mtitle .sub{font:clamp(12px,1.8vw,17px) monospace;letter-spacing:.5em;color:#a39a7a;margin:2px 0 clamp(6px,2vh,20px)}
+  .mmL .vbtn:not(.sm){min-width:min(300px,40vw);border:1px solid rgba(200,220,255,.35);background:rgba(20,30,50,.35);box-shadow:0 0 10px rgba(140,180,255,.15)}
+  .mmL .vbtn:not(.sm):hover{background:rgba(233,210,124,.12);border-color:#e9d27c}
+  .vbtn{background:none;border:0;color:#f4eed6;font:bold clamp(20px,3.6vw,34px) monospace;letter-spacing:.14em;padding:4px 6px 4px 30px;cursor:pointer;position:relative;text-align:left;text-shadow:2px 0 rgba(255,40,40,.4),-2px 0 rgba(40,200,255,.35)}
+  .vbtn::before{content:'▶';position:absolute;left:4px;opacity:0;color:#e9d27c}
+  .vbtn:hover,.vbtn:focus-visible{color:#e9d27c;outline:none}.vbtn:hover::before,.vbtn:focus-visible::before{opacity:1;animation:vblink .8s steps(2) infinite}
+  .vbtn.sm{font-size:clamp(13px,1.8vw,17px);border:1px solid rgba(244,238,214,.35);padding:8px 12px 8px 26px}
+  .vbtn:disabled{opacity:.4}
+  @keyframes vblink{50%{opacity:0}}
+  .mname{display:flex;gap:10px;align-items:center;font:13px monospace;letter-spacing:.2em;color:#a39a7a;margin-top:6px}
+  .mname input{width:150px;font:16px monospace;padding:6px 8px;background:rgba(0,0,0,.4);border:1px solid rgba(244,238,214,.3);color:#f4eed6}
+  .vlink{background:none;border:0;color:#7a7462;font:12px monospace;letter-spacing:.2em;padding:4px 0;cursor:pointer;text-decoration:underline}
+  #netnote{font:13px monospace;color:#e2785a;max-width:300px}
+  .mmR{flex:1 1 auto;display:flex;align-items:center;justify-content:center;min-width:0}
+  .tv{width:min(100%,62vh*1.45,620px);aspect-ratio:1.42;background:linear-gradient(#3a332a,#211c16);border-radius:22px;padding:5% 17% 5% 5%;box-sizing:border-box;position:relative;box-shadow:0 0 0 3px #15110c,0 20px 60px rgba(0,0,0,.8)}
+  .tvin{position:relative;width:100%;height:100%;border-radius:16% / 20%;overflow:hidden;background:#000;box-shadow:inset 0 0 40px rgba(0,0,0,.9)}
+  #tvc{width:100%;height:100%;display:block;filter:contrast(1.15) saturate(.85) blur(.4px);image-rendering:pixelated}
+  .tvscan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.35) 0 1px,transparent 1px 3px),radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.75) 100%);pointer-events:none}
+  .tvosd{position:absolute;left:7%;right:7%;top:7%;display:flex;justify-content:space-between;font:bold clamp(10px,1.6vw,16px) monospace;color:#f4eed6;text-shadow:2px 0 rgba(255,40,40,.5),-2px 0 rgba(40,200,255,.45)}
+  .tvknobs{position:absolute;right:4.5%;top:12%;display:flex;flex-direction:column;gap:18%;height:60%}
+  .tvknobs i{display:block;width:clamp(16px,3.4vw,34px);aspect-ratio:1;border-radius:50%;background:radial-gradient(#6a604e,#1a1610);box-shadow:0 2px 4px #000}
+  .msub{display:none;position:absolute;inset:0;overflow:auto;padding:max(12px,env(safe-area-inset-top)) max(4vw,env(safe-area-inset-right)) 20px max(4vw,env(safe-area-inset-left));box-sizing:border-box}
+  .msub.show{display:block}
+  .mhead{display:flex;align-items:center;gap:18px;margin-bottom:12px}
+  .mhead h2{margin:0;font:bold clamp(18px,3vw,30px) monospace;letter-spacing:.2em;color:#e9d27c;text-shadow:2px 0 rgba(255,40,40,.4),-2px 0 rgba(40,200,255,.35)}
+  .vbtn.back{font-size:clamp(14px,2vw,20px);padding-left:6px}.vbtn.back::before{display:none}
+  .lvgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(8px,1.6vw,18px)}
+  .tile{background:#0d0d0c;border:2px solid rgba(244,238,214,.18);padding:0;cursor:pointer;text-align:left;color:#f4eed6;font-family:monospace;display:flex;flex-direction:column}
+  .tile:hover,.tile:focus-visible{border-color:#e9d27c;outline:none}
+  .tile .th{position:relative;aspect-ratio:16/9;background:#000 center/cover no-repeat;filter:saturate(.85) contrast(1.1)}
+  .tile .th::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.3) 0 1px,transparent 1px 3px)}
+  .tile:hover .th{filter:none}
+  .tile .tt{padding:6px 8px 8px}
+  .tile b{display:block;font-size:clamp(12px,1.7vw,17px);letter-spacing:.12em;color:#e9d27c}
+  .tile em{display:block;font-style:normal;font-size:clamp(10px,1.2vw,13px);letter-spacing:.15em;color:#a39a7a;margin:2px 0 4px}
+  .tile p{margin:0;font-size:clamp(10px,1.25vw,14px);line-height:1.3;color:#cfc8b0}
+  .mopts{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+  .jbox{max-width:420px;font-family:monospace}.jbox .row{display:flex;gap:10px;margin-top:10px}.jbox input{font:bold 28px monospace;width:140px;letter-spacing:.3em;text-transform:uppercase;padding:6px 10px;background:rgba(0,0,0,.4);border:1px solid rgba(244,238,214,.4);color:#f4eed6}
+  .infobox{max-width:760px;font-size:17px;line-height:1.45;color:#cfc8b0}
+  @media (max-aspect-ratio:1/1){ #menu .mm{flex-direction:column;justify-content:center} .mmR{width:100%;flex:0 0 auto} .lvgrid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  @media (max-height:500px){ .tile .th{aspect-ratio:2.6} .tile .tt{padding:4px 6px 6px} .mtitle .sub{margin-bottom:4px} .mhead{margin-bottom:8px} }
 </style>
 <script type="importmap">{"imports":{"three":"./three.module.min.js"}}</script>
 </head>
@@ -196,7 +250,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.45.0</div>
+<div class="osd" id="ver">v0.46.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -230,26 +284,32 @@
 <canvas id="mmap" width="344" height="364"></canvas>
 <div id="elev"><div class="et">ELEVATOR</div><div class="eb"><button data-f="1">1</button><button data-f="2">2</button><button data-f="3">3</button><button data-f="4">4</button><button data-f="5">5</button></div><div class="eh">PRESS 2 · 3 · 4</div></div>
 
-<div class="screen show" id="menu"><div class="col">
-  <div class="title"><h1>LEVEL 0</h1><div class="sub">THE BACKROOMS</div><div class="tag">You noclipped out of reality. Something else lives here.</div></div>
-  <div class="card">
-    <div class="lbl">NAME</div>
-    <input id="name" maxlength="12" placeholder="WANDERER" autocomplete="off">
-    <button class="btn primary" id="bSolo">PLAY SOLO</button>
-    <button class="btn monb" id="bDiff1">COMPUTER: NORMAL</button>
-    <button class="btn" id="bLv1">START AT: LEVEL 0</button>
-    <button class="btn" id="bEx1">MODE: NORMAL</button>
-    <button class="btn" id="bHost">HOST ONLINE GAME</button>
-    <div class="row code"><input id="joincode" maxlength="4" placeholder="CODE" autocomplete="off"><button class="btn" id="bJoin">JOIN</button></div>
-    <button class="btn" id="bVoice">VOICE CHAT: OFF</button>
+<div class="screen show" id="menu">
+<div class="mm" id="mMain">
+  <div class="mmL">
+    <div class="mtitle"><h1>LEVEL 0</h1><div class="sub">THE BACKROOMS</div></div>
+    <button class="vbtn" id="mPlay">PLAY</button>
+    <button class="vbtn" id="bHost">HOST</button>
+    <button class="vbtn" id="mJoin">JOIN</button>
+    <button class="vbtn" id="bSet1">SETTINGS</button>
+    <div class="mname"><span>NAME</span><input id="name" maxlength="12" placeholder="WANDERER" autocomplete="off"></div>
     <div id="netnote"></div>
+    <button class="vlink" id="mInfo">HOW TO PLAY · CREDITS</button>
   </div>
-  <div class="card">
-    <div class="lbl">IF YOU BECOME THE OCCUPANT</div>
-    <div class="picker"><button id="bSkinL">◀</button><div class="pv" id="bSkin"></div><button id="bSkinR">▶</button></div>
-  </div>
-  <button class="btn ghost" id="bSet1">SETTINGS</button>
-  <details class="how"><summary>HOW TO SURVIVE</summary><br>
+  <div class="mmR"><div class="tv"><div class="tvin"><canvas id="tvc" width="320" height="240"></canvas><div class="tvscan"></div><div class="tvosd"><span>PLAY ▶</span><span id="tvtime">0:00:00</span></div></div><div class="tvknobs"><i></i><i></i></div></div></div>
+</div>
+<div class="msub" id="pLevels">
+  <div class="mhead"><button class="vbtn back" data-back>◀ BACK</button><h2>SELECT A LEVEL</h2></div>
+  <div class="lvgrid" id="lvgrid"></div>
+  <div class="mopts"><button class="vbtn sm" id="bDiff1">COMPUTER: NORMAL</button><button class="vbtn sm" id="bEx1">MODE: NORMAL</button></div>
+</div>
+<div class="msub" id="pJoin">
+  <div class="mhead"><button class="vbtn back" data-back>◀ BACK</button><h2>JOIN A LOBBY</h2></div>
+  <div class="jbox"><div class="lbl">ENTER THE ROOM CODE</div><div class="row code"><input id="joincode" maxlength="4" placeholder="CODE" autocomplete="off"><button class="vbtn" id="bJoin">JOIN</button></div></div>
+</div>
+<div class="msub" id="pInfo">
+  <div class="mhead"><button class="vbtn back" data-back>◀ BACK</button><h2>HOW TO PLAY</h2></div>
+  <div class="infobox"><div class="how">
     <b>Find 3 fuses</b>, bring them to the breaker, then find the exit door.<br><br>
     <b>Hide</b> in lockers. It can't open them, but hold your breath when it's close.<br>
     <b>Blind it:</b> hold your flashlight on its face up close to stun it.<br>
@@ -261,11 +321,14 @@
     <i>The Occupant</i> hunts by sound: it hears running, talking and gasps, but can't see you through walls. It can kill the lights, move the walls, fake footsteps, disguise itself as a survivor, lunge forward with its arms out, and crawl through vents (you'll hear it climb out). It hears every fuse you place.<br>
     When the computer hunts you, pick how smart it is: <b>EASY</b> barely listens, <b>IMPOSSIBLE</b> reads where you're going and cuts you off, but it still can't outrun you and your flashlight still works on it.<br><br>
     <span id="controls"></span>
-  </details>
+  </div>
   <div id="iosHint">iPhone: tap Share → <b>Add to Home Screen</b> and play from there. It runs fullscreen with no browser bars and the controls work much better.</div>
   <div class="foot">Headphones on. Listen to the hum.</div>
   <div class="foot" style="font-size:15px;opacity:.7">Cafeteria tables: <a href="https://sketchfab.com/3d-models/folding-table-dba1b4270fee431290c464742f5fd4f5" target="_blank" rel="noopener" style="color:inherit">"Folding Table" by AK STUDIO</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (textures shrunk) · The Crawler: <a href="https://sketchfab.com/3d-models/goose-c0cf164370124d81b2737e864bf38205" target="_blank" rel="noopener" style="color:inherit">"Goose" by nodoxi</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (re-textured smaller, rigged in code) · Phones: <a href="https://sketchfab.com/3d-models/telephone-be6af2677cea49f5bc2f65968df50460" target="_blank" rel="noopener" style="color:inherit">"Telephone" by sui</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> · Radio: <a href="https://sketchfab.com/3d-models/vintage-retro-radio-26fb0de1015d4570bac28cd8b1fb0a62" target="_blank" rel="noopener" style="color:inherit">"Vintage Retro Radio" by Pavlo_Holubov</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> · The Lurker: <a href="https://sketchfab.com/3d-models/a-terrifying-creature-monster-8d509a2a7e4d4fb7972fd7016c53a234" target="_blank" rel="noopener" style="color:inherit">"A Terrifying Creature (Monster)" by Dester</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (textures shrunk, re-rigged for its run) · Flashlight: <a href="https://sketchfab.com/3d-models/pro-flashlight-4c421693ab9d4d24af19cf151f4569a0" target="_blank" rel="noopener" style="color:inherit">"Pro Flashlight" by Chancleto870</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (simplified, smaller texture)</div>
-</div></div>
+</div>
+</div>
+<div style="display:none"><button id="bSolo"></button><button id="bLv1"></button><button id="bVoice"></button><button id="bSkinL"></button><div id="bSkin"></div><button id="bSkinR"></button></div>
+</div>
 
 <div class="screen" id="lobby"><div class="col">
   <div class="card">
@@ -6351,7 +6414,7 @@ function showEnd(){
   $('bAgain').style.display = host ? '' : 'none'; $('bLobby').style.display = host && !net.solo ? '' : 'none'; $('ewait').style.display = host ? 'none' : '';
   showScreen('end');
 }
-function showScreen(id){ for (const s of ['menu','lobby','end']) $(s).classList.toggle('show', s===id); document.body.classList.toggle('showosd', !!id); }
+function showScreen(id){ if (id === 'menu') menuSub(''); for (const s of ['menu','lobby','end']) $(s).classList.toggle('show', s===id); document.body.classList.toggle('showosd', !!id); }
 document.body.classList.add('showosd');
 let msgTimer = 0;
 function msg(t, secs=3){ const m=$('msg'); m.textContent=t; m.style.opacity=1; msgTimer=secs; }
@@ -6865,6 +6928,31 @@ function exLabel(){ $('bEx1').textContent = 'MODE: ' + (exOpt ? 'EXPLORATION (NO
 exLabel();
 $('bEx1').onclick = ()=>{ exOpt = exOpt ? 0 : 1; try { localStorage.setItem('lvl0_explore', exOpt); } catch(e){} exLabel(); };
 diffLabel();
+
+// ---- v0.46 menu: PLAY → level select, JOIN → code, HOW TO PLAY; the CRT shows the live scene; a tick on hover
+const LV_INFO = [['LEVEL 0','THE OFFICE','Endless yellow rooms that move when you look away: restore the power and find the exit.'],
+  ['LEVEL 1','THE PARKING GARAGE','A pitch-black garage where every generator you start tells it where you are.'],
+  ['LEVEL 37','THE POOLROOMS','Warm empty pools and tiled halls, and something waiting in the deep water.'],
+  ['LEVEL 188','THE HOTEL','A silent hotel round a courtyard, one keycard, and elevators something else rides too.'],
+  ['LEVEL 852','THE MALL','A dead three-floor mall where the music never stops and the mannequins never stay put.'],
+  ['LEVEL 2','PIPE DREAMS','Hot, cramped maintenance tunnels full of pipes, steam and dying lights.'],
+  ['LEVEL 52','SCHOOL HALLS','Get to class before the tardy bell: the hall monitors don\'t give second chances.']];
+function menuSub(id){ for (const k of ['pLevels','pJoin','pInfo']) $(k).classList.toggle('show', k === id); $('menu').classList.toggle('sub', !!id); }
+$('lvgrid').innerHTML = LV_INFO.map((v,k)=>`<button class="tile" data-lv="${k}"><div class="th" style="background-image:url(menu/lv${k}.jpg)"></div><div class="tt"><b>${v[0]}</b><em>${v[1]}</em><p>${v[2]}</p></div></button>`).join('');
+for (const t of document.querySelectorAll('#lvgrid .tile')) t.onclick = ()=>{ startOpt = +t.dataset.lv; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); $('bSolo').click(); };
+$('mPlay').onclick = ()=>{ sfx.init(); menuSub('pLevels'); };
+$('mJoin').onclick = ()=>{ sfx.init(); menuSub('pJoin'); setTimeout(()=>$('joincode').focus(), 50); };
+$('mInfo').onclick = ()=>menuSub('pInfo');
+for (const b of document.querySelectorAll('#menu [data-back]')) b.onclick = ()=>menuSub('');
+function menuTick(){ const c = sfx.ctx; if (!c || c.state !== 'running') return; sfx.noise(sfx.master,{ dur:0.025, type:'bandpass', freq:3200, q:3, gain:0.14 }); sfx.tone(sfx.master,{ f:1900, type:'square', dur:0.012, gain:0.015 }); }
+document.addEventListener('pointerover', e=>{ const b = e.target.closest && e.target.closest('.vbtn,.tile,.vlink,.btn'); if (!b || b.contains(e.relatedTarget)) return; if (e.pointerType === 'mouse') menuTick(); });
+document.addEventListener('pointerdown', e=>{ if (e.pointerType !== 'mouse' && e.target.closest && e.target.closest('.vbtn,.tile,.vlink,.btn')) menuTick(); });
+const crtCtx = $('tvc').getContext('2d'); let crtT = 0;
+function updateCRT(dt){ if (!$('tvc').offsetParent) return; if (mode !== 'menu' || !$('menu').classList.contains('show') || $('menu').classList.contains('sub')) return; crtT += dt; if (crtT < 0.07) return; crtT = 0;
+  const src = renderer.domElement, sw = src.width, sh = src.height, cw = Math.min(sw, sh*4/3), ch = cw*3/4;
+  try { crtCtx.drawImage(src, (sw-cw)/2, (sh-ch)/2, cw, ch, 0, 0, 320, 240); } catch(e){}
+  if (Math.random() < 0.04){ crtCtx.fillStyle = 'rgba(255,255,255,.08)'; crtCtx.fillRect(0, Math.random()*240, 320, 4 + Math.random()*14); }
+  const e = Math.floor(performance.now()/1000); $('tvtime').textContent = `${Math.floor(e/3600)}:${String(Math.floor(e/60)%60).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`; }
 function lvLabel(){ $('bLv1').textContent = 'START AT: ' + LV_NAMES[startOpt]; }
 lvLabel();
 $('bLv1').onclick = ()=>{ startOpt = (startOpt + 1) % 7; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); };
@@ -7661,6 +7749,7 @@ function frame(now){
   updateVoice(dt);
   if (LK === 3 || LK === 4 || LK === 6) visPass188();
   renderer.render(scene, camera);
+  updateCRT(dt);
   if (LK === 3 || LK === 4 || LK === 6) visRestore188();
   grain();
 }
