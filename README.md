@@ -57,3 +57,4 @@ v0.35.2: phone ring fades out with distance — full volume within 10 m, silent 
 v0.36.0: Parking garage is bright all the way down once every generator is on. The hotel now has full power outages: every light on every floor goes out for ~20 s, pitch black, the courtyard windows barely visible.
 v0.37.0: In the hotel, the monster's blackout now cuts the power to the whole hotel. In the dark (blackouts, outages, dead lights in Pipe Dreams), the Lurker creeps toward you and the computer monster knows where you are. Both are deadlier on harder difficulties.
 v0.38.0: Poolrooms: an old radio at the foot of the exit stairs plays music that echoes down the halls (follow it to the exit). At night the eel follows your wake through the water: running leaves a strong trail, crouching barely any.
+v0.38.1: Less fuzzy vision when the monster is close or in sight. The static, colour split and shake are still there, just softer.
