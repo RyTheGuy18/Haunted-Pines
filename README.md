@@ -69,3 +69,4 @@ v0.44.0: Poolrooms — broken spine (the long pool is intact, split by a causewa
 v0.44.1: camcorder zoom (hold to creep in, it stays put, hold zoom-out to back off; ZOOM +/− on phones, Z/X or mouse wheel on desktop); the eel now owns the chest-deep water in daylight too — wade in and it rises behind you and comes for you
 v0.44.2: chest-deep water in the Poolrooms has its own heavy wading sound (Ryan's recording)
 v0.44.3: Poolrooms: EXIT sign fixed, floors stay flat right up to the walls, new pool tile material
+v0.44.4: new wading sound for chest-deep water in the Poolrooms
