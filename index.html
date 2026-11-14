@@ -193,7 +193,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.36.0</div>
+<div class="osd" id="ver">v0.37.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -3864,6 +3864,9 @@ function skinLabel(){ return 'OCCUPANT SKIN: ' + SKIN_NAMES[mySkin].replace('THE
    Host AI in H.lr; everyone draws G.lr = [x, z, yaw, state, moving]. States: 0 gone, 1 lurking in the dark near someone,
    2 charging (someone stared at it for 2 s, or walked right into it), 3 running from a flashlight, 4 creeping in during a blackout. */
 const LR_RUN = 7.8, LR_CREEP = 4.0, LR_FLEE = 8.5, LR_GAZE = 2.0, LR_SCALE = 2.2/2.6;
+// v0.37 (Ryan: more deadly, scaled by the computer difficulty G.df: EASY / NORMAL / HARD / IMPOSSIBLE)
+const LR_DF = { creep:[3.4, 4.2, 4.8, 5.3], run:[7.0, 7.8, 8.3, 8.8], gaze:[2.6, 2.0, 1.5, 1.1], light:[0.12, 0.18, 0.3, 0.45], cd:[1.3, 1, 0.75, 0.55] };
+const lrDf = k => LR_DF[k][clamp(G.df|0, 0, 3)];
 let lurkSrc = null, LRK = null;
 function makeLurker(){
   const root = cloneSkinned(lurkSrc.scene), g = new THREE.Group(); root.scale.setScalar(LR_SCALE); root.position.y = 1.299*LR_SCALE; g.add(root);
@@ -3914,10 +3917,13 @@ function animLurker(L, t, dt, st, spd){
 }
 // ---- host side ----
 // v0.36 (Ryan): the hotel loses ALL its power now and then: every light on every floor, the courtyard goes dark too (G.hb = seconds left)
-function hostOutage188(dt){ if (G.ph !== 'play') return; if (H.hbT == null) H.hbT = 50 + Math.random()*40;
-  if ((G.hb||0) > 0){ G.hb = Math.max(0, +(G.hb - dt).toFixed(2)); if (G.hb === 0) H.hbT = 70 + Math.random()*60; return; }
-  H.hbT -= dt; if (H.hbT <= 0) G.hb = +(15 + Math.random()*9).toFixed(1); }
+// v0.36.0 had a random timer; v0.37 (Ryan): the MONSTER does it: in the hotel, the Occupant's Blackout (computer or player) cuts the whole hotel's power for as long as it lasts
+function hostOutage188(dt){ let hb = 0; for (const b of G.bo) hb = Math.max(hb, b[2]); G.hb = +hb.toFixed(2); }
 function lrBlackout(x, z){ for (const b of G.bo) if (Math.hypot(x-b[0], z-b[1]) < 12.5) return true; return false; }
+// v0.37: "event darkness" on any level: an Occupant blackout, the hotel's power outage, a dead circuit in Pipe Dreams. Things hunt in it.
+const p2CircAt = (x, z) => Math.floor(cellOf(x)/4)*8 + Math.floor(cellOf(z)/4);
+function inDark(x, z){ if (lrBlackout(x, z)) return true; if (LK === 3 && G.hb > 0.4) return true;
+  if (LK === 5 && G.po && G.po.length){ const c = p2CircAt(x, z); if (G.po.some(q=>q[0] === c)) return true; } return false; }
 function lrSeen(x, z, ps, far=34){ for (const p of ps){ const dx = x-p.x, dz = z-p.z, d = Math.hypot(dx,dz); if (d > far) continue; if (d < 3) return true; const [fx,,fz] = lookDir(p.yaw||0, 0); if ((dx*fx+dz*fz)/d > -0.2 && losClear(p.x, p.z, x, z)) return true; } return false; }
 const lrBlock = () => { if (LK !== 0) return null; const b = new Uint8Array(N*N); for (let i=0;i<N;i++) for (let j=0;j<N;j++) if (zoneOf(i,j) === 2) b[i*N+j] = 1; return b; };
 // a dark spot a few cells from `tg`, out of everyone's sight, ideally just round a corner from them
@@ -3951,11 +3957,11 @@ function hostLurker(dt, alive){
   const R = H.lr;
   if (LK !== 0 && LK !== 3){ G.lr = [0,0,0,0,0]; return; }
   const ok = alive.filter(p=>!p.hd);   // a closet/locker keeps you safe from it too
-  R.cd -= dt; R.t += dt; R.mv = 0;
+  R.cd -= dt/lrDf('cd'); R.t += dt; R.mv = 0;
   if (G.grace > 0 || !ok.length){ if (R.st) lrGone(R, 15); G.lr = [0,0,0,0,0]; return; }
   // the lights went out around someone: it comes for them
   if (R.st !== 2 && R.st !== 3 && R.st !== 4 && R.cd < 30){
-    const inBo = ok.filter(p=>lrBlackout(p.x, p.z));
+    const inBo = ok.filter(p=>inDark(p.x, p.z));
     if (inBo.length){ const p = inBo[Math.floor(Math.random()*inBo.length)];
       if (!R.st){ const sp = lrSpot(p, ok, 3, 7); if (sp){ R.x = sp[0]; R.z = sp[1]; R.st = 4; } }
       else R.st = 4;
@@ -3973,9 +3979,9 @@ function hostLurker(dt, alive){
     const [fx,fy,fz] = lookDir(p.yaw||0, p.pitch||0), dy = 1.2-EYE, l3 = Math.hypot(d, dy), dot = (dx*fx + dy*fy + dz*fz)/l3;
     if (dot < 0.88 || !losClear(p.x, p.z, R.x, R.z)){ R.gaze[p.pid] = 0; continue; }
     if (p.l && d < 16 && dot > 0.9){ lit = p; R.gaze[p.pid] = 0; continue; }
-    if (dot > 0.95){ R.gaze[p.pid] = (R.gaze[p.pid]||0) + dt; if (R.gaze[p.pid] >= LR_GAZE) stare = p; } else R.gaze[p.pid] = 0; }
+    if (dot > 0.95){ R.gaze[p.pid] = (R.gaze[p.pid]||0) + dt; if (R.gaze[p.pid] >= lrDf('gaze')) stare = p; } else R.gaze[p.pid] = 0; }
   R.lit = lit ? R.lit + dt : 0;
-  if (lit && R.lit > 0.18 && R.st !== 3){ R.st = 3; R.t = 0; R.fx = lit.x; R.fz = lit.z; R.fd = null; lrSnd('lurkFlee', R.x, R.z); }
+  if (lit && R.lit > lrDf('light') && R.st !== 3){ R.st = 3; R.t = 0; R.fx = lit.x; R.fz = lit.z; R.fd = null; lrSnd('lurkFlee', R.x, R.z); }
   if (R.st === 1){
     const d = Math.hypot(T.x-R.x, T.z-R.z);
     R.y = Math.atan2(T.x-R.x, T.z-R.z);
@@ -3988,10 +3994,10 @@ function hostLurker(dt, alive){
   }
   else if (R.st === 2 || R.st === 4){
     T = ok.find(p=>p.pid === R.tg) || T;
-    if (R.st === 4){ if (lrBlackout(T.x, T.z)) R.boT = 0; else R.boT = (R.boT||0) + dt;
+    if (R.st === 4){ if (inDark(T.x, T.z)) R.boT = 0; else R.boT = (R.boT||0) + dt;
       if (R.boT > 3){ R.st = 3; R.t = 0; R.fx = T.x; R.fz = T.z; R.fd = null; } }   // the lights came back: it slinks off
     if (R.st !== 3){
-      if (!lrMove(R, T.x, T.z, R.st === 2 ? LR_RUN : LR_CREEP, dt) || (R.st === 2 && R.t > 9)){ R.st = 3; R.t = 0; R.fx = T.x; R.fz = T.z; R.fd = null; }
+      if (!lrMove(R, T.x, T.z, R.st === 2 ? lrDf('run') : lrDf('creep'), dt) || (R.st === 2 && R.t > 9)){ R.st = 3; R.t = 0; R.fx = T.x; R.fz = T.z; R.fd = null; }
       else if (Math.hypot(T.x-R.x, T.z-R.z) < 0.95){ killSurvivor(T, true); lrSnd('lurkKill', T.x, T.z); lrGone(R, 40 + Math.random()*30); G.lr = [0,0,0,0,0]; return; } }
   }
   if (R.st === 3){
@@ -4030,6 +4036,16 @@ let startOpt = 0; try { startOpt = clamp(+(localStorage.getItem('lvl0_start')||0
 const LV_NAMES = ['LEVEL 0', 'LEVEL 1', 'LEVEL 37', 'LEVEL 188', 'LEVEL 852', 'LEVEL 2'];
 let diffOpt = 1; try { const v = localStorage.getItem('lvl0_diff'); if (v !== null) diffOpt = clamp(+v|0, 0, 3); } catch(e){}
 // how the computer Occupant plays at each difficulty. It is never faster than a sprinting survivor (5.0), and the flashlight always works on it.
+// v0.37 (Ryan: more deadly in the dark, proportional to difficulty): while a survivor stands in event darkness (inDark) within range
+// on the computer's floor, it knows where they are and hunts them, a little faster. Hidden survivors (lockers) are safe.
+const DARK_R = [7, 14, 22, 32], DARK_SPD = [1, 1.04, 1.08, 1.12];
+function darkHunt(dt, alive){ const A = H.ai; if (!A) return; A.dk = Math.max(0, (A.dk||0) - dt); A.dkT = (A.dkT||0) - dt;
+  if (G.grace > 0 || G.stun > 0 || A.dkT > 0) return; A.dkT = 0.9;
+  const df = clamp(G.df|0, 0, 3), fl = LK === 3 ? floorAt188(G.ax, G.az) : LK === 4 ? floorAt852(G.ax, G.az) : -1; let best = null, bd = DARK_R[df];
+  for (const p of alive){ if (p.hd || isDead(p.pid) || !inDark(p.x, p.z)) continue; if (LK === 3 && floorAt188(p.x, p.z) !== fl) continue; if (LK === 4 && floorAt852(p.x, p.z) !== fl) continue;
+    const d = Math.hypot(p.x-G.ax, p.z-G.az); if (d < bd){ bd = d; best = p; } }
+  if (!best) return; A.dk = 2.5;
+  if (A.mode !== 'chase'){ A.mode = 'hunt'; A.lx = best.x; A.lz = best.z; A.lt = Math.max(A.lt||0, 8); A.rp = 0; } }
 const AI_DIFF = [
   { name:'EASY',       hear:0.45, see:9,  near:4, spd:0.85, wander:1.7, drift:0.25, persist:0.5, spr:0, dash:0, stun:1.25, bo:0, vent:0, lead:0,   obj:0 },
   { name:'NORMAL',     hear:1,    see:15, near:6, spd:1,    wander:2.0, drift:1,    persist:1,   spr:0, dash:1, stun:1,    bo:1, vent:0, lead:0,   obj:0 },
@@ -4270,7 +4286,7 @@ function aiTick(dt, alive){
   A.lt -= dt;
   if ((A.mode==='hunt' || A.mode==='cut') && A.lt<=0){ if (A.mode==='cut') A.objCD[A.cutKey] = now + 20; A.mode='wander'; A.wp=null; }
   let tx, tz, sp;
-  const SPD = MON_SPEED * D.spd;
+  const SPD = MON_SPEED * D.spd * ((A.dk||0) > 0 ? DARK_SPD[clamp(G.df|0, 0, 3)] : 1);   // v0.37: faster while hunting someone in the dark
   A.sprCD = Math.max(0, (A.sprCD||0) - dt);
   if (A.mode==='chase' || (A.mode==='cut' && D.obj > 1)){ tx=A.lx; tz=A.lz; sp=SPD;
     if (D.spr){ if (A.sprT > 0){ A.sprT -= dt; sp = SPD*1.15; if (A.sprT <= 0) A.sprCD = 4; } else if (A.sprCD <= 0) A.sprT = 1.8; } }
@@ -4368,6 +4384,7 @@ function hostTick(dt){
   if (LK === 4) hostMall852(dt, ps);
   if (LK === 5) hostPipe2(dt, ps);
   if (LK === 3) hostOutage188(dt);
+  if (G.mo === 'AI') darkHunt(dt, alive);
   if (G.mo === 'AI'){ (LK === 2 ? aiTick37 : LK === 3 ? aiTick188 : LK === 4 ? aiTick852 : aiTick)(dt, alive); mp = { x:G.ax, z:G.az }; }
   else {
     const m = ps.find(p=>p.pid===G.mo);
@@ -5941,7 +5958,7 @@ function outage188(on){   // the hotel's power goes / comes back: sound + messag
   if (sfx.ctx){ const o = sfx.panner(me.x, 3.0, me.z, 30);
     if (on){ sfx.tone(o,{ f:120, to:28, type:'sawtooth', dur:1.8, gain:0.12 }); sfx.noise(o,{ dur:0.5, type:'lowpass', freq:220, gain:0.9 }); sfx.noise(o,{ dur:0.12, type:'bandpass', freq:2600, q:2, gain:0.5, at:0.05 }); }
     else { sfx.noise(o,{ dur:0.3, type:'lowpass', freq:300, gain:0.6 }); sfx.tone(o,{ f:40, to:120, type:'sawtooth', dur:1.2, gain:0.06, at:0.1 }); } }
-  if (mode === 'play' || mode === 'spect') msg(on ? (role === 'monster' ? 'The hotel\'s power is out. Every floor. They can\'t see.' : 'The power\'s out. All of it.') : 'The lights come back.', 3); }
+  if (mode === 'play' || mode === 'spect') msg(on ? (role === 'monster' ? 'You cut the hotel\'s power. Every floor. They can\'t see.' : 'The power\'s out. All of it.') : 'The lights come back.', 3); }
 function survivorSeesMonster(){
   if (G.mo === myPid || role!=='survivor' || !me.alive) return false;
   const dx=mDisp.x-me.x, dz=mDisp.z-me.z, d=Math.hypot(dx,dz);
