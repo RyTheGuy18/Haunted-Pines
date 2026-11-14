@@ -193,7 +193,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.37.0</div>
+<div class="osd" id="ver">v0.38.0</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -260,7 +260,7 @@
   </details>
   <div id="iosHint">iPhone: tap Share → <b>Add to Home Screen</b> and play from there. It runs fullscreen with no browser bars and the controls work much better.</div>
   <div class="foot">Headphones on. Listen to the hum.</div>
-  <div class="foot" style="font-size:15px;opacity:.7">The Crawler: <a href="https://sketchfab.com/3d-models/goose-c0cf164370124d81b2737e864bf38205" target="_blank" rel="noopener" style="color:inherit">"Goose" by nodoxi</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (re-textured smaller, rigged in code) · Phones: <a href="https://sketchfab.com/3d-models/telephone-be6af2677cea49f5bc2f65968df50460" target="_blank" rel="noopener" style="color:inherit">"Telephone" by sui</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> · The Lurker: <a href="https://sketchfab.com/3d-models/a-terrifying-creature-monster-8d509a2a7e4d4fb7972fd7016c53a234" target="_blank" rel="noopener" style="color:inherit">"A Terrifying Creature (Monster)" by Dester</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (textures shrunk, re-rigged for its run) · Flashlight: <a href="https://sketchfab.com/3d-models/pro-flashlight-4c421693ab9d4d24af19cf151f4569a0" target="_blank" rel="noopener" style="color:inherit">"Pro Flashlight" by Chancleto870</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (simplified, smaller texture)</div>
+  <div class="foot" style="font-size:15px;opacity:.7">The Crawler: <a href="https://sketchfab.com/3d-models/goose-c0cf164370124d81b2737e864bf38205" target="_blank" rel="noopener" style="color:inherit">"Goose" by nodoxi</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (re-textured smaller, rigged in code) · Phones: <a href="https://sketchfab.com/3d-models/telephone-be6af2677cea49f5bc2f65968df50460" target="_blank" rel="noopener" style="color:inherit">"Telephone" by sui</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> · Radio: <a href="https://sketchfab.com/3d-models/vintage-retro-radio-26fb0de1015d4570bac28cd8b1fb0a62" target="_blank" rel="noopener" style="color:inherit">"Vintage Retro Radio" by Pavlo_Holubov</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> · The Lurker: <a href="https://sketchfab.com/3d-models/a-terrifying-creature-monster-8d509a2a7e4d4fb7972fd7016c53a234" target="_blank" rel="noopener" style="color:inherit">"A Terrifying Creature (Monster)" by Dester</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (textures shrunk, re-rigged for its run) · Flashlight: <a href="https://sketchfab.com/3d-models/pro-flashlight-4c421693ab9d4d24af19cf151f4569a0" target="_blank" rel="noopener" style="color:inherit">"Pro Flashlight" by Chancleto870</a>, <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:inherit">CC BY 4.0</a> (simplified, smaller texture)</div>
 </div></div>
 
 <div class="screen" id="lobby"><div class="col">
@@ -2241,6 +2241,12 @@ const shaftMat = new THREE.ShaderMaterial({ transparent:true, depthWrite:false, 
    - M37.K  what the ground is (see K37)
    The water monster (an eel) can only move where K is WATER, except for a short lunge at night. */
 const S37 = 224, R37 = 0.5, G37 = S37/R37 + 1, CEIL37 = 4.6;
+/* v0.38: "Vintage Retro Radio" by Pavlo_Holubov (Sketchfab, CC BY 4.0; credit in the menu footer, keep it), normal/MR maps dropped, 256 px JPEG */
+const RADIO_S = 0.38; let radioSrc = null; const radioSlots = [];   // keep Sketchfab_model's turn: the radio stands on y 0.2..1.25 (its concrete base was cut out of the file), 1.12 wide, front +x
+function fillRadio(grp){ const m = radioSrc.clone(true); m.scale.setScalar(RADIO_S); m.rotation.y = -Math.PI/2; m.position.set(0, 0.52 - 0.2*RADIO_S, 0.02); grp.add(m); }
+function radioModel(grp){ if (radioSrc) fillRadio(grp); else radioSlots.push(grp); }
+new GLTFLoader().load('models/radio.glb', gl=>{ gl.scene.traverse(o=>{ if (o.isMesh){ const map = o.material.map || null; if (map){ map.magFilter = THREE.NearestFilter; map.minFilter = THREE.NearestFilter; map.colorSpace = THREE.SRGBColorSpace; } o.material = lam(0xffffff, { map }); } });
+  radioSrc = gl.scene; for (const g2 of radioSlots) fillRadio(g2); radioSlots.length = 0; }, undefined, e=>console.warn('radio model failed', e));
 const K37 = { SOLID:0, WATER:1, DRY:2, DEEP:3, BALC:4, RAMP:5, SLIDE:6, SPIRAL:7 };
 const ATR = { x:112, z:112, r:17, ceil:10, pool:7.5, bal:14.5 };
 const DAY_LEN = 180, CYC = 360, DUSK = 12;
@@ -2695,6 +2701,11 @@ function buildLevel37(seed){
     const col = new THREE.Mesh(new THREE.CylinderGeometry(st.rIn, st.rIn, 12.6, 18), T.wall); col.position.set(st.x, 6.3, st.z); g.add(col);
     const ea = st.a0 + st.sweep - 0.2; L.exitPos = [st.x+Math.cos(ea)*rm, st.z+Math.sin(ea)*rm]; L.stairBase = [st.x+Math.cos(st.a0-0.3)*rm, st.z+Math.sin(st.a0-0.3)*rm];
     exitLight.position.set(st.x, 9, st.z); }
+  // v0.38 (Ryan): an old radio on a crate at the foot of the stairs plays The Caretaker, echoing down the halls: follow the music to the exit (updateRadio37)
+  { const ra = st.a0 - 0.95, rr = Math.min(st.rOut + 1.3, (st.r || st.rOut + 3) - 1.0), x = st.x + Math.cos(ra)*rr, z = st.z + Math.sin(ra)*rr, y = h37(x, z);
+    const rg = new THREE.Group(); rg.position.set(x, y, z); rg.rotation.y = Math.atan2(st.x - x, st.z - z); g.add(rg);
+    bx(rg, 0.66, 0.5, 0.46, 0, 0.25, 0, lam(0x6a4a2e)); bx(rg, 0.7, 0.04, 0.5, 0, 0.5, 0, lam(0x4a321e));
+    L.radio = { x, y: y + 0.75, z, grp: rg }; L.circles.push({ x, z, r:0.45 }); radioModel(rg); }
   // ---- the slide down from the balcony: smooth chute lips
   { const chute = lam(0x6fa9c8), ts = [];
     for (const rr of [ATR.bal+0.12, ATR.r-0.18]){ const pts = []; for (let a = -0.8; a <= 0.02; a += 0.04){ const ang = L37.balA + a; pts.push(new THREE.Vector3(ATR.x+Math.cos(ang)*rr, 3.2*Math.min(1,(a+0.8)/0.8) + 0.32, ATR.z+Math.sin(ang)*rr)); } ts.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.1, 6, false)); }
@@ -2833,6 +2844,7 @@ function aiTick37(dt, alive){
   const A = H.ai, D = aiD(), now = nowS(), night = isNight();
   A.pv = A.pv || {}; A.know = A.know || {};
   for (const p of alive){ const v = A.pv[p.pid]; if (!v) A.pv[p.pid] = { x:p.x, z:p.z, vx:0, vz:0 }; else { const k = 1-Math.exp(-4*dt), ivx = (p.x-v.x)/Math.max(dt,1e-3), ivz = (p.z-v.z)/Math.max(dt,1e-3); if (Math.hypot(ivx,ivz) < 9){ v.vx = lerp(v.vx, ivx, k); v.vz = lerp(v.vz, ivz, k); } v.x = p.x; v.z = p.z; } }
+  wakeLay37(alive);
   if (G.grace > 0 || G.stun > 0){ G.amv = 0; G.ach = 0; return; }
   const ax = G.ax, az = G.az, go = (tx, tz, sp, lunge) => {
     A.rp = (A.rp||0) - dt;
@@ -2879,6 +2891,13 @@ function aiTick37(dt, alive){
   if (seen){ A.mode = 'chase'; A.target = seen.pid; A.lx = seen.x; A.lz = seen.z; A.lt = 5*D.persist;
     const v = A.pv[seen.pid] || { vx:0, vz:0 }, lead = sd > 4.5 ? D.lead*Math.min(1.6, sd/MON_SPEED) : 0; A.lx += v.vx*lead; A.lz += v.vz*lead; }
   else if (A.mode === 'chase') A.mode = 'hunt';
+  // v0.38 (Ryan): it hunts by your WAKE. Wading leaves a trail in the water (running = strong, walking = medium, crouching = barely any);
+  // it senses a wake within WAKE_R × strength (by difficulty) and follows that survivor's trail to its freshest point.
+  A.wkT = (A.wkT||0) - dt;
+  if (!seen && A.wkT <= 0){ A.wkT = 0.8; const W = H.wk; if (W && W.pts.length){ const R = WAKE_R[clamp(G.df|0, 0, 3)]; let best = null, bs = 0;
+    for (const q of W.pts){ if (!alive.some(p=>p.pid === q.pid)) continue; const age = now - q.t, d = Math.hypot(q.x-ax, q.z-az); if (d > R*q.s) continue; const sc = q.s*(1 - age/WAKE_LIFE); if (sc > bs){ bs = sc; best = q; } }
+    if (best){ let head = best; for (const q of W.pts) if (q.pid === best.pid && q.t > head.t && Math.hypot(q.x-best.x, q.z-best.z) < R*1.5) head = q;
+      A.mode = 'hunt'; A.lx = head.x; A.lz = head.z; A.lt = Math.max(A.lt||0, 6*D.persist); } } }
   G.ach = A.mode === 'chase' ? 1 : 0;
   // lunge out of the water for a moment, then it has to slither back
   A.dashCD = (A.dashCD||0) - dt;
@@ -2895,6 +2914,13 @@ function aiTick37(dt, alive){
     const tgt = alive.length && Math.random() < Math.max(D.drift, 0.7) ? alive[Math.floor(Math.random()*alive.length)] : null;
     A.wp = tgt ? randomWaterNear(tgt.x + (Math.random()-0.5)*40, tgt.z + (Math.random()-0.5)*40) : randomWater(); }
   go(A.wp[0], A.wp[1], D.wander, false);
+}
+const WAKE_R = [12, 20, 30, 44], WAKE_LIFE = 25;
+function wakeLay37(alive){   // host: drop a wake point every 0.45 s behind anyone moving through the shallow water
+  const W = H.wk || (H.wk = { pts:[], t:{}, r:G.r }), now = nowS(); if (W.r !== G.r){ W.pts = []; W.t = {}; W.r = G.r; }
+  for (const p of alive){ if (p.hd || k37(p.x, p.z) !== K37.WATER) continue; const v = H.ai.pv && H.ai.pv[p.pid], spd = v ? Math.hypot(v.vx, v.vz) : 0; if (spd < 0.6) continue;
+    if ((W.t[p.pid]||0) > now) continue; W.t[p.pid] = now + 0.45; W.pts.push({ x:p.x, z:p.z, t:now, s: p.c ? 0.12 : spd > 3.6 ? 1 : 0.55, pid:p.pid }); }
+  if (W.pts.length > 400 || (W.pts.length && now - W.pts[0].t > WAKE_LIFE)) W.pts = W.pts.filter(q=>now - q.t < WAKE_LIFE).slice(-400);
 }
 function randomWaterNear(x, z){ const w = nearestWater(clamp(x,2,S37-2), clamp(z,2,S37-2), 10); return w || randomWater(); }
 
@@ -2913,6 +2939,29 @@ function hostDay37(dt, alive, mp){
 
 /* ---- per-frame look of Level 37: day/night, water, lamps, floats, the eel's wake and swishing ---- */
 let hole37T = 0;
+let radio37 = null, radioBuf = null, radioLoading = false;
+function updateRadio37(dt){
+  const on = LK === 2 && level && level.radio && (mode === 'play' || mode === 'spect') && G.ph === 'play';
+  if (!on){ if (radio37){ const r = radio37; radio37 = null; try { r.g.gain.setTargetAtTime(0, sfx.ctx.currentTime, 0.4); setTimeout(()=>{ try { r.src.stop(); } catch(e){} }, 1500); } catch(e){} } return; }
+  const c = sfx.ctx; if (!c) return;
+  if (!radioBuf){ if (!radioLoading){ radioLoading = true; fetch('sfx/radio-song.mp3').then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(b=>{ radioBuf = b; }).catch(e=>{ console.warn('radio song failed', e); }); } return; }
+  const R = level.radio;
+  if (!radio37 || radio37.lvl !== level){ if (radio37) try { radio37.src.stop(); } catch(e){}
+    const src = c.createBufferSource(); src.buffer = radioBuf; src.loop = true;
+    const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 220;          // an old speaker: no bass, no top
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200;
+    const far = c.createBiquadFilter(); far.type = 'lowpass'; far.frequency.value = 4200;        // muffled by distance (set below)
+    const g = c.createGain(); g.gain.value = 0;
+    const p = c.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 7; p.rolloffFactor = 0.85; p.maxDistance = 400;
+    if (p.positionX){ p.positionX.value = R.x; p.positionY.value = R.y; p.positionZ.value = R.z; } else p.setPosition(R.x, R.y, R.z);
+    src.connect(hp).connect(lp).connect(far).connect(g).connect(p).connect(sfx.master);
+    const wet = c.createGain(); wet.gain.value = 0.9; g.connect(wet); if (sfx.verbG) wet.connect(sfx.verb || sfx.verbG);   // straight into the poolrooms echo
+    src.start(0, Math.random()*radioBuf.duration*0.6); radio37 = { src, g, far, wet, lvl:level }; }
+  const d = Math.hypot(camera.position.x - R.x, camera.position.z - R.z);
+  radio37.far.frequency.value = lerp(radio37.far.frequency.value, clamp(9000/(1 + d/9), 450, 4200), 0.1);
+  radio37.g.gain.value = lerp(radio37.g.gain.value, silenced() ? 0.05 : 0.55, 1 - Math.exp(-1.5*dt));
+  radio37.wet.gain.value = clamp(0.25 + d/120, 0.25, 1.1)*radio37.g.gain.value*1.6;   // the farther away, the more of it is echo
+}
 function update37(dt){
   if (LK !== 2 || !PG.water) return;
   TU.uTime.value += dt;
@@ -6263,7 +6312,7 @@ function frame(now){
     if (sees) lastSeen = t;
     updateVHS(dt);
     updateLowRes(dt, sees);
-    updateCans(dt); updateVent(dt); update37(dt); update188(dt); updateMall(dt); updateMallMap(dt); updateMannequins852(dt); update2p(dt);
+    updateCans(dt); updateVent(dt); update37(dt); updateRadio37(dt); update188(dt); updateMall(dt); updateMallMap(dt); updateMannequins852(dt); update2p(dt);
     updateCamFx(dt);
     updateMonsterSenses(dt);
     updateAmbience(dt);
@@ -6279,7 +6328,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { buildLevel, hotelOpen188, hostOutage188, pipeObj2, pipeTarget2, p2Diag, MQV, hostMannequins852, mqSeen852, floorAt852, laneAt852, MLANES, mallObj852, mallTarget852, mallWayTo852, aiTick852, mallMove852, get mallHold(){ return mallHold; }, get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
+window.__hp = { get radio37(){ return radio37; }, wakeLay37, nowS, buildLevel, hotelOpen188, hostOutage188, pipeObj2, pipeTarget2, p2Diag, MQV, hostMannequins852, mqSeen852, floorAt852, laneAt852, MLANES, mallObj852, mallTarget852, mallWayTo852, aiTick852, mallMove852, get mallHold(){ return mallHold; }, get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188 };
 </script>
 </body>
 </html>
