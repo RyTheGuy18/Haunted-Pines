@@ -196,7 +196,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.44.0</div>
+<div class="osd" id="ver">v0.44.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -2330,6 +2330,8 @@ function terrH37(x,z){ const M = M37, ts = M.bk[clamp(Math.floor(x/M.B),0,M.NB-1
     if (t.stair){ const a = (x-t.x)*t.ux + (z-t.z)*t.uz; best = Math.max(best, t.th*clamp((a + t.hl)/(2*t.hl - 0.35), 0, 1)); } else best = Math.max(best, t.th); }
   return best; }
 function h37(x,z){ if (!M37) return 0; const th = terrH37(x,z); if (th >= 0) return th; const k = k37(x,z); if (k === K37.SOLID) return M37.H[i37(x,z)]; return bil37(M37.H, x, z); }
+const deep37 = p => LK === 2 && wadeDepth37(p.x, p.z) > 0.45 && !p.hd;   // v0.44.1: the chest-deep water is always its
+const prey37 = p => LK === 2 && (isNight() || deep37(p));
 const wadeDepth37 = (x,z) => LK === 2 && M37 && k37(x,z) === K37.WATER ? Math.max(0, -h37(x,z)) : 0;
 function dayK(t){ const dl = G.dl || DAY_LEN, nl = G.nl || (CYC-DAY_LEN), c = (t||0) - (G.c0||0);
   if (c < dl-DUSK) return 1; if (c < dl) return (dl-c)/DUSK; if (c < dl+nl-DUSK) return 0; if (c < dl+nl) return (c-(dl+nl-DUSK))/DUSK; return 1; }
@@ -3070,6 +3072,34 @@ function updateRipples(dt){
 }
 
 /* ---- the computer eel ---- */
+const DEEP_GAP = [30, 24, 19, 15], DEEP_DELAY = [8, 6, 4.5, 3], DEEP_SPD = [0.88, 0.98, 1.06, 1.12];
+function deepDay37(dt, alive, A, D, go){
+  const df = clamp(G.df ?? 1, 0, 3), deep = alive.filter(deep37);
+  if (A.mode !== 'deep'){
+    if (!deep.length){ A.deepT = 0; return false; }
+    A.deepT = (A.deepT || 0) + dt;                                  // it takes a moment to notice you
+    if (A.deepT < DEEP_DELAY[df]) return false;
+    const tg = deep[Math.floor(Math.random()*deep.length)];
+    // it rises behind them, out of sight, in water it can swim from
+    let spot = null;
+    for (let t=0;t<160 && !spot;t++){ const fa = Math.atan2(-Math.sin(tg.yaw), -Math.cos(tg.yaw)) + Math.PI + (Math.random()-0.5)*(t < 80 ? 1.6 : 4), d = DEEP_GAP[df] + (Math.random()-0.5)*6;
+      const x = tg.x + Math.sin(fa)*d, z = tg.z + Math.cos(fa)*d;
+      if (x<2||z<2||x>S37-2||z>S37-2 || !isEelGround(k37(x,z)) || d37(x,z) < 0.8 || !M37.nav[Math.round(x) + Math.round(z)*M37.NN]) continue;
+      if (alive.some(p=>Math.hypot(p.x-x,p.z-z) < DEEP_GAP[df]*0.6)) continue; spot = [x, z]; }
+    if (!spot){ const n = nearestWater(tg.x, tg.z, 30); if (!n) return false; spot = randomWater(Math.random, alive, DEEP_GAP[df]*0.6); }
+    G.ax = spot[0]; G.az = spot[1]; G.asub = 0; A.mode = 'deep'; A.target = tg.pid; A.lost = 0; A.rp = 0; A.nx = null;
+    lrSnd('eelRise', spot[0], spot[1]);
+    return true; }
+  // chasing someone through the deep water
+  const tg = alive.find(p=>p.pid === A.target);
+  if (!tg || tg.hd){ A.mode = 'hidden'; G.asub = 1; G.ach = 0; A.deepT = 0; return false; }
+  A.lost = deep37(tg) ? 0 : A.lost + dt;
+  if (A.lost > 3.5){ const t2 = deep.find(p=>Math.hypot(p.x-G.ax, p.z-G.az) < 25); if (t2){ A.target = t2.pid; A.lost = 0; } else { const far = randomWater(Math.random, alive, 40); G.ax = far[0]; G.az = far[1]; G.asub = 1; G.ach = 0; A.mode = 'hidden'; A.deepT = -6; A.surfT = 20 + Math.random()*20; return true; } }
+  G.ach = 1;
+  const v = A.pv[tg.pid] || { vx:0, vz:0 }, lead = df >= 2 ? 0.6 : 0.2;
+  go(tg.x + v.vx*lead, tg.z + v.vz*lead, MON_SPEED*DEEP_SPD[df], false);
+  return true;
+}
 function aiTick37(dt, alive){
   alive = alive.slice();
   const A = H.ai, D = aiD(), now = nowS(), night = isNight();
@@ -3086,10 +3116,15 @@ function aiTick37(dt, alive){
     G.ay = Math.atan2(dx, dz); G.amv = sp > MON_SPEED*1.01 ? 2 : 1;
   };
   // ---- DAY: it keeps its distance. Now and then it surfaces at the edge of your sight, then it's gone.
+  // v0.44.1 (Ryan: "got to the exit in 30 seconds"): but the chest-deep water is ALWAYS its. Wade in and, a few seconds later,
+  // it comes for you through the water — a splash somewhere behind, the foam of its wake, the groaning — and by day it can
+  // take you there. Get back to shallow water and it loses interest.
   if (!night){
-    G.ach = 0; G.ads = 0; if (A.drn){ A.drn = null; G.dn37 = 0; G.asub = 1; A.mode = 'hidden'; }
+    G.ads = 0; if (A.drn){ A.drn = null; G.dn37 = 0; G.asub = 1; A.mode = 'hidden'; }
+    if (deepDay37(dt, alive, A, D, go)) return;
+    G.ach = 0;
     if (A.mode !== 'surface'){ G.asub = 1; G.amv = 0; A.mode = 'hidden';
-      A.surfT = (A.surfT ?? 25 + Math.random()*25) - dt;
+      A.surfT = (A.surfT ?? 18 + Math.random()*17) - dt;
       if (A.surfT <= 0 && alive.length){ const s = alive[Math.floor(Math.random()*alive.length)], fa = Math.atan2(-Math.sin(s.yaw), -Math.cos(s.yaw));
         for (let t=0;t<120;t++){ // at the edge of their vision: well off to the side of where they're looking, far enough to never be sure
           const late = t > 60, th = fa + (Math.random() < 0.5 ? -1 : 1)*(late ? 0.3 + Math.random()*1.2 : 0.6 + Math.random()*0.7), d = (late ? 13 : 16) + Math.random()*14;
@@ -3105,7 +3140,7 @@ function aiTick37(dt, alive){
       const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw); if (d < 24 && ((G.ax-p.x)*fx + (G.az-p.z)*fz)/d > 0.93 && los37(p.x,p.z,G.ax,G.az)) A.look += dt; }
     if (A.look > 1.3) spook = true;
     if (spook || A.sT <= 0 || !A.wp || Math.hypot(A.wp[0]-G.ax, A.wp[1]-G.az) < 1.5){
-      const far = randomWater(Math.random, alive, 40); G.ax = far[0]; G.az = far[1]; G.asub = 1; A.mode = 'hidden'; A.surfT = 40 + Math.random()*40; return; }
+      const far = randomWater(Math.random, alive, 40); G.ax = far[0]; G.az = far[1]; G.asub = 1; A.mode = 'hidden'; A.surfT = 25 + Math.random()*22; return; }
     go(A.wp[0], A.wp[1], spook ? 3 : 1.7, false); return;
   }
   // ---- NIGHT: it hunts
@@ -4833,9 +4868,9 @@ function applyUse(pid, m){
     if (G.mo === 'AI' && H.ai.mode !== 'chase'){ H.ai.mode='hunt'; H.ai.lx=+m.x||0; H.ai.lz=+m.z||0; H.ai.lt=10; H.ai.rp=0; }
   }
   else if (m.k === 'bite'){   // a player Occupant reports touching a survivor on its own screen
-    if (pid !== G.mo || G.grace > 0 || G.stun > 0 || (LK === 2 && (!isNight() || G.asub > 0))) return;
+    if (pid !== G.mo || G.grace > 0 || G.stun > 0 || (LK === 2 && G.asub > 0)) return;
     const ps = allPlayers(), mp = ps.find(p=>p.pid===G.mo), v = ps.find(p=>p.pid===m.v);
-    if (mp && v && !mp.vt && !v.hd && v.pid !== G.mo && !isDead(v.pid) && !isEsc(v.pid) && Math.hypot(v.x-mp.x, v.z-mp.z) < 5) killSurvivor(v);
+    if (mp && v && (LK !== 2 || prey37(v)) && !mp.vt && !v.hd && v.pid !== G.mo && !isDead(v.pid) && !isEsc(v.pid) && Math.hypot(v.x-mp.x, v.z-mp.z) < 5) killSurvivor(v);
   }
   else if (m.k === 'crank'){   // someone is starting a generator: the whole garage hears it, the computer comes straight for it
     if (G.mo === 'AI' && H.ai.mode !== 'chase'){ H.ai.mode='hunt'; H.ai.lx=+m.x||0; H.ai.lz=+m.z||0; H.ai.lt=GEN_T + 20; H.ai.rp=0; }
@@ -5086,7 +5121,7 @@ function hostTick(dt){
   if (LK === 2) hostDay37(dt, alive, mp);
   G.stun = Math.max(0, G.stun - dt);
   const reach = (G.mo === 'AI' ? G.ads : mp.ds) ? 1.7 : 1.1;   // arms out while dashing
-  if (G.grace <= 0 && G.stun <= 0 && !mp.vt && !(G.mo === 'AI' && G.avt) && !(LK === 2 && (!isNight() || G.asub > 0))) for (const p of alive) if (!p.hd && !(G.mo === 'AI' && inLab(p.x, p.z)) && Math.hypot(p.x-mp.x, p.z-mp.z) < reach) killSurvivor(p);
+  if (G.grace <= 0 && G.stun <= 0 && !mp.vt && !(G.mo === 'AI' && G.avt) && !(LK === 2 && G.asub > 0)) for (const p of alive) if (!p.hd && !(LK === 2 && !prey37(p)) && !(G.mo === 'AI' && inLab(p.x, p.z)) && Math.hypot(p.x-mp.x, p.z-mp.z) < reach) killSurvivor(p);
   hostLurker(dt, alive.filter(p=>!isDead(p.pid)));
   hostMannequins852(dt, alive.filter(p=>!isDead(p.pid)));
   // the phones ring
@@ -6073,6 +6108,8 @@ function playEventSound(k, x, z, m){
   if (k === 'mqKill'){ const o = sfx.panner(x, 1.5, z, 3); sfx.noise(o,{ dur:0.45, type:'bandpass', freq:1900, q:1.6, gain:1.0 }); sfx.noise(o,{ dur:0.3, type:'lowpass', freq:380, gain:0.9 }); sfx.tone(o,{ f:95, to:38, dur:0.7, gain:0.45 }); return; }   // plastic snapping
   if (k === 'can'){ if (LK === 2 && k37(x, z) !== K37.DRY && k37(x, z) !== K37.BALC) sfx.plop(x, z); else sfx.clatter(x, z); return; }
   if (k === 'bang'){ sfx.bang(x, z); return; }
+  if (k === 'eelRise'){ sfx.poolFar(0, { x, y:0.3, z }); const o = sfx.panner(x, 0.4, z, 6); sfx.tone(o,{ f:62, to:34, dur:1.6, gain:0.12, type:'sawtooth' }); sfx.noise(o,{ dur:1.2, type:'lowpass', freq:420, gain:0.45 });
+    if (role === 'survivor' && me.alive && wadeDepth37(me.x, me.z) > 0.45) msg('Something heavy just slid into the water behind you.', 3); return; }
   if (k === 'vent'){ sfx.vent(x, z); return; }
   if (k === 'dash'){ sfx.dash(x, z); return; }
   if (k === 'crank'){ genCrankSound(m ? m.i|0 : -1, true, x, z); if (role === 'monster') msg('Somewhere in the garage, someone is starting a generator.', 3.5); return; }
@@ -6112,11 +6149,12 @@ canvas.addEventListener('mousedown', e=>{
   if (document.pointerLockElement !== canvas){ try { const r = canvas.requestPointerLock && canvas.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch(err){} return; }
   if (mode==='play' && role==='survivor' && me.alive){
     if (e.button === 0 && me.hidden < 0){ me.light = !me.light; sfx.click(); }
-    if (e.button === 2) zoomHeld = true;
+    if (e.button === 2) zoomIn = true;
   }
 });
-addEventListener('mouseup', e=>{ if (e.button === 2) zoomHeld = false; });
-addEventListener('blur', ()=>{ zoomHeld = false; });
+addEventListener('mouseup', e=>{ if (e.button === 2) zoomIn = false; });
+addEventListener('blur', ()=>{ zoomIn = false; zoomOut = false; });
+canvas.addEventListener('wheel', e=>{ if (mode === 'play' && canZoom()){ e.preventDefault(); zoomNudge(e.deltaY < 0 ? 0.08 : -0.08); } }, { passive:false });
 addEventListener('contextmenu', e=>{ if (document.pointerLockElement === canvas || e.target === canvas) e.preventDefault(); });
 addEventListener('mousemove', e=>{
   if (document.pointerLockElement !== canvas || mode!=='play') return;
@@ -6185,6 +6223,7 @@ const ICON = {
   mask:'<svg viewBox="0 0 24 24"><path d="M4 6c5-2 11-2 16 0 0 7-3 12-8 13C7 18 4 13 4 6z"/><path d="M8 10h3M13 10h3M10 15c1 .8 3 .8 4 0"/></svg>',
   dash:'<svg viewBox="0 0 24 24"><path d="M3 12h11M3 7h7M3 17h7"/><path d="M14 6l7 6-7 6"/></svg>',
   zoom:'<svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M15 15l6 6M10 7v6M7 10h6"/></svg>',
+  zoomOut:'<svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M15 15l6 6M7 10h6"/></svg>',
   lure:'<svg viewBox="0 0 24 24"><path d="M5 18c2 0 2-3 4-3s2 3 4 3M11 10c2 0 2-3 4-3s2 3 4 3"/><circle cx="6" cy="6" r="1.5"/></svg>',
 };
 function setButtons(){
@@ -6195,7 +6234,8 @@ function setButtons(){
     { label:'CROUCH', icon:'crouch', down:()=>{ me.crouch=!me.crouch; }, on:()=>me.crouch } ];
   else if (LK === 2) cfg = [ { label:'SPLASH', icon:'lure', m:1, down:()=>ability('lure'), cd:'lure' }, { label:'LUNGE', icon:'dash', m:1, down:()=>ability('dash'), cd:'dash' }, run ];
   else cfg = [ { label:'DARK', icon:'dark', m:1, down:()=>ability('blackout'), cd:'blackout' }, { label:'DISGUISE', icon:'mask', m:1, down:()=>ability('disguise'), cd:'disguise' }, { label:'DASH', icon:'dash', m:1, down:()=>ability('dash'), cd:'dash' }, run ];
-  if (role === 'survivor' && LK === 2) cfg.push({ label:'ZOOM', icon:'zoom', down:()=>{ zoomHeld = true; }, up:()=>{ zoomHeld = false; }, on:()=>zoomHeld });   // v0.44
+  if (role === 'survivor' && LK === 2) cfg.push({ label:'ZOOM +', icon:'zoom', down:()=>{ zoomIn = true; }, up:()=>{ zoomIn = false; }, on:()=>zoomIn },
+    { label:'ZOOM −', icon:'zoomOut', down:()=>{ zoomOut = true; }, up:()=>{ zoomOut = false; }, on:()=>zoomOut });   // v0.44.1
   ['bA','bB','bC','bD','bE','bF'].forEach((id,k)=>{ const c=cfg[k]; BTN[id]=c; const b=$(id); b.style.display = c ? '' : 'none'; if (c){ b.innerHTML = ICON[c.icon] + c.label; b.classList.toggle('m', !!c.m); } });
   BTN.bUse = { down:()=>{ const a=contextAction(); if (a) a.fn(); } };
   fitButtons();
@@ -6337,16 +6377,17 @@ function updateMe(dt){
   me.adren = role==='survivor' && G.grace <= 0 && md < 10 && !disguisedFrom(me.x, me.z);
   if (me.stam <= 0.5) me.winded = true;
   if (me.winded && (role === 'monster' ? me.stam >= 100 : (me.stam >= 35 || (!runReq && me.stam >= 12)))) me.winded = false;
-  me.running = runReq && !me.winded && me.stam > 0.5 && zK < 0.3;
+  me.running = runReq && !me.winded && me.stam > 0.5;
   if (role === 'monster') me.stam = clamp(me.stam + (me.running ? -55 : 24)*dt, 0, 100);   // ~1.8s sprint, ~4s to recharge
   else me.stam = clamp(me.stam + (me.running ? (me.adren ? -8 : -14)*(sodaT > 0 ? 0.5 : 1) : 16*(sodaT > 0 ? 1.5 : 1))*dt, 0, 100);   // the mall's energy soda   // ~7s of sprint (~12s with adrenaline)
   let sp;
-  if (role === 'monster') sp = (me.running ? MON_SPEED*1.15 : MON_SPEED) * (LK === 2 && !isNight() ? 0.72 : 1);   // the eel drifts slowly by day
+  if (role === 'monster') sp = (me.running ? MON_SPEED*1.15 : MON_SPEED) * (LK === 2 && !isNight() && h37(me.x, me.z) > -0.4 ? 0.72 : 1);   // the eel drifts slowly by day (not in the deep water: v0.44.1)
   else sp = me.crouch ? 1.35 : me.running ? (me.adren ? 5.6 : 5.0) : 2.6;
   if (LK === 2 && role === 'survivor'){ const dp = wadeDepth37(me.x, me.z);   // v0.43: wading chest-deep is slow, and you can't duck under
     if (dp > 0.05) sp *= 1 - 0.5*Math.min(1, dp/WADE_D);
+    else if (me.running && k37(me.x, me.z) === K37.WATER) sp *= 0.85;   // v0.44.1: even the shallow water drags at a sprint
     if (dp > 0.45 && me.crouch){ me.crouch = false; if (!me.deepMsg){ me.deepMsg = 1; msg('Too deep to crouch.', 1.6); } }
-    sp *= 1 - 0.45*zK; }
+    sp *= 1 - 0.25*zK; }
   const sn = Math.sin(me.yaw), cs = Math.cos(me.yaw);
   const vx = (fx*cs + fz*sn)*sp, vz = (-fx*sn + fz*cs)*sp;
   [me.x, me.z] = collide(me.x + vx*dt, me.z + vz*dt, role==='monster' ? 0.38 : 0.32, me.x, me.z, role==='monster' && LK === 2, false);
@@ -6799,18 +6840,33 @@ function updateExtras(dt){
 }
 
 let vhsK = 0, lowK = 0, lastSeenK = -99;
-/* v0.44 (Ryan): on the Poolrooms survivors can zoom (hold Z or the right mouse button; the ZOOM button on phones):
-   a narrow field of view, a sharper (still grainy) picture and thinner haze, so you can make out the spiral stairs from the spawn room */
-let zoomHeld = false, zK = 0, zHint = '';
-const ZOOM_FOV = 13;
+/* v0.44 (Ryan): on the Poolrooms survivors can zoom: a narrow field of view, a sharper (still grainy) picture and thinner haze,
+   so you can make out the spiral stairs from the spawn room. v0.44.1 (Ryan: "like other Backrooms games"): a camcorder zoom —
+   holding zoom-in creeps in slowly with a motor whir, letting go keeps it there, zoom-out creeps back. Desktop: Z / right mouse
+   = in, X = out, mouse wheel nudges; phones: ZOOM + / ZOOM −. Sprinting pulls it back out quickly. */
+let zoomIn = false, zoomOut = false, zLevel = 0, zK = 0, zHint = '', zWhir = null;
+const ZOOM_FOV = 13, ZOOM_IN_T = 2.6, ZOOM_OUT_T = 1.6;
 const canZoom = () => LK === 2 && role === 'survivor' && mode === 'play' && me.alive && me.hidden < 0 && hatchT <= 0;
+function zoomNudge(d){ if (canZoom()){ zLevel = clamp(zLevel + d, 0, 1); zWhirT = 0.18; } }
+let zWhirT = 0;
 function updateZoom(dt){
-  const want = canZoom() && (zoomHeld || keys.has('KeyZ'));
-  zK = lerp(zK, want ? 1 : 0, 1 - Math.exp(-(want ? 7 : 10)*dt)); if (zK < 0.002) zK = 0;
+  const ok = canZoom(), was = zLevel;
+  if (!ok) zLevel = 0;
+  else {
+    const zin = zoomIn || keys.has('KeyZ'), zout = zoomOut || keys.has('KeyX');
+    if (zin && !zout) zLevel = Math.min(1, zLevel + dt/ZOOM_IN_T);
+    if (zout && !zin) zLevel = Math.max(0, zLevel - dt/ZOOM_OUT_T);
+    if (me.running) zLevel = Math.max(0, zLevel - dt/0.45);   // you can't run looking through the zoom
+  }
+  zK = lerp(zK, zLevel, 1 - Math.exp(-(ok ? 12 : 9)*dt)); if (zK < 0.002 && zLevel === 0) zK = 0;
+  // the little zoom motor
+  zWhirT = Math.max(0, zWhirT - dt); const moving = ok && (Math.abs(zLevel - was) > 1e-5 || zWhirT > 0);
+  if (sfx.ctx){ if (!zWhir){ const c = sfx.ctx, o = c.createOscillator(), n = c.createBiquadFilter(), g = c.createGain(); o.type = 'sawtooth'; o.frequency.value = 118; n.type = 'bandpass'; n.frequency.value = 900; n.Q.value = 3; g.gain.value = 0; o.connect(n).connect(g).connect(sfx.master); o.start(); zWhir = { o, g }; }
+    zWhir.g.gain.setTargetAtTime(moving ? 0.035 : 0, sfx.ctx.currentTime, 0.04); zWhir.o.frequency.setTargetAtTime(110 + zK*40, sfx.ctx.currentTime, 0.1); }
   const el = $('zoomv'); el.style.opacity = zK > 0.01 ? Math.min(1, zK*1.1).toFixed(3) : 0;
   if (zK > 0.01) $('ztxt').textContent = '⊕ ' + (SET.fov/lerp(SET.fov, ZOOM_FOV, zK)).toFixed(1) + '×';
   const key = G.r + ':' + LK;
-  if (LK === 2 && role === 'survivor' && mode === 'play' && zHint !== key && G.ph === 'play'){ zHint = key; setTimeout(()=>{ if (LK === 2 && mode === 'play') msg(isTouch ? 'Hold ZOOM to look far down the halls.' : 'Hold Z (or the right mouse button) to zoom in.', 4); }, 7000); }
+  if (LK === 2 && role === 'survivor' && mode === 'play' && zHint !== key && G.ph === 'play'){ zHint = key; setTimeout(()=>{ if (LK === 2 && mode === 'play') msg(isTouch ? 'Hold ZOOM + to zoom in, ZOOM − to zoom back out.' : 'Hold Z (or right mouse) to zoom in, X to zoom out. The mouse wheel works too.', 5); }, 7000); }
 }
 function updateLowRes(dt, sees){
   const t = nowS(); if (sees) lastSeenK = t;
@@ -6853,7 +6909,7 @@ function updateHUD(dt){
     if (G.grace > 0 && mode==='play') { $('blacksub').textContent = LK === 2 ? `You are the thing in the water. By day you can't strike: stay unseen, get close without being looked at to bring the night sooner. At night, hunt. You can only leave the water to lunge.` : LK === 3 ? `They wake on another floor. The elevators are the only way between floors, and everyone hears the ding. Listen for them.` : LK === 5 ? `They wake in the tunnels. They need to turn 4 pressure valves (you'll hear the scream of each one) and cut the chain on the EXIT door. Listen for them.` : LK === 4 ? `They wake at the entrance, two floors below you. Escalators and two stairwells join the floors. They need receipts, the security office and the loading dock. Listen for them.` : `You can't see them through walls. Listen. Running footsteps, voices and gasping give them away. Use the vents to get around.`; const c = String(Math.ceil(G.grace)); if ($('blackcount').textContent !== c) $('blackcount').textContent = c; }
     if (G.grace <= 0 && $('blackcount').textContent) $('blackcount').textContent = '';
     $('objLbl').textContent = 'THE OCCUPANT';
-    obj.textContent = G.grace > 0 ? `They wake in ${Math.ceil(G.grace)}…` : G.stun > 0 ? 'Blinded…' : ventT > 0 ? 'In the vents…' : G.dg > 0 ? `Disguised · ${Math.ceil(G.dg)}s · ${left} left` : G.lv === 2 ? (isNight() ? `Night. Hunt. ${left} left · dawn in ${mmss(dawnIn37())}` : `Daylight: stay unseen · stalk ${Math.round(G.stk||0)}% · dark in ${mmss(duskIn37())}`) : G.lv === 3 ? `Listen for them. ${left} left · ${G.open ? 'the room is open' : G.kc && G.kc[0] >= 1 ? 'they have the keycard' : 'the keycard is still out there'} · floor ${floorAt188(me.x, me.z)+2}` : G.open ? `The exit is open. ${left} left.` : ( G.lv === 1 ? `Listen for them. ${left} left · generators ${(G.gen||[]).filter(Boolean).length}/${(G.gen||[]).length}` : `Listen for them. ${left} left · fuses ${G.pl}/${FUSES}`);
+    obj.textContent = G.grace > 0 ? `They wake in ${Math.ceil(G.grace)}…` : G.stun > 0 ? 'Blinded…' : ventT > 0 ? 'In the vents…' : G.dg > 0 ? `Disguised · ${Math.ceil(G.dg)}s · ${left} left` : G.lv === 2 ? (isNight() ? `Night. Hunt. ${left} left · dawn in ${mmss(dawnIn37())}` : `Daylight: stay unseen · anyone in the deep water is yours · stalk ${Math.round(G.stk||0)}% · dark in ${mmss(duskIn37())}`) : G.lv === 3 ? `Listen for them. ${left} left · ${G.open ? 'the room is open' : G.kc && G.kc[0] >= 1 ? 'they have the keycard' : 'the keycard is still out there'} · floor ${floorAt188(me.x, me.z)+2}` : G.open ? `The exit is open. ${left} left.` : ( G.lv === 1 ? `Listen for them. ${left} left · generators ${(G.gen||[]).filter(Boolean).length}/${(G.gen||[]).length}` : `Listen for them. ${left} left · fuses ${G.pl}/${FUSES}`);
     if (G.grace <= 0 && $('black').style.opacity === '1' && mode==='play') $('black').style.opacity = 0;
     $('kit').style.display = 'none'; $('side').style.display = 'none';
     { const st = $('stam'); st.style.opacity = me.stam < 99 ? 1 : 0; $('stamf').style.width = me.stam+'%'; st.classList.toggle('adr', false); st.classList.toggle('winded', !!me.winded); }
@@ -7033,7 +7089,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { get radio37(){ return radio37; }, get fig37(){ return fig37; }, forceFig37:()=>{ figT = 0; }, duskIn37, wakeLay37, nowS, buildLevel, hotelOpen188, hostOutage188, pipeObj2, pipeTarget2, p2Diag, MQV, hostMannequins852, mqSeen852, floorAt852, laneAt852, MLANES, mallObj852, mallTarget852, mallWayTo852, aiTick852, mallMove852, get mallHold(){ return mallHold; }, get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188, inLab, hostLab, labUse, labSensor, labStatus, startHatch, get hatchT(){ return hatchT; }, connected };
+window.__hp = { get radio37(){ return radio37; }, get fig37(){ return fig37; }, get zLevel(){ return zLevel; }, get zK(){ return zK; }, deepDay37, deep37, forceFig37:()=>{ figT = 0; }, duskIn37, wakeLay37, nowS, buildLevel, hotelOpen188, hostOutage188, pipeObj2, pipeTarget2, p2Diag, MQV, hostMannequins852, mqSeen852, floorAt852, laneAt852, MLANES, mallObj852, mallTarget852, mallWayTo852, aiTick852, mallMove852, get mallHold(){ return mallHold; }, get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188, inLab, hostLab, labUse, labSensor, labStatus, startHatch, get hatchT(){ return hatchT; }, connected };
 </script>
 </body>
 </html>
