@@ -196,7 +196,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.44.2</div>
+<div class="osd" id="ver">v0.44.3</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -410,11 +410,11 @@ const lam = (color, extra={}) => psx(new THREE.MeshLambertMaterial({ color, ...e
 /* ---- Level 37 look: world-space tiles, water caustics and sun patches through the sunroofs, all in one Lambert material ---- */
 const SUN_D = new THREE.Vector3(0.24, 1, 0.14).normalize();
 const TU = { uTime:{ value:0 }, uWL:{ value:0.18 }, uHoles:{ value:Array.from({length:40}, ()=>new THREE.Vector4(-99,-99,0,0)) }, uNH:{ value:0 }, uSunD:{ value:SUN_D }, uCeil:{ value:4.4 }, uDay:{ value:1 } };
-function tileLam({ base=0xe6e0cb, grout=0xc8c2ad, size=0.25, caust=1, side, vc } = {}){
+function tileLam({ base=0xe6e0cb, grout=0xc8c2ad, size=0.25, caust=1, side, vc, alt, altP=0, gw=0.03 } = {}){   // v0.44.3: alt/altP = a share of tiles in a second colour (the pool tiles), gw = grout width
   const m = new THREE.MeshLambertMaterial({ color:0xffffff });
   if (side) m.side = side; if (vc) m.vertexColors = true;
   m.onBeforeCompile = s => {
-    Object.assign(s.uniforms, TU, { uBase:{ value:new THREE.Color(base) }, uGrout:{ value:new THREE.Color(grout) }, uSize:{ value:size }, uCaust:{ value:caust } });
+    Object.assign(s.uniforms, TU, { uBase:{ value:new THREE.Color(base) }, uGrout:{ value:new THREE.Color(grout) }, uSize:{ value:size }, uCaust:{ value:caust }, uAlt:{ value:new THREE.Color(alt ?? base) }, uAltP:{ value:altP }, uGW:{ value:gw } });
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; varying vec3 vWN;')
       .replace('#include <project_vertex>', `#include <project_vertex>
         { vec2 sr = vec2(280.0,210.0); gl_Position.xy = floor(gl_Position.xy/gl_Position.w*sr+0.5)/sr*gl_Position.w; }
@@ -425,7 +425,7 @@ function tileLam({ base=0xe6e0cb, grout=0xc8c2ad, size=0.25, caust=1, side, vc }
           vWP = (modelMatrix*_wp).xyz; vWN = normalize(mat3(modelMatrix)*_n); }`);
     s.fragmentShader = s.fragmentShader.replace('#include <common>', `#include <common>
       varying vec3 vWP; varying vec3 vWN;
-      uniform float uTime, uWL, uSize, uCaust, uCeil, uDay; uniform vec3 uBase, uGrout, uSunD; uniform vec4 uHoles[40]; uniform int uNH;
+      uniform float uTime, uWL, uSize, uCaust, uCeil, uDay, uAltP, uGW; uniform vec3 uBase, uGrout, uSunD, uAlt; uniform vec4 uHoles[40]; uniform int uNH;
       float th21(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
       float caustic(vec2 p, float t){ vec2 i=p; float c=1.0;
         for (int n=0;n<3;n++){ float tt=t*(1.0-(3.5/float(n+1))); i=p+vec2(cos(tt-i.x)+sin(tt+i.y), sin(tt-i.y)+cos(tt+i.x)); c+=1.0/length(vec2(p.x/(sin(i.x+tt)/0.005), p.y/(cos(i.y+tt)/0.005))); }
@@ -442,8 +442,11 @@ function tileLam({ base=0xe6e0cb, grout=0xc8c2ad, size=0.25, caust=1, side, vc }
         if (an.y > an.x && an.y > an.z){ tc = vWP.xz; ax = 1; } else if (an.x > an.z){ tc = vWP.zy; ax = 0; } else { tc = vWP.xy; ax = 2; }
         vec2 g = tc/uSize; vec2 f = fract(g); vec2 id = floor(g);
         float e = min(min(f.x,1.0-f.x), min(f.y,1.0-f.y)); float aa = fwidth(g.x)*1.2 + 0.002;
-        float gT = (1.0 - smoothstep(0.03, 0.03+aa, e)) * (1.0 - smoothstep(0.06, 0.2, aa));
+        float gT = (1.0 - smoothstep(uGW, uGW+aa, e)) * (1.0 - smoothstep(0.06, 0.2, aa));
         vec3 tcol = uBase * (0.94 + 0.08*th21(id));
+        if (uAltP > 0.0){ vec2 id2 = id + vec2(float(ax)*17.0, 0.0); tcol = uBase * (0.9 + 0.14*th21(id2 + 3.7));
+          if (th21(id2*1.31 + 9.2) < uAltP) tcol = mix(uBase, uAlt, 0.35 + 0.65*th21(id2 + 21.3)) * (0.92 + 0.1*th21(id2 + 5.1));
+          tcol *= 1.0 - 0.12*smoothstep(0.35, 0.0, e); }   // a soft bevel at each tile's edge
         diffuseColor.rgb *= mix(tcol, uGrout, gT);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         { float wl = 0.18; vec2 cp; float k;
@@ -452,7 +455,7 @@ function tileLam({ base=0xe6e0cb, grout=0xc8c2ad, size=0.25, caust=1, side, vc }
           totalEmissiveRadiance += vec3(0.75,1.0,0.85) * caustic(cp*0.9, uTime*0.55) * k * uCaust * 0.22 * (0.25 + 0.75*uDay);
           totalEmissiveRadiance += diffuseColor.rgb * mix(vec3(0.25,0.35,0.6)*0.35, vec3(1.0,0.9,0.72)*1.15, uDay) * sunLit(); }`);
   };
-  m.customProgramCacheKey = () => 'tile' + base + '_' + grout + '_' + size + '_' + caust + (vc ? 'v' : '');
+  m.customProgramCacheKey = () => 'tile' + base + '_' + grout + '_' + size + '_' + caust + (vc ? 'v' : '') + (altP ? 'a' + alt + '_' + altP : '') + '_' + gw;
   return m;
 }
 const TILE = {};
@@ -461,8 +464,9 @@ function tileMats(){
   TILE.wall = tileLam({ base:0xe6e0cb, grout:0xc4bea9, size:0.25 });
   TILE.floor = tileLam({ base:0xdcd6c0, grout:0xbcb6a1, size:0.3 });
   TILE.ceil = tileLam({ base:0xe8e3cf, grout:0xd2ccb7, size:0.4, caust:1.2 });
-  TILE.pool = tileLam({ base:0x8fc4ad, grout:0x6f9f8a, size:0.2, caust:1.6 });
-  TILE.poolD = tileLam({ base:0x8fc4ad, grout:0x6f9f8a, size:0.2, caust:1.6, side:THREE.DoubleSide });
+  const PT = { base:0xd9dee6, alt:0x6f7fb8, altP:0.34, grout:0x59606a, gw:0.045, size:0.16, caust:1.6 };   // v0.44.3: Ryan's pool tiles (white-grey, scattered lavender-blue tiles, dark grout)
+  TILE.pool = tileLam(PT);
+  TILE.poolD = tileLam({ ...PT, side:THREE.DoubleSide });
   TILE.well = tileLam({ base:0xe6e0cb, grout:0xc4bea9, size:0.25, side:THREE.DoubleSide });
   TILE.floorV = tileLam({ base:0xdcd6c0, grout:0xbcb6a1, size:0.3, vc:true });
   return TILE;
@@ -2376,7 +2380,7 @@ function gen37(seed){
   if (spine === 'collapse'){
     lpE = add({ kind:'collapse', shape:'rrect', x:77, z:MZ, w:32, h:13, cr:2, tall:9.5, wade:true }); grand.push(lpE);
     lpE.suns = [[-7, 2.4, 2.4], [3.5, -2.2, 3.4], [11, 3.4, 1.3]];   // where the roof fell in
-    wades.push({ shape:'rrect', x:76.5, z:MZ, w:25, h:11.4, cr:1.5 }); }
+    wades.push({ shape:'rrect', x:76.5, z:MZ, w:25, h:14.4, cr:1.5 }); }   // (v0.44.3: wading zones reach past the walls, so the floor stays flat up to them)
   const cor = (A, B, o={}) => { let r = o.r ?? rr(1.45, 1.85), tunnel = o.tunnel ?? rng() < 0.4; const P = [A.x, A.z], Q = [B.x, B.z];
     let pts = o.via ? [o.via] : [];
     if (o.style === 'zig'){   // a winding tunnel: two kinks between the rooms
@@ -2400,12 +2404,12 @@ function gen37(seed){
     wades.push({ shape:'cap', a:[a[0]+ux*t0, a[1]+uz*t0], b:[a[0]+ux*t1, a[1]+uz*t1], r:R }); });
   cors.push({ a:[spawn.x, MZ], b:[lp.x - lp.w/2 + 3, MZ], ia:spawn.i, ib:lp.i, r:2.0, tunnel:false, dry:true });
   cor(sw, ante, { r:1.7, tunnel:true });
-  wades.push({ shape:'circle', x:ante.x, z:ante.z, r:ante.r - 0.2 });
+  wades.push({ shape:'circle', x:ante.x, z:ante.z, r:ante.r + 0.6 });
   // ---- room shapes (v0.44, Ryan: more variety in structure). Compound rooms are a main shape (corridors meet at its
   // centre) plus 'part' shapes that only add open space.
   const pillarRow = (x0, z0, x1, z1, step, r) => { const l = Math.hypot(x1-x0, z1-z0), n = Math.max(1, Math.round(l/step)); for (let k=0;k<=n;k++) pillars.push({ x:lerp(x0,x1,k/n), z:lerp(z0,z1,k/n), r }); };
   const part = (o, P) => add({ kind:'part', parent:P.i, ...o });
-  const flood = R => { for (const q of [R, ...rooms.filter(o=>o.parent === R.i)]) wades.push(q.shape === 'circle' ? { shape:'circle', x:q.x, z:q.z, r:q.r - 0.8 } : { shape:'rrect', x:q.x, z:q.z, w:q.w - 1.6, h:q.h - 1.6, cr:Math.max(0.5, q.cr - 0.8) }); R.wade = true; };
+  const flood = R => { for (const q of [R, ...rooms.filter(o=>o.parent === R.i)]) wades.push(q.shape === 'circle' ? { shape:'circle', x:q.x, z:q.z, r:q.r + 0.6 } : { shape:'rrect', x:q.x, z:q.z, w:q.w + 1.2, h:q.h + 1.2, cr:q.cr + 0.6 }); R.wade = true; };
   const mkRoom = (kind, x, z, side) => { let R;   // side: away from the long pool
     switch (kind){
       case 'round': R = add({ kind:'round', shape:'circle', x, z, r:rr(5.8,7) }); break;
@@ -2474,7 +2478,7 @@ function gen37(seed){
       if (big) deeps.push({ shape:'rrect', x:r.x, z:r.z, w:r.w-8.6, h:r.h-8.2, cr:Math.min(2, Math.min(r.w-8.6, r.h-8.2)/2 - 0.1) });
       else { const along = r.w >= r.h, L1 = along ? r.w : r.h, L2 = along ? r.h : r.w;
         for (let u = -L1/2 + 2.8; u <= L1/2 - 2.7; u += 4.2) for (const v of [-L2/2 + 2.4, L2/2 - 2.4]) pillars.push(along ? { x:r.x+u, z:r.z+v, r:0.45 } : { x:r.x+v, z:r.z+u, r:0.45 }); }
-      if (r.kind === 'sunken') wades.push({ shape:'rrect', x:r.x, z:r.z, w:r.w-1.6, h:r.h-1.6, cr:Math.max(0.6, r.cr-0.8) });
+      if (r.kind === 'sunken') wades.push({ shape:'rrect', x:r.x, z:r.z, w:r.w+1.2, h:r.h+1.2, cr:r.cr+0.6 });
     }
     if (r.kind === 'round' && !r.ante && r.r >= 6.3 && rng() < 0.45) deeps.push({ shape:'circle', x:r.x, z:r.z, r:Math.max(2, r.r-4.2) });
     if (r.kind === 'atrium') deeps.push({ shape:'circle', x:r.x, z:r.z, r:r.pool, atrium:true });
@@ -2544,7 +2548,7 @@ function perim37(d, off, step){
 
 function build37(seed){
   const L = gen37(seed);
-  const n = G37*G37, D = new Float32Array(n), H = new Float32Array(n), K = new Uint8Array(n);
+  const n = G37*G37, D = new Float32Array(n), H = new Float32Array(n), K = new Uint8Array(n), Z = new Uint8Array(n);
   const st = L.stair;
   Object.assign(ATR, { x:L.rots[0].x, z:L.rots[0].z, r:L.rots[0].r, ceil:L.rots[0].ceil, pool:L.rots[0].pool, bal:L.rots[0].bal, bh:L.rots[0].bh, balA:L.rots[0].balA, balLen:L.rots[0].balLen });
   // spatial buckets so every grid point only looks at the shapes near it
@@ -2582,11 +2586,23 @@ function build37(seed){
       const rel = wrapA(Math.atan2(z-st.z, x-st.x) - st.a0);
       if (ds >= st.rIn && ds <= st.rOut && rel < st.sweep){ kind = K37.SPIRAL; h = 0.3 + rel/st.sweep*(st.top-0.3); } }
     for (const t of b.t) if (L.sdT(x,z,t) < 0){ kind = t.slide ? K37.SLIDE : K37.DRY; h = 0; }   // terraces, steps and slides: exact heights come from terrH37
-    if (kind === K37.WATER){ let wz = 9; for (const q of b.w) wz = Math.min(wz, sdZone37(x,z,q)); if (wz < 0) h = -WADE_D*Math.min(1, -wz/1.8); }   // wading channels: down to chest-deep over 1.8 m
+    if (kind === K37.WATER){ let wz = 9; for (const q of b.w) wz = Math.min(wz, sdZone37(x,z,q)); if (wz < 0){ h = -WADE_D; Z[k] = 1; } }   // wading channels: chest-deep, ramps worked out below
     K[k] = kind; H[k] = h;
   }
-  // under walls, borrow the height of the open ground next to them (keeps floors flat up to the wall)
-  for (let iz=1; iz<G37-1; iz++) for (let ix=1; ix<G37-1; ix++){ const k = ix+iz*G37; if (K[k] !== K37.SOLID) continue; let best = -9; for (const o of [1,-1,G37,-G37]) if (K[k+o] !== K37.SOLID) best = Math.max(best, H[k+o]); if (best > -9) H[k] = best; }
+  // v0.44.3 (Ryan: floors should be flat where they meet walls): a wading zone only slopes down from open ground outside it
+  // (doorways, decks, shallow water) — distance through open cells only, so a zone edge that lies in a wall makes no ramp
+  { const dist = new Float32Array(n).fill(1e9), S2 = Math.SQRT2;
+    for (let k=0;k<n;k++) if (K[k] !== K37.SOLID && K[k] !== K37.DEEP && !Z[k]) dist[k] = 0;
+    const nb = [[-1,0,1],[0,-1,1],[-1,-1,S2],[1,-1,S2]];
+    for (let it=0; it<3; it++){
+      for (let iz=1; iz<G37-1; iz++) for (let ix=1; ix<G37-1; ix++){ const k = ix+iz*G37; if (!Z[k]) continue; let m = dist[k]; for (const [dx,dz,w] of nb){ const v = dist[k+dx+dz*G37] + w; if (v < m) m = v; } dist[k] = m; }
+      for (let iz=G37-2; iz>0; iz--) for (let ix=G37-2; ix>0; ix--){ const k = ix+iz*G37; if (!Z[k]) continue; let m = dist[k]; for (const [dx,dz,w] of nb){ const v = dist[k-dx-dz*G37] + w; if (v < m) m = v; } dist[k] = m; } }
+    for (let k=0;k<n;k++) if (Z[k]) H[k] = -WADE_D*Math.min(1, dist[k]*R37/1.8); }
+  // under walls, borrow the height of the nearest open ground, 2 m deep (the floor mesh is 1 m: keeps floors flat right up to the wall)
+  { let cur = K.map(v => v === K37.SOLID ? 0 : 1);
+    for (let pass=0; pass<4; pass++){ const nx = cur.slice();
+      for (let iz=1; iz<G37-1; iz++) for (let ix=1; ix<G37-1; ix++){ const k = ix+iz*G37; if (cur[k]) continue; let s = 0, c = 0; for (const o of [1,-1,G37,-G37]) if (cur[k+o]){ s += H[k+o]; c++; } if (c){ H[k] = s/c; nx[k] = 1; } }
+      cur = nx; } }
   // a 1 m water-only grid for the monster's pathfinding
   const NN = S37+1, nav = new Uint8Array(NN*NN);
   for (let z=0; z<NN; z++) for (let x=0; x<NN; x++){ const k = i37(x,z); nav[x+z*NN] = (K[k] === K37.WATER && bil37(D, x, z) > 0.55) ? 1 : 0; }
@@ -2674,6 +2690,10 @@ function randomWater(rng=Math.random, avoid=null, minD=0){
 }
 
 /* ---- building the geometry ---- */
+function exitTex37(){ return textTex('', 208, 96, (c, W, Hh)=>{   // v0.44.3: a clean EXIT + drawn arrow (the ↑ glyph rendered as junk in some fonts)
+  c.fillStyle = '#0b3519'; c.fillRect(0,0,W,Hh); c.strokeStyle = '#5dff8e'; c.lineWidth = 4; c.strokeRect(5,5,W-10,Hh-10);
+  c.fillStyle = '#5dff8e'; c.font = 'bold 50px Arial, Helvetica, sans-serif'; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('EXIT', 18, Hh/2 + 2);
+  const ax = W - 40; c.beginPath(); c.moveTo(ax, 16); c.lineTo(ax + 22, 44); c.lineTo(ax + 8, 44); c.lineTo(ax + 8, Hh - 16); c.lineTo(ax - 8, Hh - 16); c.lineTo(ax - 8, 44); c.lineTo(ax - 22, 44); c.closePath(); c.fill(); }); }
 function signTex37(text, w, h, bg, fg, font){ return textTex(text, w, h, (c, W, Hh)=>{ c.fillStyle = bg; c.fillRect(0,0,W,Hh); c.fillStyle = fg; c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, W/2, Hh/2 + 1); }); }
 function buildLevel37(seed){
   const L37 = build37(seed), g = new THREE.Group(); scene.add(g);
@@ -2881,8 +2901,8 @@ function buildLevel37(seed){
     exitLight.position.set(st.x, st.top + 2.5, st.z);
     L.high37.push([L.exitPos[0], st.top, L.exitPos[1]], [L37.lp.x + L37.lp.w/2 - 1.6, 0.3, L37.lp.z + 2.4], [L37.lp.x + L37.lp.w/2 - 1.6, 0.3, L37.lp.z - 2.4]);   // the top of the stairs, the far end of the long pool
     // (the column is only 1.6 m wide, so the sign hangs from a bracket in the gap above the foot of the stairs, facing the long pool)
-    const sx = st.x - st.rIn - 0.35, szc = st.z - 0.25, sg = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.2), new THREE.MeshBasicMaterial({ map: signTex37('EXIT ↑', 128, 58, '#0c3a1c', '#5dff8e', 'bold 36px monospace'), fog:false }));
-    sg.position.set(sx - 0.03, 3.5, szc); sg.rotation.y = -Math.PI/2; g.add(sg);
+    const sx = st.x - st.rIn - 0.35, szc = st.z - 0.25, sg = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.2), new THREE.MeshBasicMaterial({ map: exitTex37(), fog:false, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-6 }));
+    sg.position.set(sx - 0.06, 3.5, szc); keep.add(sg); sg.rotation.y = -Math.PI/2; g.add(sg);
     const sb = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.36, 2.76), new THREE.MeshBasicMaterial({ color:0x1d6b3a, fog:false })); sb.position.set(sx, 3.5, szc); g.add(sb);
     bx(g, 0.36, 0.06, 0.06, st.x - st.rIn - 0.17, 4.15, szc - 1.0, lam(0x777f7c)); bx(g, 0.36, 0.06, 0.06, st.x - st.rIn - 0.17, 4.15, szc + 1.0, lam(0x777f7c)); }
   // v0.38 (Ryan): an old radio on a crate at the foot of the stairs plays The Caretaker, echoing down the halls: follow the music to the exit (updateRadio37)
