@@ -193,7 +193,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.35.0</div>
+<div class="osd" id="ver">v0.35.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -1493,13 +1493,16 @@ const p2RustTex = canvasTex(16,16,(g,w,h)=>{ g.fillStyle='#808080'; g.fillRect(0
 const p2HazTex = canvasTex(32,8,(g,w,h)=>{ for (let x=-8;x<w+8;x+=8){ g.fillStyle = (x/8)%2 ? '#1a1a14' : '#c8a020'; g.beginPath(); g.moveTo(x,0); g.lineTo(x+4,0); g.lineTo(x,h); g.lineTo(x-4,h); g.fill(); } });
 const p2SteamTex = canvasTex(32,32,(g,w,h)=>{ g.clearRect(0,0,w,h); const gr = g.createRadialGradient(16,16,0,16,16,16); gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.45,'rgba(255,255,255,.45)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,w,h); });
 p2SteamTex.magFilter = THREE.LinearFilter; p2SteamTex.minFilter = THREE.LinearFilter;
+// v0.35.1: Ryan's photo textures (shrunk to 256/128 px): brick + gravel concrete walls, worn concrete floor with cracked patches, rusty metal pipes
+const p2BrickPh = fileTex('textures/p2-brick.jpg'), p2ConcPh = fileTex('textures/p2-concrete.jpg'), p2FloorPh = fileTex('textures/p2-floor.jpg'), p2CrackPh = fileTex('textures/p2-floor-cracked.jpg'), p2RustPh = fileTex('textures/p2-rust.jpg');
 // a box whose UVs tile with its size (u along its length every tu metres, v up its height every tv metres)
-function p2Box(p, w,h,d, x,y,z, mat, tu=2, tv=P2_CH){ const geo = new THREE.BoxGeometry(w,h,d), uv = geo.attributes.uv, dims = [[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];
+function p2Box(p, w,h,d, x,y,z, mat, tu=2, tv=2){ const geo = new THREE.BoxGeometry(w,h,d), uv = geo.attributes.uv, dims = [[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];
   for (let f=0; f<6; f++) for (let k=0;k<4;k++){ const i = f*4+k; uv.setXY(i, uv.getX(i)*dims[f][0]/tu, uv.getY(i)*dims[f][1]/tv); }
   const m = new THREE.Mesh(geo, mat); m.position.set(x,y,z); p.add(m); return m; }
 // a pipe from a to b (any direction); seg = radial segments
 function p2Pipe(p, ax,ay,az, bx2,by,bz, r, mat, seg=6){ const dx = bx2-ax, dy = by-ay, dz = bz-az, len = Math.hypot(dx,dy,dz); if (len < 0.02) return null;
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, seg, 1, false), mat); m.position.set((ax+bx2)/2, (ay+by)/2, (az+bz)/2);
+  const geo = new THREE.CylinderGeometry(r, r, len, seg, 1, false), uv = geo.attributes.uv; for (let k=0;k<uv.count;k++) uv.setY(k, uv.getY(k)*Math.max(1, len/0.9));   // the rust repeats along the pipe instead of stretching
+  const m = new THREE.Mesh(geo, mat); m.position.set((ax+bx2)/2, (ay+by)/2, (az+bz)/2);
   m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(dx/len, dy/len, dz/len)); p.add(m); return m; }
 
 let p2Bed = null, p2Seen = { pv:0, po:'', pc:0 };
@@ -1537,25 +1540,24 @@ function buildLevel2p(seed){
   const opens = (i,j) => nbr4.filter(([a,b])=>open(i,j,a,b));
   L.base = walls.slice();
   // ---- materials
-  const concM = lam(0xffffff,{ map:p2ConcTex }), brickM = lam(0xffffff,{ map:p2BrickTex }), floorM = lam(0xffffff,{ map:p2FloorTex }), ceilM = lam(0xffffff,{ map:p2CeilTex });
-  const PM = [lam(0x8a6a50,{ map:p2RustTex }), lam(0x4a4a46,{ map:p2RustTex }), lam(0xb8b098,{ map:p2RustTex }), lam(0x4a6050,{ map:p2RustTex }), lam(0xffffff,{ map:p2InsulTex }), lam(0x8a2a1c,{ map:p2RustTex }), lam(0xa06a3a,{ map:p2RustTex }), lam(0x1a1a18)];
-  const flangeM = lam(0x2e2c28), cableM = lam(0x121212), machM = [lam(0x6a6e5e,{ map:p2RustTex }), lam(0x7a7464,{ map:p2RustTex }), lam(0x4e5a5e,{ map:p2RustTex }), lam(0x8a7a50,{ map:p2RustTex })];
-  const darkM = lam(0x1a1916), hazM = lam(0xffffff,{ map:p2HazTex }), woodM = lam(0x6a4e2e,{ map:p2RustTex }), cardM = lam(0x8a7048), metalM = lam(0x5a5c58,{ map:p2RustTex });
+  const concM = lam(0xb4ab9a,{ map:p2ConcPh }), brickM = lam(0xa49484,{ map:p2BrickPh }), floorM = lam(0xb4b0a8,{ map:p2FloorPh }), crackM = lam(0xaaa498,{ map:p2CrackPh }), ceilM = lam(0xffffff,{ map:p2CeilTex });
+  const PM = [lam(0xffffff,{ map:p2RustPh }), lam(0x8a8682,{ map:p2RustPh }), lam(0xc8beb0,{ map:p2RustPh }), lam(0x9aa894,{ map:p2RustPh }), lam(0xffffff,{ map:p2InsulTex }), lam(0xc8705a,{ map:p2RustPh }), lam(0xd8b494,{ map:p2RustPh }), lam(0x1a1a18)];
+  const flangeM = lam(0x6a625a,{ map:p2RustPh }), cableM = lam(0x121212), machM = [lam(0x8a8e7e,{ map:p2RustPh }), lam(0x9a9484,{ map:p2RustPh }), lam(0x6e7a7e,{ map:p2RustPh }), lam(0xaa9a70,{ map:p2RustPh })];
+  const darkM = lam(0x1a1916), hazM = lam(0xffffff,{ map:p2HazTex }), woodM = lam(0x6a4e2e,{ map:p2RustTex }), cardM = lam(0x8a7048), metalM = lam(0x7a7c78,{ map:p2RustPh });
   const voidM = new THREE.MeshBasicMaterial({ color:0x000000 }), litR = new THREE.MeshBasicMaterial({ color:0xff2a10 }), litG = new THREE.MeshBasicMaterial({ color:0x30ff50 }), litA = new THREE.MeshBasicMaterial({ color:0xffa020 }), litOff = new THREE.MeshBasicMaterial({ color:0x2a1a10 });
   const doorMs = {}; const doorM = c => doorMs[c] || (doorMs[c] = lam(c, { map:p2DoorTex }));
-  const wallMOf = (i,j) => hh(i>>2, j>>2, 7) < 0.3 ? brickM : concM;
+  const wallMOf = (i,j) => hh(i>>2, j>>2, 7) < 0.42 ? brickM : concM;
   // ---- floors + ceilings
-  { const fl = [], cl = []; for (let i=0;i<N;i++) for (let j=0;j<N;j++){ fl.push([cc(i),0,cc(j)]); cl.push([cc(i),P2_CH,cc(j)]); }
+  { const fl = [], fc = [], cl = []; for (let i=0;i<N;i++) for (let j=0;j<N;j++){ (hh(i>>1, j>>1, 77) < 0.3 || hh(i, j, 78) < 0.12 ? fc : fl).push([cc(i),0,cc(j)]); cl.push([cc(i),P2_CH,cc(j)]); }   // worn concrete, cracked patches
     const inst = (geo, mat, list) => { const m = new THREE.InstancedMesh(geo, mat, list.length); list.forEach((p,k)=>{ tmpM.makeTranslation(p[0], p[1], p[2]); m.setMatrixAt(k, tmpM); }); m.frustumCulled = false; g.add(m); return m; };
-    inst(cellPlane(2,false), floorM, fl); inst(cellPlane(2,true), ceilM, cl);
-    const out = new THREE.Mesh(new THREE.PlaneGeometry(W+40, W+40), darkM); out.rotation.x = -Math.PI/2; out.position.set(W/2, -0.01, W/2); g.add(out); }
+    inst(cellPlane(2,false), floorM, fl); if (fc.length) inst(cellPlane(2,false), crackM, fc); inst(cellPlane(2,true), ceilM, cl); }   // v0.35.1: no big plane under the level any more (it z-fought with the floor = the floor glitching)
   // ---- tunnels: concrete/brick blocks on the closed sides, corner blocks, 45° chamfers on the bends
   const corr = [];
   for (let i=0;i<N;i++) for (let j=0;j<N;j++){ if (!isCorr(i,j)) continue; const x0 = i*CS, z0 = j*CS, cx = cc(i), cz = cc(j), wm = wallMOf(i,j), op = opens(i,j);
     const cl = { i, j, cx, cz, op, closed: nbr4.filter(([a,b])=>!open(i,j,a,b)), ch:null }; corr.push(cl);
     for (const [a,b] of cl.closed){ if (a) { p2Box(g, P2_IN, P2_CH, CS, cx + a*(CS/2 - P2_IN/2), P2_CH/2, cz, wm); slab(cx + a*(CS/2 - P2_COL), cx + a*CS/2, z0, z0+CS); }
       else { p2Box(g, CS, P2_CH, P2_IN, cx, P2_CH/2, cz + b*(CS/2 - P2_IN/2), wm); slab(x0, x0+CS, cz + b*(CS/2 - P2_COL), cz + b*CS/2); } }
-    for (const sa of [-1,1]) for (const sb of [-1,1]){ const cov = cl.closed.some(([a,b])=>a === sa || b === sb); if (!cov) p2Box(g, P2_IN, P2_CH, P2_IN, cx + sa*(CS/2 - P2_IN/2), P2_CH/2, cz + sb*(CS/2 - P2_IN/2), wm, 1);
+    for (const sa of [-1,1]) for (const sb of [-1,1]){ const cov = cl.closed.some(([a,b])=>a === sa || b === sb); if (!cov) p2Box(g, P2_IN, P2_CH, P2_IN, cx + sa*(CS/2 - P2_IN/2), P2_CH/2, cz + sb*(CS/2 - P2_IN/2), wm);
       slab(cx + sa*(CS/2 - P2_COL), cx + sa*CS/2, cz + sb*(CS/2 - P2_COL), cz + sb*CS/2); }
     // a bend (two open sides at 90°): cut the outer corner at 45°
     if (op.length === 2 && op[0][0] !== -op[1][0] && op[0][1] !== -op[1][1] && rng() < 0.85){ const [c1, c2] = cl.closed, ox = cx + (c1[0]+c2[0])*(CS/2 - P2_IN), oz = cz + (c1[1]+c2[1])*(CS/2 - P2_IN), cut = 1.35;
@@ -1748,10 +1750,10 @@ function buildLevel2p(seed){
     else if (q < 0.6){ const l = grp(x, z, Math.atan2(-a, -b)); for (const s of [-0.25, 0.25]){ const rl = bx(l, 0.05, 2.2, 0.05, s, 1.05, 0.25, metalM); rl.rotation.x = -0.22; } for (let k=0;k<5;k++) bx(l, 0.5, 0.04, 0.12, 0, 0.3 + k*0.4, 0.15 - k*0.08, metalM); C(x, z, 0.35); }
     else if (q < 0.8){ const t = grp(x, z, Math.atan2(-a, -b) + (rng()-0.5)*0.4); bx(t, 0.55, 0.22, 0.25, 0, 0.11, 0, PM[5]); bx(t, 0.3, 0.04, 0.04, 0, 0.26, 0, darkM); crate(x + (b ? 0.6 : 0), 0, z + (a ? 0.6 : 0), 0.6, rng()); C(x, z, 0.4); }
     else { const tr = grp(x, z, Math.atan2(-a, -b) + Math.PI/2); bx(tr, 1.2, 0.07, 0.65, 0, 0.28, 0, metalM); bx(tr, 0.05, 0.8, 0.65, 0.6, 0.68, 0, metalM); bx(tr, 0.6, 0.4, 0.45, -0.15, 0.52, 0, machM[0]); C(x, z, 0.6); } }
-  { const pm = lam(0xc8c0a8, { side:THREE.DoubleSide }), gm = lam(0x8a9a98, { side:THREE.DoubleSide });
+  { const dec = { side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-4 }, pm = lam(0xc8c0a8, dec), gm = lam(0x8a9a98, dec);
     for (let k=0;k<160;k++){ const c = corr[Math.floor(rng()*corr.length)], x = c.cx + (rng()-0.5)*1.6, z = c.cz + (rng()-0.5)*1.6, p = new THREE.Mesh(new THREE.PlaneGeometry(0.2 + rng()*0.15, 0.28), k % 4 ? pm : gm); p.rotation.set(-Math.PI/2, 0, rng()*6); p.position.set(x, 0.012 + k*0.00002, z); g.add(p); }
     // puddles of something dark under leaky pipes
-    const wm = new THREE.MeshLambertMaterial({ color:0x0a0806, transparent:true, opacity:0.7, depthWrite:false });
+    const wm = new THREE.MeshLambertMaterial({ color:0x0a0806, transparent:true, opacity:0.7, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-3, polygonOffsetUnits:-6 });
     for (let k=0;k<26;k++){ const c = corr[Math.floor(rng()*corr.length)], p = new THREE.Mesh(new THREE.CircleGeometry(0.3 + rng()*0.6, 9), wm); p.rotation.x = -Math.PI/2; p.scale.y = 0.6 + rng()*0.4; p.position.set(c.cx + (rng()-0.5)*1.2, 0.014, c.cz + (rng()-0.5)*1.2); g.add(p); L.wet.push({ x:p.position.x, z:p.position.z, r:0.6 }); } }
   // ---- lights: fluorescent tubes wired in series, in blocks of 4×4 cells (a dead block = a dark stretch); white or orange; some rows knocked askew
   { const circ = (i,j) => Math.floor(i/4)*8 + Math.floor(j/4), deadC = new Set(), colC = {};
