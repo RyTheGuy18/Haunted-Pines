@@ -488,7 +488,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.78.4</div>
+<div class="osd" id="ver">v0.78.5</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -4442,9 +4442,11 @@ function wardGunTick(dt){
    unit ≈ 0.109 m (`unit`), barrel along +z (`fwd` 1), top +y; `muzzle` / `lens` (the Olight's glass) in model units; `slide` / `mag` =
    mesh names that move (slide back on each shot and locked back when empty, mag drops out / slides in on a reload).
    Tune live with __hp.WARD_GUN + __hp.wardGunPlace(true). Ryan will re-pose the arm round the gun in Blender (starter file
-   tools/fp-arm-gun-blender.glb, v0.78.4: camera `view` at the origin looking down −z = the game camera, `arm` + `gun_ref` (the pistol) exactly
-   where the game draws them at the hip, `ads_preview` = where the pistol goes when aimed, reference only) and send back `arm` + `gun_ref` →
-   WARD_ASSETS.model.armGun; then that arm replaces the flashlight arm here (and stays visible while aiming). */
+   tools/fp-arm-gun-blender.glb, v0.78.5: camera `view` at the origin looking down −z = the game camera; `arm` = the RIGGED two-arm model
+   (fp-arms-rigged.glb, flashlight pose) where the game draws it at the hip, round `gun_ref` (the pistol); `arm_ads` = a second copy of the rig
+   round `ads_ref` (the pistol where it goes when aimed: sights on the eye line)) and send back the whole file → WARD_ASSETS.model.armGun.
+   `arm` replaces the flashlight arm at the hip; `arm_ads` (if there) takes over once you're more than halfway into aiming. Rigs are baked
+   in whatever pose they're in when exported (wgBakeArm). */
 // v0.78.4 AIM DOWN SIGHTS (hold right click / touch AIM): `sight` = the top of the rear sight (model units); aimed, it sits `adsD` m in front
 // of your eye, `adsY` m off the centre line, with the front post on the crosshair. `adsFov` = FOV multiplier aimed, `hip` = hip-fire spread (rad).
 const WARD_ADS = { inT:0.17, outT:0.13, fov:0.7, sens:0.6, walk:1.7, hip:0.028, hipMove:0.02 };
@@ -4478,15 +4480,24 @@ function wardGunPlace(force){
   VM.add(g); WG.g = g; WG.inner = inner; WG.flash = fx; WG.lens = lens; WG.forHand = hand; g.visible = false;
   if (VM.userData.handMats) VM.userData.handMats.push(...mats);
   // Ryan's own arm posed round the gun (later): put it so its gun_ref lands exactly on this gun
-  WG.arm = null;
-  if (WG.armSrc){ const ref = WG.armSrc.getObjectByName('gun_ref'), am = WG.armSrc.getObjectByName('arm');
-    if (ref && am){ g.updateMatrix(); inner.updateMatrix(); const M = g.matrix.clone().multiply(inner.matrix).multiply(ref.matrixWorld.clone().invert()).multiply(am.matrixWorld);
-      const A = am.clone(); A.matrixAutoUpdate = true; M.decompose(A.position, A.quaternion, A.scale); A.traverse(o=>{ if (o.isMesh){ o.material = o.material.clone(); o.material.emissiveMap = o.material.map; o.material.emissive = new THREE.Color(0,0,0); VM.userData.handMats && VM.userData.handMats.push(o.material); } });
-      A.visible = false; VM.add(A); WG.arm = A; } }
+  WG.arm = null; WG.armAds = null;
+  // v0.78.5: `arm` (at the hip, round `gun_ref`) and optional `arm_ads` (aimed, round `ads_ref`), each may be a posed rig (both arms,
+  // armature + skinned mesh straight out of Blender): every mesh under the node is baked in its current pose, then placed so the ref lands on the gun
+  if (WG.armSrc){ g.updateMatrix(); inner.updateMatrix(); const GM = g.matrix.clone().multiply(inner.matrix);
+    for (const [key, an, rn] of [['arm', 'arm', 'gun_ref'], ['armAds', 'arm_ads', 'ads_ref']]){ const A = wgBakeArm(WG.armSrc, an, rn, GM); if (A){ A.visible = false; VM.add(A); WG[key] = A; } } }
   return true; }
+function wgBakeArm(src, an, rn, GM){ const ref = src.getObjectByName(rn), am = src.getObjectByName(an); if (!ref || !am) return null;
+  src.updateMatrixWorld(true); const A = new THREE.Group(), v = new THREE.Vector3();
+  am.traverse(o=>{ if (!o.isMesh || o.visible === false) return; const geo = o.geometry.clone();
+    if (o.isSkinnedMesh){ o.skeleton.update(); const p = geo.attributes.position; for (let i=0;i<p.count;i++){ v.fromBufferAttribute(p, i); o.applyBoneTransform(i, v); p.setXYZ(i, v.x, v.y, v.z); } geo.deleteAttribute('skinIndex'); geo.deleteAttribute('skinWeight'); }
+    geo.applyMatrix4(o.matrixWorld); if (o.isSkinnedMesh) geo.computeVertexNormals();
+    const m = (Array.isArray(o.material) ? o.material[0] : o.material).clone(); m.emissiveMap = m.map; m.emissive = new THREE.Color(0, 0, 0); VM.userData.handMats && VM.userData.handMats.push(m);
+    const q = new THREE.Mesh(geo, m); q.frustumCulled = false; A.add(q); });
+  if (!A.children.length) return null;
+  GM.clone().multiply(ref.matrixWorld.clone().invert()).decompose(A.position, A.quaternion, A.scale); return A; }
 const wardRealGun = () => !!(WG.g && WG.forHand === VM.userData.hand);
 // leaving the ward: the flashlight + its arm come back
-function wardGunOff(){ WARD.adsK = 0; WARD.aimTouch = false; { const cr = $('cross'); if (cr) cr.style.opacity = ''; } if (VM.userData.hand && !WG.arm) VM.userData.hand.visible = true; if (WG.g) WG.g.visible = false; const fl = VM.userData.fl; if (fl) fl.visible = true; if (WG.arm){ WG.arm.visible = false; if (VM.userData.hand) VM.userData.hand.visible = true; } }
+function wardGunOff(){ WARD.adsK = 0; WARD.aimTouch = false; { const cr = $('cross'); if (cr) cr.style.opacity = ''; } if (VM.userData.hand && !WG.arm) VM.userData.hand.visible = true; if (WG.g) WG.g.visible = false; const fl = VM.userData.fl; if (fl) fl.visible = true; if (WG.arm){ WG.arm.visible = false; if (VM.userData.hand) VM.userData.hand.visible = true; } if (WG.armAds) WG.armAds.visible = false; }
 function wardVMTick(dt){
   const V = wardBuildVM(), G0 = WARD.gun, show = wardOn() && mode === 'play' && role === 'survivor' && me.alive && me.hidden < 0 && G0;
   const real = wardGunPlace();
@@ -4497,7 +4508,7 @@ function wardVMTick(dt){
   WARD.kick = Math.max(0, WARD.kick - dt*5.5); const k = WARD.kick*WARD.kick*(3 - 2*WARD.kick);
   WARD.flashT -= dt;
   if (real){ V.g.visible = false;
-    WG.g.visible = !!show; if (VM.userData.fl) VM.userData.fl.visible = !show; if (WG.arm){ WG.arm.visible = !!show; VM.userData.hand.visible = !show; }
+    WG.g.visible = !!show; if (VM.userData.fl) VM.userData.fl.visible = !show; if (WG.arm){ const ad = !!WG.armAds && (WARD.adsK || 0) > 0.5; WG.arm.visible = !!show && !ad; if (WG.armAds) WG.armAds.visible = !!show && ad; VM.userData.hand.visible = !show; }
     if (!show) return;
     const st = G0.st, t = G0.t, rl = st === 'out' ? Math.min(1, t/0.3) : st === 'in' ? 1 - clamp((t - WARD_MAGIN*0.75)/(WARD_MAGIN*0.25), 0, 1)*(G0.lock ? 0.4 : 1) : st === 'rack' ? 0.6*(1 - Math.min(1, t/WARD_RACK)) : 0, rs = rl*rl*(3 - 2*rl);
     const seat = st === 'in' ? Math.max(0, Math.sin(clamp((t - WARD_MAGIN*0.6)/(WARD_MAGIN*0.2), 0, 1)*Math.PI))*0.025 : 0;   // palming the mag home = a little jolt
