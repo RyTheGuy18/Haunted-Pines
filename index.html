@@ -488,7 +488,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.78.5</div>
+<div class="osd" id="ver">v0.78.6</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -4183,7 +4183,7 @@ const WARD_ASSETS = {
   // walker = the melty zombie, crawler = melty zombie 2, runner = the necromorph slasher. Until Ryan's own animations arrive they're
   // posed in code (wiRig/wiPose: bones turned in model space, works on both rigs). Clips named Walk / Run / Crawl / Stagger / Grab / Die
   // in a file are used instead when present. armGun: Ryan's Blender export of the first-person arm round the pistol (nodes `arm` + `gun_ref`).
-  model: { gun:'models/ward-pistol.glb', walker:'models/ward-zombie.glb', runner:'models/ward-slasher.glb', crawler:'models/ward-zombie2.glb', armGun:null }
+  model: { gun:'models/ward-pistol.glb', walker:'models/ward-zombie.glb', runner:'models/ward-slasher.glb', crawler:'models/ward-zombie2.glb', armGun:'models/ward-arm-gun.glb' }
 };
 const WARD_N = 12, WARD_H = 3.0, WARD_T = 300, WARD_OPEN = 20, WARD_CLOSE = 4.2, WARD_ALLDOORS = 270, WARD_ECHO = 1;
 const WARD_MAG = 17, WARD_START = [17, 34], WARD_SPARE_MAX = 68, WARD_AMMO_GIVE = 17, WARD_AMMO_T = 1.4, WARD_FREE_T = 1.0;
@@ -4458,7 +4458,10 @@ function wgLocal(inner, node, v){ inner.updateMatrixWorld(true); const R = new T
   const a = new THREE.Vector3(0, 0, 0).applyMatrix4(R), b = new THREE.Vector3(...v).applyMatrix4(R); return b.sub(a); }
 const wgMat = gl => gl.scene.traverse(o=>{ if (o.isMesh){ const mp = o.material && o.material.map; if (mp){ mp.magFilter = THREE.NearestFilter; mp.colorSpace = THREE.SRGBColorSpace; } o.material = lam(0xffffff, { map:mp || null, side:THREE.DoubleSide }); o.frustumCulled = false; } });
 if (WARD_ASSETS.model.gun) new GLTFLoader().load(WARD_ASSETS.model.gun, gl=>{ wgMat(gl); WG.src = gl.scene; }, undefined, e=>console.warn('gun model failed', e));
-if (WARD_ASSETS.model.armGun) new GLTFLoader().load(WARD_ASSETS.model.armGun, gl=>{ wgMat(gl); gl.scene.updateMatrixWorld(true); WG.armSrc = gl.scene; WG.forHand = null; }, undefined, e=>console.warn('arm + gun model failed', e));
+if (WARD_ASSETS.model.armGun) new GLTFLoader().load(WARD_ASSETS.model.armGun, gl=>{ wgMat(gl); gl.scene.updateMatrixWorld(true); WG.armSrc = gl.scene; WG.forHand = null;
+  // v0.78.6: Ryan placed the pistol himself in his export → its spot in front of `view` (the game camera) is where the game draws it
+  const vw = gl.scene.getObjectByName('view'), gr = gl.scene.getObjectByName('gun_ref'), ar = gl.scene.getObjectByName('ads_ref');
+  if (vw && gr && ar){ const iv = vw.matrixWorld.clone().invert(); WG.camHip = iv.clone().multiply(gr.matrixWorld); WG.camAds = iv.clone().multiply(ar.matrixWorld); } }, undefined, e=>console.warn('arm + gun model failed', e));
 function wardGunPlace(force){
   const fl = VM.userData.fl, hand = VM.userData.hand; if (!WG.src || !fl || !hand) return false;
   if (WG.g && WG.forHand === hand && !force) return true;
@@ -4762,7 +4765,18 @@ function wardRemoteShot(x, z){ wardSnd('shotFar', x, z, 0.9); const fl = level &
 // camera kick + roll on top of the normal camera (called from placeCamera)
 // v0.78.4: blend the whole arm (VM) to where the pistol's sights line up with your eye
 const _aM1 = new THREE.Matrix4(), _aM2 = new THREE.Matrix4(), _aM3 = new THREE.Matrix4(), _aV = new THREE.Vector3(), _aS = new THREE.Vector3(), _aP = new THREE.Vector3(), _aQ = new THREE.Quaternion(), _aQ2 = new THREE.Quaternion();
-function wardAdsPose(k){ const a = WARD.adsK || 0; if (a <= 0.001 || !WG.g || !WG.inner){ if (VM.userData.hand && !WG.arm) VM.userData.hand.visible = true; return; } const e = a*a*(3 - 2*a), W = WARD_GUN, R = W.sight;
+const VM_REST = new THREE.Vector3(0.28, -0.3, -0.5), _aM4 = new THREE.Matrix4(), _aM5 = new THREE.Matrix4(), _aP2 = new THREE.Vector3(), _aQ3 = new THREE.Quaternion(), _aS2 = new THREE.Vector3();
+function wardAdsPose(k){ const a = WARD.adsK || 0;
+  if (WG.camHip && WG.camAds && WG.g && WG.inner && WG.arm){   // Ryan's own hip + aimed placement (v0.78.6)
+    const e = a*a*(3 - 2*a); WG.g.updateMatrix(); WG.inner.updateMatrix(); VM.updateMatrix();
+    const GIi = _aM1.multiplyMatrices(WG.g.matrix, WG.inner.matrix).invert();
+    // hip: keep the bob / recoil / reload offsets the frame put on VM (its offset from the rest pose), on top of Ryan's spot
+    const delta = _aM4.compose(VM_REST, _aQ3.identity(), VM.scale).invert().premultiply(VM.matrix);
+    _aM5.multiplyMatrices(delta, WG.camHip).multiply(GIi).decompose(_aP2, _aQ3, _aS2);
+    _aM2.makeTranslation(0, -k*k*0.006, k*k*0.03).multiply(WG.camAds).multiply(GIi).decompose(_aP, _aQ, _aS);
+    _aQ2.setFromAxisAngle(_aV.set(1, 0, 0), k*k*0.09); _aQ.multiply(_aQ2);
+    VM.position.copy(_aP2).lerp(_aP, e); VM.quaternion.copy(_aQ3).slerp(_aQ, e); return; }
+  if (a <= 0.001 || !WG.g || !WG.inner){ if (VM.userData.hand && !WG.arm) VM.userData.hand.visible = true; return; } const e = a*a*(3 - 2*a), W = WARD_GUN, R = W.sight;
   WG.g.updateMatrix(); WG.inner.updateMatrix(); VM.updateMatrix();
   const GI = _aM1.multiplyMatrices(WG.g.matrix, WG.inner.matrix), s = _aV.setFromMatrixColumn(_aM2.multiplyMatrices(VM.matrix, GI), 0).length();
   _aQ.setFromAxisAngle(_aV.set(0, 1, 0), W.fwd > 0 ? Math.PI : 0);   // model forward → straight ahead (−z), top up
