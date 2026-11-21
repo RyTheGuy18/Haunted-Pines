@@ -488,7 +488,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.78.2</div>
+<div class="osd" id="ver">v0.78.3</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -4148,8 +4148,9 @@ function hostCreaker(dt, alive){
    A HOLDOUT, not sneak-and-escape (inspired by the Level 3 Electrical Station pitch + Bodycam's zombie-mode hallway): an asylum isolation
    ward = ONE long straight hallway (hall column i 1, rows j 2..11) with padded isolation cells on both sides (i 0 / i 2), a lobby across
    row j 1 and a freight elevator behind it (cell (1,0)). The same map every time (WARD_N 12 grid, most of it solid).
-   You get a REVOLVER that barely does anything (6 shots, slow single-action re-cock, one shell at a time reloads; a hit only staggers an
-   inmate, 3 hits drop a walker) and hold the lobby with your back to the elevator while it crawls down (WARD_T 300 s, floor 8 → 1).
+   You get a 9 mm PISTOL with a weapon light under it (v0.78.3, Ryan: replaced the revolver; 17-round mags, semi-auto, a body hit only
+   staggers an inmate, 3 drop a walker, a headshot drops most). The light under the barrel is your ONLY flashlight here (F / LIGHT):
+   a narrow, short beam (WARD_LIGHT) — enough to see what's coming, not much else. No battery drain on this level. and hold the lobby with your back to the elevator while it crawls down (WARD_T 300 s, floor 8 → 1).
    WAVES (WARD_WAVES): cell doors bang, then burst open, from the FAR end toward you; reasonable at first, then more and more until the
    hallway fills. At WARD_ALLDOORS every closed door bangs open at once. Inmates (host hostWard, everyone draws G.wi):
    walker (shuffles), runner (sprints, under your sprint), crawler (low, drags itself). CONTACT = GRABBED (G.wg[pid] = [inmate id, s left]):
@@ -4167,18 +4168,23 @@ const WARD_ASSETS = {
   nor: { wall:null, floor:null, ceil:null, pad:null },
   // sounds (mp3/wav/ogg). Synthesised placeholders play when null. Gun sounds are played dry; the hallway echo is added on top
   // (set WARD_ECHO = 0 if your recording already has its own tail).
-  sfx: { shot:null, shotFar:null, cock:null, cylOpen:null, eject:null, shell:null, cylClose:null, dry:null, ammo:null,
+  // pistol: shot (yours), shotFar (a teammate's), slide (racked after a mag change on an empty gun), magOut (mag release), magDrop (the
+  // empty mag hitting the floor), magIn (new mag clicked in), slideRel (slide slamming forward), dry (empty click), light (weapon light click)
+  sfx: { shot:null, shotFar:null, slide:null, magOut:null, magDrop:null, magIn:null, slideRel:null, dry:null, light:null, ammo:null,
          groan:null, scream:null, grab:null, kill:null, doorBang:null, doorOpen:null, ding:null, elevOpen:null, elevClose:null, ringing:null },
-  // models (.glb). revolver: points down −z, grip down, ~0.3 m long, optional nodes 'hammer' (pivots back on +x) and 'cylinder'.
+  // models (.glb). gun: the pistol (G17 + Olight, see WARD_GUN for its units / axes / named slide + mag meshes).
   // walker / runner / crawler: feet at 0, faces +z, any height (scaled to WI_H). v0.78.2 = Ryan's three zombies, their own clips stripped:
   // walker = the melty zombie, crawler = melty zombie 2, runner = the necromorph slasher. Until Ryan's own animations arrive they're
   // posed in code (wiRig/wiPose: bones turned in model space, works on both rigs). Clips named Walk / Run / Crawl / Stagger / Grab / Die
-  // in a file are used instead when present. armGun: Ryan's Blender export of the first-person arm round the revolver (nodes `arm` + `gun_ref`).
-  model: { revolver:'models/ward-revolver.glb', walker:'models/ward-zombie.glb', runner:'models/ward-slasher.glb', crawler:'models/ward-zombie2.glb', armGun:null }
+  // in a file are used instead when present. armGun: Ryan's Blender export of the first-person arm round the pistol (nodes `arm` + `gun_ref`).
+  model: { gun:'models/ward-pistol.glb', walker:'models/ward-zombie.glb', runner:'models/ward-slasher.glb', crawler:'models/ward-zombie2.glb', armGun:null }
 };
 const WARD_N = 12, WARD_H = 3.0, WARD_T = 300, WARD_OPEN = 20, WARD_CLOSE = 4.2, WARD_ALLDOORS = 270, WARD_ECHO = 1;
-const WARD_START = [6, 12], WARD_SPARE_MAX = 30, WARD_AMMO_GIVE = 12, WARD_AMMO_T = 1.4, WARD_FREE_T = 1.0;
-const WARD_COCK = 0.62, WARD_OPEN_T = 0.5, WARD_SHELL_T = 0.48, WARD_CLOSE_T = 0.4;   // the revolver's slowness
+const WARD_MAG = 17, WARD_START = [17, 34], WARD_SPARE_MAX = 68, WARD_AMMO_GIVE = 17, WARD_AMMO_T = 1.4, WARD_FREE_T = 1.0;
+const WARD_CYCLE = 0.2, WARD_MAGOUT = 0.55, WARD_MAGIN = 0.75, WARD_RACK = 0.35;   // semi-auto: one shot per click, a mag change ~1.3 s (+ slide if empty)
+// the weapon light: angle (rad, half-cone), reach (m), strength (× a normal flashlight), soft edge
+const WARD_LIGHT = { angle:0.2, dist:15, i:0.5, pen:0.75 };
+const WARD_LIT = 0.42, WARD_LIT_LOBBY = 0.55;   // v0.78.3 (Ryan: very, very dark): hallway tubes ×0.42 (and every other one dead), the lobby ×0.55
 const WARD_GRAB = [7, 6, 5, 4];   // seconds you last once grabbed, by difficulty
 const WARD_CAP = [32, 38, 44, 48];   // most inmates alive at once
 // inmate types: speed m/s, hp, body height, radius
@@ -4353,11 +4359,11 @@ function buildLevelWard(seed){
   WARD.seen = { t:-1, wave:-1, we:-1, floor:-1, all:0 };
 }
 
-/* ======== the revolver (client-side: your own gun, ammo and timing; hits go to the host) ======== */
+/* ======== the pistol (client-side: your own gun, ammo and timing; hits go to the host) ======== */
 let scareWi = false, WIJ = null;
 const WARD = { seen:{}, key:'', gun:null, vm:null, kick:0, roll:0, flashT:0, ringG:null, muff:null, buf:{}, bufTried:false, hum:null, iv:new Map(), holes:[], dust:[], grabSeen:0, groanT:2, freeHold:null };
-function wardGunReset(){ WARD.gun = { loaded:WARD_START[0], spare:WARD_START[1], cocked:true, st:'ready', t:0, wantStop:false, drum:0 }; }
-// the first-person revolver (placeholder, built in code; WARD_ASSETS.model.revolver swaps the body)
+function wardGunReset(){ WARD.gun = { loaded:WARD_START[0], spare:WARD_START[1], st:'ready', t:0, lock:false }; }
+// the first-person box gun (stand-in until WARD_ASSETS.model.gun has loaded)
 function wardBuildVM(){
   if (WARD.vm) return WARD.vm;
   const g = new THREE.Group(), steel = new THREE.MeshLambertMaterial({ color:0x34363a, emissive:0x0a0a0c }), dark = new THREE.MeshLambertMaterial({ color:0x18181a, emissive:0x050505 }), wood = new THREE.MeshLambertMaterial({ color:0x4a2e1a, emissive:0x0a0604 }), glove = new THREE.MeshLambertMaterial({ color:0x141414, emissive:0x040404 });
@@ -4388,12 +4394,10 @@ function wardBuildVM(){
 function wardFire(){
   if (!wardOn() || role !== 'survivor' || !me.alive || me.hidden >= 0 || mode !== 'play') return;
   const G0 = WARD.gun; if (!G0) return;
-  if (G0.st === 'open' || G0.st === 'insert'){ G0.wantStop = true; return; }   // stop reloading: close up first
-  if (G0.st !== 'ready' || !G0.cocked) return;
-  G0.cocked = false; G0.st = 'cock'; G0.t = 0;
-  if (G0.loaded <= 0){ wardSnd('dry'); msg('Empty. R to reload.', 1.4); return; }
-  G0.loaded--; WARD.kick = 1; WARD.roll = (Math.random() - 0.5)*0.05; WARD.flashT = 0.06; me.pitch = Math.min(1.35, me.pitch + 0.035 + Math.random()*0.012); me.yaw += (Math.random() - 0.5)*0.012; me.loudT = Math.max(me.loudT, 1.5);
-  wardSnd('shot'); wardEars(); vibrate(40);
+  if (G0.st !== 'ready') return;   // mid-shot or mid-mag-change
+  if (G0.loaded <= 0){ G0.st = 'cycle'; G0.t = WARD_CYCLE*0.4; wardSnd('dry'); msg('Empty. R to reload.', 1.4); return; }
+  G0.st = 'cycle'; G0.t = 0; G0.loaded--; if (G0.loaded === 0) G0.lock = true;   // the slide locks back on the last round WARD.kick = 1; WARD.roll = (Math.random() - 0.5)*0.05; WARD.flashT = 0.06; me.pitch = Math.min(1.35, me.pitch + 0.035 + Math.random()*0.012); me.yaw += (Math.random() - 0.5)*0.012; me.loudT = Math.max(me.loudT, 1.5);
+  wardSnd('shot'); wardSnd('brass'); wardEars(); vibrate(40);
   safe(()=>useReq({ k:'wshot', x:+me.x.toFixed(1), z:+me.z.toFixed(1) }));
   // the ray: from the eye along the view, hit the nearest inmate in front of the first wall
   const o = camera.getWorldPosition(new THREE.Vector3()), d = camera.getWorldDirection(new THREE.Vector3());
@@ -4410,43 +4414,54 @@ function wardFire(){
 }
 function wardReload(){
   const G0 = WARD.gun; if (!wardOn() || !G0 || !me.alive || role !== 'survivor') return;
-  if (G0.st !== 'ready' && G0.st !== 'cock') return; if (G0.loaded >= 6){ msg('Already full.', 1); return; } if (G0.spare <= 0){ msg('No spare rounds. The nurses\' station has boxes of them.', 2.5); return; }
-  G0.st = 'open'; G0.t = 0; G0.wantStop = false; wardSnd('cylOpen'); }
+  if (G0.st !== 'ready' && G0.st !== 'cycle') return; if (G0.loaded >= WARD_MAG){ msg('Already full.', 1); return; } if (G0.spare <= 0){ msg('No spare mags. The nurses\' station has boxes of rounds.', 2.5); return; }
+  G0.st = 'out'; G0.t = 0; wardSnd('magOut'); }
 function wardGunTick(dt){
   const G0 = WARD.gun; if (!G0) return; G0.t += dt;
-  if (G0.st === 'cock' && G0.t >= WARD_COCK){ G0.st = 'ready'; G0.cocked = true; G0.drum = (G0.drum + 1) % 6; wardSnd('cock'); }
-  else if (G0.st === 'open' && G0.t >= WARD_OPEN_T){ G0.st = 'insert'; G0.t = 0; wardSnd('eject'); }
-  else if (G0.st === 'insert' && G0.t >= WARD_SHELL_T){ G0.t = 0;
-    if (G0.wantStop || G0.loaded >= 6 || G0.spare <= 0){ G0.st = 'close'; wardSnd('cylClose'); }
-    else { G0.loaded++; G0.spare--; wardSnd('shell'); } }
-  else if (G0.st === 'close' && G0.t >= WARD_CLOSE_T){ G0.st = 'cock'; G0.t = WARD_COCK*0.35; G0.cocked = false; }
+  if (G0.st === 'cycle' && G0.t >= WARD_CYCLE){ G0.st = 'ready'; G0.t = 0; }
+  else if (G0.st === 'out' && G0.t >= WARD_MAGOUT){ G0.st = 'in'; G0.t = 0; wardSnd('magDrop'); }
+  else if (G0.st === 'in' && G0.t >= WARD_MAGIN){ G0.t = 0;   // the rounds left in the old mag go back in your pockets
+    const tot = G0.loaded + G0.spare; G0.loaded = Math.min(WARD_MAG, tot); G0.spare = tot - G0.loaded; wardSnd('magIn');
+    if (G0.lock) G0.st = 'rack'; else G0.st = 'ready'; }
+  else if (G0.st === 'rack' && G0.t >= WARD_RACK){ G0.st = 'ready'; G0.t = 0; G0.lock = false; wardSnd('slideRel'); }
 }
 // view model pose: recoil, hammer, the drum swinging out, the shell going in
-/* v0.78.2 (Ryan): the revolver in the SAME first-person arm as the flashlight (VM / models/fp-arm.glb). The gun sits where the
+/* v0.78.2 (Ryan): the gun in the SAME first-person arm as the flashlight (VM / models/fp-arm.glb). The gun sits where the
    flashlight was (the flashlight itself is hidden on this level, its light still comes from the hand): WARD_GUN.anchor = the point on the
-   grip (revolver mm, barrel −z, top +y) that lands at WARD_GUN.at in the flashlight's frame (m, +x = forward), plus an extra turn rot (deg).
+   grip (model units, see below) that lands at WARD_GUN.at in the flashlight's frame (m, +x = forward), plus an extra turn rot (deg).
+   v0.78.3 the pistol (models/ward-pistol.glb = "G17 Gen 5 handgun + Olight" from Ryan, spare mags dropped, 152 MB → 1.1 MB): 1 model
+   unit ≈ 0.109 m (`unit`), barrel along +z (`fwd` 1), top +y; `muzzle` / `lens` (the Olight's glass) in model units; `slide` / `mag` =
+   mesh names that move (slide back on each shot and locked back when empty, mag drops out / slides in on a reload).
    Tune live with __hp.WARD_GUN + __hp.wardGunPlace(true). Ryan will re-pose the arm round the gun in Blender (starter file
    tools/fp-arm-gun-blender.glb) and send back `arm` + `gun_ref` → WARD_ASSETS.model.armGun; then that arm replaces the flashlight arm here. */
-const WARD_GUN = { anchor:[0, -42, 78], at:[-0.012, -0.01, 0], rot:[0, 0, 0], s:1, muzzle:[0, 9, -140] };
-const WG = { src:null, g:null, inner:null, flash:null, forHand:null, arm:null, armSrc:null, off:{ px:0, py:0, pz:0, rx:0, ry:0, rz:0 } };
+const WARD_GUN = { unit:0.109, fwd:1, anchor:[0, 0.66, -0.5], at:[-0.012, -0.01, 0], rot:[0, 0, 0], s:1, muzzle:[0, 1.04, 0.9], lens:[0, 0.74, 0.97],
+  slide:'g17_gen5_g17_gen5_slide_0', slideBack:0.24, mag:'mag_full_g17_gen5_mag_fde_0' };
+const WG = { src:null, g:null, inner:null, flash:null, lens:null, slide:null, mag:null, forHand:null, arm:null, armSrc:null, off:{ px:0, py:0, pz:0, rx:0, ry:0, rz:0 } };
+// a displacement given in the gun's model units (inner-local) → the same move in a mesh's own parent space
+function wgLocal(inner, node, v){ inner.updateMatrixWorld(true); const R = new THREE.Matrix4().copy(inner.matrixWorld).invert().multiply(node.parent.matrixWorld).invert();
+  const a = new THREE.Vector3(0, 0, 0).applyMatrix4(R), b = new THREE.Vector3(...v).applyMatrix4(R); return b.sub(a); }
 const wgMat = gl => gl.scene.traverse(o=>{ if (o.isMesh){ const mp = o.material && o.material.map; if (mp){ mp.magFilter = THREE.NearestFilter; mp.colorSpace = THREE.SRGBColorSpace; } o.material = lam(0xffffff, { map:mp || null, side:THREE.DoubleSide }); o.frustumCulled = false; } });
-if (WARD_ASSETS.model.revolver) new GLTFLoader().load(WARD_ASSETS.model.revolver, gl=>{ wgMat(gl); WG.src = gl.scene; }, undefined, e=>console.warn('revolver model failed', e));
+if (WARD_ASSETS.model.gun) new GLTFLoader().load(WARD_ASSETS.model.gun, gl=>{ wgMat(gl); WG.src = gl.scene; }, undefined, e=>console.warn('gun model failed', e));
 if (WARD_ASSETS.model.armGun) new GLTFLoader().load(WARD_ASSETS.model.armGun, gl=>{ wgMat(gl); gl.scene.updateMatrixWorld(true); WG.armSrc = gl.scene; WG.forHand = null; }, undefined, e=>console.warn('arm + gun model failed', e));
 function wardGunPlace(force){
   const fl = VM.userData.fl, hand = VM.userData.hand; if (!WG.src || !fl || !hand) return false;
   if (WG.g && WG.forHand === hand && !force) return true;
   for (const o of [WG.g, WG.arm]) if (o && o.parent) o.parent.remove(o);
   const W = WARD_GUN, g = new THREE.Group(); g.position.copy(fl.position); g.quaternion.copy(fl.quaternion);
-  const inner = WG.src.clone(), sc = fl.scale.x*0.001*W.s; inner.scale.setScalar(sc);
+  const inner = WG.src.clone(), sc = fl.scale.x*W.unit*W.s; inner.scale.setScalar(sc);
   // roll it round the barrel (the flashlight's +x) so the gun's top faces straight up on screen whatever roll the arm has
   const fq = fl.quaternion, xw = new THREE.Vector3(1,0,0).applyQuaternion(fq), yw = new THREE.Vector3(0,1,0).applyQuaternion(fq), up = new THREE.Vector3(0,1,0).addScaledVector(xw, -xw.y).normalize();
   const roll = Math.atan2(new THREE.Vector3().crossVectors(yw, up).dot(xw), yw.dot(up));
-  inner.quaternion.setFromEuler(new THREE.Euler(roll + W.rot[0]*Math.PI/180, W.rot[1]*Math.PI/180, W.rot[2]*Math.PI/180)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), -Math.PI/2));
+  inner.quaternion.setFromEuler(new THREE.Euler(roll + W.rot[0]*Math.PI/180, W.rot[1]*Math.PI/180, W.rot[2]*Math.PI/180)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), W.fwd > 0 ? Math.PI/2 : -Math.PI/2));
   inner.position.set(...W.at).multiplyScalar(fl.scale.x).sub(new THREE.Vector3(...W.anchor).applyQuaternion(inner.quaternion).multiplyScalar(sc));
   g.add(inner); const mats = [];
   inner.traverse(o=>{ if (o.isMesh){ o.material = o.material.clone(); o.material.emissiveMap = o.material.map; o.material.emissive = new THREE.Color(0, 0, 0); mats.push(o.material); } });
   const fx = wardBuildVM().flash.clone(); fx.position.copy(new THREE.Vector3(...W.muzzle).applyQuaternion(inner.quaternion).multiplyScalar(sc).add(inner.position)); fx.visible = false; g.add(fx);
-  VM.add(g); WG.g = g; WG.inner = inner; WG.flash = fx; WG.forHand = hand; g.visible = false;
+  const lens = new THREE.Object3D(); lens.position.copy(new THREE.Vector3(...W.lens).applyQuaternion(inner.quaternion).multiplyScalar(sc).add(inner.position)); g.add(lens);
+  WG.slide = null; WG.mag = null;
+  for (const [k, nm, v] of [['slide', W.slide, [0, 0, -W.slideBack*W.fwd]], ['mag', W.mag, [0, -1.1, -0.35*W.fwd]]]){ const n = nm && inner.getObjectByName(nm);
+    if (n) WG[k] = { n, p0:n.position.clone(), d:wgLocal(inner, n, v) }; }
+  VM.add(g); WG.g = g; WG.inner = inner; WG.flash = fx; WG.lens = lens; WG.forHand = hand; g.visible = false;
   if (VM.userData.handMats) VM.userData.handMats.push(...mats);
   // Ryan's own arm posed round the gun (later): put it so its gun_ref lands exactly on this gun
   WG.arm = null;
@@ -4466,24 +4481,23 @@ function wardVMTick(dt){
   if (real){ V.g.visible = false;
     WG.g.visible = !!show; if (VM.userData.fl) VM.userData.fl.visible = !show; if (WG.arm){ WG.arm.visible = !!show; VM.userData.hand.visible = !show; }
     if (!show) return;
-    const st = G0.st, t = G0.t, rl = st === 'open' ? Math.min(1, t/WARD_OPEN_T) : st === 'insert' ? 1 : st === 'close' ? 1 - Math.min(1, t/WARD_CLOSE_T) : 0, rs = rl*rl*(3 - 2*rl);
-    const cockK = st === 'cock' ? clamp((t - 0.22)/(WARD_COCK - 0.22), 0, 1) : 0, cj = Math.sin(cockK*Math.PI)*0.06;   // thumbing the hammer back = a little jerk of the hand
-    const ins = st === 'insert' ? Math.max(0, 0.02 - t*0.08) : 0;
-    Object.assign(WG.off, { px:-rs*0.06, py:-rs*0.05 - ins, pz:k*0.07 + rs*0.04, rx:k*0.5 + rs*0.45 + cj, ry:rs*0.25, rz:rs*0.85 + WARD.roll*k*4 });
+    const st = G0.st, t = G0.t, rl = st === 'out' ? Math.min(1, t/0.3) : st === 'in' ? 1 - clamp((t - WARD_MAGIN*0.75)/(WARD_MAGIN*0.25), 0, 1)*(G0.lock ? 0.4 : 1) : st === 'rack' ? 0.6*(1 - Math.min(1, t/WARD_RACK)) : 0, rs = rl*rl*(3 - 2*rl);
+    const seat = st === 'in' ? Math.max(0, Math.sin(clamp((t - WARD_MAGIN*0.6)/(WARD_MAGIN*0.2), 0, 1)*Math.PI))*0.025 : 0;   // palming the mag home = a little jolt
+    Object.assign(WG.off, { px:-rs*0.04, py:-rs*0.06 + seat, pz:k*0.05 + rs*0.03, rx:k*0.32 + rs*0.35, ry:rs*0.12, rz:rs*0.5 + WARD.roll*k*4 });
+    // the slide: snaps back on each shot, locked back when empty; the mag: drops out, a new one slides in
+    if (WG.slide){ const c = st === 'cycle' ? Math.max(0, 1 - Math.abs(t - 0.03)/0.08) : 0, b = Math.max(c, G0.lock && st !== 'ready' ? 1 : 0, G0.lock && G0.loaded === 0 ? 1 : 0);
+      WG.slide.n.position.copy(WG.slide.p0).addScaledVector(WG.slide.d, b); }
+    if (WG.mag){ let m = 0; if (st === 'out') m = clamp((t - WARD_MAGOUT*0.35)/(WARD_MAGOUT*0.5), 0, 1); else if (st === 'in') m = 1 - clamp((t - WARD_MAGIN*0.3)/(WARD_MAGIN*0.45), 0, 1);
+      WG.mag.n.visible = !(st === 'out' && m >= 1) && !(st === 'in' && t < WARD_MAGIN*0.3); WG.mag.n.position.copy(WG.mag.p0).addScaledVector(WG.mag.d, m*m); }
     WG.flash.visible = WARD.flashT > 0; if (WG.flash.visible) WG.flash.rotation.z = Math.random()*6.28;
     const lf = level.ward && level.ward.flash; if (lf && WARD.flashT > 0){ WG.flash.getWorldPosition(lf.position); lf.intensity = 9; }
     return; }
   V.g.visible = !!show; if (!show) return;
-  const st = G0.st, t = G0.t, rl = st === 'open' ? Math.min(1, t/WARD_OPEN_T) : st === 'insert' ? 1 : st === 'close' ? 1 - Math.min(1, t/WARD_CLOSE_T) : 0, rs = rl*rl*(3 - 2*rl);
+  const st = G0.st, t = G0.t, rl = st === 'out' || st === 'in' ? 1 : st === 'rack' ? 1 - Math.min(1, t/WARD_RACK) : 0, rs = rl*rl*(3 - 2*rl);
   const bob = me.bob || 0, run = me.vmRun || 0;
   V.g.position.set(0.17 - rs*0.1 + Math.sin(bob*0.5)*0.01, -0.17 - rs*0.03 + Math.abs(Math.cos(bob*0.5))*0.01 - run*0.05, -0.36 + k*0.07);
   V.g.rotation.set(k*0.55 + rs*0.35 - run*0.25, rs*0.25, rs*0.9 + WARD.roll*k*4);
-  V.drumP.rotation.z = rs*1.25; V.drumP.position.x = -rs*0.035;
-  const cockK = st === 'cock' ? clamp((t - 0.22)/(WARD_COCK - 0.22), 0, 1) : G0.cocked ? 1 : 0;   // the hammer: falls on the shot, thumbed back after the recoil
-  V.ham.rotation.x = -0.95*(st === 'cock' ? Math.sin(cockK*Math.PI*0.5) : cockK);
-  V.drum.rotation.z = (G0.drum + (st === 'cock' ? cockK : 0))*Math.PI/3;
-  if (st === 'insert'){ V.g.position.y += Math.max(0, 0.012 - t*0.05); }
-  V.shells.forEach((s, i)=>{ s.visible = i < G0.loaded || (st !== 'insert' && st !== 'open' && st !== 'close' && false); });
+  V.shells.forEach(s=>{ s.visible = false; });   // (the box gun is only the stand-in until the pistol model loads)
   V.trig.position.z = 0.004 - (WARD.kick > 0.85 ? 0.005 : 0);
   V.flash.visible = WARD.flashT > 0; if (V.flash.visible) V.flash.rotation.z = Math.random()*6.28;
   const fl = level.ward && level.ward.flash; if (fl && WARD.flashT > 0){ V.flash.getWorldPosition(fl.position); fl.intensity = 9; }
@@ -4527,12 +4541,14 @@ function wardSnd(k, x, z, v=1){
     return; }
   if (WARD.buf[k]){ const g1 = wardBufPlay(k, pos, v, 3); return; }
   const o = P();
-  if (k === 'cock'){ sfx.noise(o,{ dur:0.03, type:'bandpass', freq:2600, q:4, gain:0.22 }); sfx.noise(o,{ dur:0.025, type:'bandpass', freq:3800, q:5, gain:0.28, at:0.11 }); sfx.tone(o,{ f:1800, to:1500, dur:0.03, gain:0.03, at:0.11 }); return; }
+  if (k === 'slide' || k === 'slideRel'){ sfx.noise(o,{ dur:0.035, type:'bandpass', freq:2200, q:3, gain:0.3 }); sfx.noise(o,{ dur:0.05, type:'bandpass', freq:1500, q:2, gain:0.42, at:k === 'slide' ? 0.12 : 0.01 }); sfx.tone(o,{ f:1700, to:1300, dur:0.04, gain:0.04, at:k === 'slide' ? 0.12 : 0.01 }); return; }
+  if (k === 'light'){ sfx.noise(o,{ dur:0.012, type:'bandpass', freq:3800, q:6, gain:0.22 }); return; }
   if (k === 'dry'){ sfx.noise(o,{ dur:0.02, type:'bandpass', freq:3000, q:5, gain:0.3 }); return; }
-  if (k === 'cylOpen'){ sfx.noise(o,{ dur:0.04, type:'bandpass', freq:2000, q:3, gain:0.25 }); for (let q=0;q<4;q++) sfx.noise(o,{ dur:0.015, type:'bandpass', freq:4200, q:6, gain:0.12, at:0.06 + q*0.03 }); return; }
-  if (k === 'eject'){ for (let q=0;q<6;q++){ const at = 0.05 + Math.random()*0.35; sfx.tone(o,{ f:3600 + Math.random()*1800, dur:0.05, gain:0.03, at }); sfx.tone(o,{ f:4800 + Math.random()*1500, dur:0.03, gain:0.02, at:at + 0.06 + Math.random()*0.05 }); } return; }   // casings dropping on the tiles
-  if (k === 'shell'){ sfx.noise(o,{ dur:0.03, type:'bandpass', freq:2400, q:4, gain:0.18 }); sfx.tone(o,{ f:2100, to:1900, dur:0.03, gain:0.025, at:0.02 }); return; }
-  if (k === 'cylClose'){ sfx.noise(o,{ dur:0.05, type:'bandpass', freq:1600, q:2, gain:0.35 }); sfx.noise(o,{ dur:0.02, type:'bandpass', freq:3600, q:5, gain:0.2, at:0.03 }); return; }
+  if (k === 'magOut'){ sfx.noise(o,{ dur:0.02, type:'bandpass', freq:3200, q:5, gain:0.25 }); sfx.noise(o,{ dur:0.12, type:'bandpass', freq:1200, q:1.5, gain:0.12, at:0.03 }); return; }   // the button, the mag sliding out
+  if (k === 'magDrop'){ sfx.noise(o,{ dur:0.06, type:'bandpass', freq:900, q:1.5, gain:0.4 }); sfx.noise(o,{ dur:0.04, type:'bandpass', freq:1400, q:2, gain:0.18, at:0.11 }); sfx.tone(o,{ f:3100 + Math.random()*600, dur:0.04, gain:0.02, at:0.01 }); return; }   // polymer mag on linoleum, one bounce
+  if (k === 'magIn'){ sfx.noise(o,{ dur:0.05, type:'bandpass', freq:700, q:1.2, gain:0.35 }); sfx.noise(o,{ dur:0.02, type:'bandpass', freq:3400, q:5, gain:0.3, at:0.04 }); return; }   // palm thump + the catch clicking
+  // casings tinkling after every shot
+  if (k === 'brass'){ for (let q=0;q<2;q++){ const at = 0.28 + Math.random()*0.25; sfx.tone(o,{ f:3600 + Math.random()*1800, dur:0.05, gain:0.025, at }); sfx.tone(o,{ f:4800 + Math.random()*1500, dur:0.03, gain:0.015, at:at + 0.07 + Math.random()*0.05 }); } return; }
   if (k === 'ammo'){ for (let q=0;q<5;q++) sfx.tone(o,{ f:2600 + Math.random()*900, dur:0.04, gain:0.02, at:q*0.05 }); sfx.noise(o,{ dur:0.15, type:'bandpass', freq:900, q:1, gain:0.2 }); return; }
   if (k === 'groan'){ const f0 = 70 + Math.random()*60; sfx.tone(o,{ f:f0, to:f0*(0.7 + Math.random()*0.3), type:'sawtooth', dur:0.9 + Math.random()*0.7, gain:0.06*v, attack:0.15 }); sfx.noise(o,{ dur:1.0, type:'bandpass', freq:380 + Math.random()*300, q:4, gain:0.18*v, attack:0.2 }); return; }
   if (k === 'scream'){ const f = sfx.noise(o,{ dur:1.0, type:'bandpass', freq:900, q:5, gain:0.6*v, attack:0.04 }); try { f.frequency.exponentialRampToValueAtTime(2100, sfx.ctx.currentTime + 0.5); } catch(e){} sfx.tone(o,{ f:520, to:880, type:'sawtooth', dur:0.8, gain:0.05*v }); return; }
@@ -4561,7 +4577,7 @@ function wiPrep(gl){
   for (const [a, b] of [['uaL','faL'], ['faL','haL'], ['uaR','faR'], ['faR','haR'], ['thL','shL'], ['shL','ftL'], ['thR','shR'], ['shR','ftR']]) if (rig[a]) rig[a].d = dir(a, b);
   let headC = null, headR = 0.12; if (B.head){ const hp = wp(B.head), top = box.max.y; headR = (top - hp.y)*0.55; headC = B.head.worldToLocal(hp.clone().add(new THREE.Vector3(0, (top - hp.y)*0.45, 0.02*H))); }
   return { scene:sc, clips:gl.animations, H, minY:box.min.y, rig, headC, headR }; }
-for (const [k, url] of Object.entries(WARD_ASSETS.model)) if (url && k !== 'revolver' && k !== 'armGun') new GLTFLoader().load(url, gl=>{ WI_SRC[k] = wiPrep(gl); }, undefined, e=>console.warn('inmate model failed', url, e));
+for (const [k, url] of Object.entries(WARD_ASSETS.model)) if (url && k !== 'gun' && k !== 'armGun') new GLTFLoader().load(url, gl=>{ WI_SRC[k] = wiPrep(gl); }, undefined, e=>console.warn('inmate model failed', url, e));
 const WI_MAT = { skin:lam(0x9a9284), skin2:lam(0x7e786c), gown:lam(0x8c9a92), gown2:lam(0x6c7a72), blood:lam(0x4a0e0a), dark:new THREE.MeshBasicMaterial({ color:0x050403 }), eye:new THREE.MeshBasicMaterial({ color:0xc8c4a8 }) };
 const WI_GEO = {};
 function wiBox(w, h, d){ const k = w + ',' + h + ',' + d; return WI_GEO[k] || (WI_GEO[k] = new THREE.BoxGeometry(w, h, d)); }
@@ -4744,8 +4760,8 @@ function wardObj(){
   if (we >= 2) return wardCar(me.x, me.z) ? 'Doors closing' : 'THE DOORS ARE CLOSING · GET IN';
   return `Hold the hall · elevator in ${mm}:${ss} · floor ${Math.max(1, Math.ceil(8*(1 - (G.wt || 0)/WARD_T)))}`;
 }
-function wardSide(){ const g0 = WARD.gun; if (!g0) return ''; const ch = '●'.repeat(g0.loaded) + '○'.repeat(6 - g0.loaded), st = g0.st === 'open' || g0.st === 'insert' ? ' · RELOADING' : g0.st === 'close' ? ' · CLOSING' : g0.loaded === 0 ? ' · R RELOAD' : '';
-  return `${ch}  ${g0.spare} SPARE${st}` + (G.wg && G.wg[myPid] ? ' · GRABBED: SHOOT IT' : ''); }
+function wardSide(){ const g0 = WARD.gun; if (!g0) return ''; const st = g0.st === 'out' || g0.st === 'in' || g0.st === 'rack' ? ' · RELOADING' : g0.loaded === 0 ? ' · R RELOAD' : '';
+  return `${String(g0.loaded).padStart(2, '0')} / ${g0.spare}${st}` + (me.light ? ' · LIGHT ON' : ' · F LIGHT') + (G.wg && G.wg[myPid] ? ' · GRABBED: SHOOT IT' : ''); }
 
 /* ======== host: the clock, the waves, the doors, the inmates, grabs, the elevator ======== */
 function wardUse(pid, m){
@@ -4848,7 +4864,10 @@ function wardSurge(wt){
   if (off < st || off > st + dur) return null;
   const hf = h01(slot*1.37 + 0.4), from = late ? (hf < 0.3 ? 1 : 2 + Math.floor(hf*6)) : wt >= 60 && hf < 0.15 ? 2 : 5 + Math.floor(hf*5);   // rows >= from go black (1 = the lobby too: total blackout)
   return { from, e:(off - st)/dur, slot }; }
-function wardPanelB(p, t){
+function wardPanelB(p, t){ const b = wardPanelB0(p, t); if (b == null) return b;
+  if (p.ward >= 3 && p.ward % 2 === 1 && p.i !== 2) return h01(p.idx*13 + Math.floor(t*9)) < 0.025 ? 0.12 : 0;   // v0.78.3: every other tube down the hall is dead = pools of light with black between
+  return b*(p.ward <= 1 ? WARD_LIT_LOBBY : WARD_LIT); }
+function wardPanelB0(p, t){
   if (!wardOn() || G.ph !== 'play' || p.ward == null) return null; const wt = G.wt || 0, j = p.ward;
   if ((G.we|0) >= 1) return j <= 2 ? 1 : 0;   // the car's here: only the lobby end stays lit
   if (j <= 1){ const sg = wardSurge(wt); if (sg && sg.from <= 1) return sg.e < 0.12 || sg.e > 0.9 ? (h01(p.idx*11 + Math.floor(t*22)) < 0.35 ? 0.7 : 0) : 0; return 1; }
@@ -10175,7 +10194,7 @@ function startRoundLocal(){
     $('blacktext').textContent = LK === 7 ? 'YOU ARE A PARTYGOER' : 'YOU ARE THE OCCUPANT'; $('blacksub').textContent = (G.lv|0) === 0 && level.lab ? 'They start in a lab behind a portal at the edge of the halls. Its blast door shuts, but its power never lasts. Listen for them, and don\'t let them reach the exit.' : 'They wake up in the halls. You walk slowly, but you can run for a while (hold SHIFT / RUN). Listen for them, and don\'t let them reach the exit.';
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
   } else if (G.ex) msg('EXPLORATION MODE. Nothing is hunting you. Take your time.', 5);
-  else msg((G.lv|0) === 10 ? 'THE WARD. Hold the hall until the elevator gets here. Click to fire, R to reload. Spare rounds at the NURSES station halfway down.' : (G.lv|0) === 7 ? 'LEVEL FUN. Open the presents: one of them has the key to the EXIT. The rest are LOUD. Shut doors behind you: the Partygoers can\'t open them.' : (G.lv|0) === 6 ? 'LEVEL 52. When the bell rings, get to the classroom on your schedule before the tardy bell. Never be in the halls during class.' : (G.lv|0) === 0 && level.lab ? 'ASYNC LAB 4. The portal is open. Find 3 fuses out there. Something else is awake.' : (G.lv|0) === 5 ? 'Vent the 4 red pressure valves and find bolt cutters. The EXIT door is chained shut somewhere in these tunnels.' : (G.lv|0) === 4 ? 'Find the 4 receipts. Each one has a number of the security code. Three floors. Nobody is shopping.' : (G.lv|0) === 3 ? 'Find the keycard. The elevators work. Something else uses them too.' : (G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
+  else msg((G.lv|0) === 10 ? 'THE WARD. Hold the hall until the elevator gets here. Click to fire, R to reload, F for the light under the barrel. Spare rounds at the NURSES station halfway down.' : (G.lv|0) === 7 ? 'LEVEL FUN. Open the presents: one of them has the key to the EXIT. The rest are LOUD. Shut doors behind you: the Partygoers can\'t open them.' : (G.lv|0) === 6 ? 'LEVEL 52. When the bell rings, get to the classroom on your schedule before the tardy bell. Never be in the halls during class.' : (G.lv|0) === 0 && level.lab ? 'ASYNC LAB 4. The portal is open. Find 3 fuses out there. Something else is awake.' : (G.lv|0) === 5 ? 'Vent the 4 red pressure valves and find bolt cutters. The EXIT door is chained shut somewhere in these tunnels.' : (G.lv|0) === 4 ? 'Find the 4 receipts. Each one has a number of the security code. Three floors. Nobody is shopping.' : (G.lv|0) === 3 ? 'Find the keycard. The elevators work. Something else uses them too.' : (G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
   if ((G.lv|0) > 0){ seenZones.add(1); seenZones.add(2); }
 }
 function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? .86 : LK === 2 ? 1.0 : LK === 3 || LK === 4 || LK === 6 ? .82 : .64})` : ''; }
@@ -10637,8 +10656,8 @@ addEventListener('keydown', e=>{
   keys.add(e.code);
   if (mode==='play' && LK === 3 && /^Digit[1-5]$/.test(e.code) && myCar188() >= 0){ elevPress188(+e.code.slice(5)); return; }   // the elevator panel
   if (mode==='play' && role==='survivor'){
-    if (e.code==='KeyF' && me.hidden<0){ me.light=!me.light; sfx.click(); }
-    if (e.code==='KeyR' && LK === 10) wardReload();   // v0.78 the revolver
+    if (e.code==='KeyF' && me.hidden<0){ me.light=!me.light; if (LK === 10) wardSnd('light'); else sfx.click(); }
+    if (e.code==='KeyR' && LK === 10) wardReload();   // v0.78 the gun
     if (e.code==='KeyC' || e.code==='ControlLeft'){ me.crouch = me.lowCeil ? true : !me.crouch; }
     if (e.code==='Space' && !e.repeat){ e.preventDefault(); tryJump(); }
   }
@@ -10659,7 +10678,7 @@ canvas.addEventListener('mousedown', e=>{
   if (mode !== 'play' && mode !== 'spect') return;   // v0.68.3 (Ryan): clicking the menu room never grabs the mouse
   if (document.pointerLockElement !== canvas){ try { const r = canvas.requestPointerLock && canvas.requestPointerLock(); if (r && r.catch) r.catch(()=>{}); } catch(err){} return; }
   if (mode==='play' && role==='survivor' && me.alive){
-    if (e.button === 0 && me.hidden < 0){ if (LK === 10) wardFire(); else { me.light = !me.light; sfx.click(); } }   // v0.78: the revolver on THE WARD
+    if (e.button === 0 && me.hidden < 0){ if (LK === 10) wardFire(); else { me.light = !me.light; sfx.click(); } }   // v0.78: the pistol on THE WARD
     if (e.button === 2) zoomIn = true;
   }
 });
@@ -10842,7 +10861,7 @@ const LV_INFO = [['LEVEL 0','THE OFFICE','Endless yellow rooms, something round 
   ['LEVEL FUN','THE PARTY','Balloons, cake and presents. The Partygoers only watch you while the lights are on.'],
   ['THE BASEMENT','BELOW THE PARTY','Keep the old furnace fed or the lights die. Don\'t stand still: something lives under the floorboards.'],
   null,   // 9 = Level -0 (secret: you fall into it from Level 0, never picked)
-  ['THE WARD','ISOLATION WARD C','One long hallway of padded cells, a revolver that barely helps, and five minutes until the elevator comes.']];
+  ['THE WARD','ISOLATION WARD C','One long hallway of padded cells, a pistol that barely helps, a light that barely shows you anything, and five minutes until the elevator comes.']];
 function menuSub(id){ for (const k of ['pLevels','pJoin','pInfo']) $(k).classList.toggle('show', k === id); $('menu').classList.toggle('sub', !!id); }
 $('lvgrid').innerHTML = LV_INFO.map((v,k)=>!v ? '' : `<button class="tile" data-lv="${k}"><div class="th" style="background-image:url(menu/lv${k}.jpg)"></div><div class="tt"><b>${v[0]}</b><em>${v[1]}</em><p>${v[2]}</p></div></button>`).join('');
 for (const t of document.querySelectorAll('#lvgrid .tile')) t.onclick = ()=>{ startOpt = +t.dataset.lv; try { localStorage.setItem('lvl0_start', startOpt); } catch(e){} lvLabel(); $('bSolo').click(); };
@@ -11191,7 +11210,7 @@ function updateMe(dt){
     else { crankT += dt; crankS -= dt; if (gn.wheel) gn.wheel.rotation.y -= dt*2.2; if (crankS <= 0){ crankS = 0.55; if (LK === 2) sfx.valve(gn.x, gn.z); else if (!sfx.samples.genStart) sfx.crank(gn.x, gn.z); vibrate(15); }
       if (crankT >= GEN_T){ useReq({ k:'gen', i:crankK }); me.loudT = 1.2; crankDone = crankK; crankK = -1; } } }
   G.cn.forEach((t,i)=>{ if (!t && Math.hypot(level.cn[i][0]-me.x, level.cn[i][1]-me.z) < 1.1){ G.cn[i]=1; useReq({k:'cn',i}); me.cans++; sfx.pickup(); msg('Picked up a can. Throw it to make noise.', 2.5); } });
-  if (lightOn()) me.bat = Math.max(0, me.bat - dt*FL_DRAIN*(LK === 4 && G.bf === myPid ? 0.45 : 1));
+  if (lightOn() && LK !== 10) me.bat = Math.max(0, me.bat - dt*FL_DRAIN*(LK === 4 && G.bf === myPid ? 0.45 : 1));   // v0.78.3: the weapon light on THE WARD never runs out
   if (me.bat <= 0 && me.light){ me.light=false; msg('Your flashlight died.', 3); }
   // fuses
   G.fz.forEach((f,i)=>{ if (f[0]===0 && Math.hypot(f[1]-me.x, f[2]-me.z) < 1.2){ f[0]=1; f[3]=myPid; pickT = nowS(); useReq({k:'fuse',i}); me.loudT = 0.8; sfx.pickup(); const n=G.fz.filter(q=>q[0]>=1).length; msg(`You found a fuse. ${n}/${FUSES}`, 3); } });
@@ -11602,12 +11621,15 @@ function updateLights(dt){
     const md = Math.hypot(mDisp.x-me.x, mDisp.z-me.z);
     if (md < 10 && Math.random() < 0.22*(1-md/10)) f *= Math.random()*0.4;
     if (me.bat < 15 && Math.random() < 0.08) f *= Math.random()*0.4;
-    const big = LK === 4 && G.bf === myPid; s0.intensity = SPOT_I*f*(big ? 1.45 : 1); s0.angle = big ? 0.56 : 0.42; s0.distance = big ? 34 : 26;
+    const big = LK === 4 && G.bf === myPid; s0.intensity = SPOT_I*f*(big ? 1.45 : 1); s0.angle = big ? 0.56 : 0.42; s0.distance = big ? 34 : 26; s0.penumbra = 0.5;
+    const wl = LK === 10 && WG.lens && WG.g && WG.g.visible;   // v0.78.3 THE WARD: the light under the pistol — narrow, short, dim
+    if (LK === 10){ s0.intensity = SPOT_I*f*WARD_LIGHT.i; s0.angle = WARD_LIGHT.angle; s0.distance = WARD_LIGHT.dist; s0.penumbra = WARD_LIGHT.pen; }
     const [lx,ly,lz] = lookDir(me.yaw, me.pitch);
     const sn=Math.sin(me.yaw), cs=Math.cos(me.yaw);
     // v0.59.3 (Ryan): the beam comes straight out of the flashlight's lens, along the flashlight
     const ln = VM.visible && VM.userData.lens, fl = VM.userData.fl;
-    if (ln && fl && ln.parent === fl){ camera.updateMatrixWorld(true); ln.getWorldPosition(s0.position); _flAx.set(1,0,0).transformDirection(fl.matrixWorld); s0.target.position.copy(s0.position).addScaledVector(_flAx, 10); }
+    if (wl){ camera.updateMatrixWorld(true); WG.lens.getWorldPosition(s0.position); s0.target.position.set(camera.position.x + lx*12, camera.position.y + ly*12, camera.position.z + lz*12); }   // lit where you aim, 12 m out
+    else if (ln && fl && ln.parent === fl){ camera.updateMatrixWorld(true); ln.getWorldPosition(s0.position); _flAx.set(1,0,0).transformDirection(fl.matrixWorld); s0.target.position.copy(s0.position).addScaledVector(_flAx, 10); }
     else { s0.position.set(me.x + cs*0.2 - sn*0.1, camera.position.y-0.25, me.z - sn*0.2 - cs*0.1); s0.target.position.set(me.x+lx*10, camera.position.y+ly*10, me.z+lz*10); }
   } else if (mode !== 'deadAnim') s0.intensity = 0;   // the jumpscare strobes it (placeCamera)
   { const hm = VM.userData.handMats, k = mode === 'play' && lightOn() ? 0.32*Math.min(1, s0.intensity/SPOT_I) : 0.03; if (hm) for (const m of hm) m.emissive.setScalar(k); }
@@ -11617,7 +11639,8 @@ function updateLights(dt){
     if (r.pid===G.mo || isDead(r.pid) || isEsc(r.pid) || !r.l) continue;
     const s = spots[si++]; const [lx,ly,lz] = lookDir(r.yaw, r.pitch); const sn=Math.sin(r.yaw), cs=Math.cos(r.yaw);
     const rfy = floorY(r.x, r.z); s.position.set(r.x + cs*0.28 + lx*0.3, (mode==='spect'&&r.pid===specPid ? EYE-0.25 : 1.25) + rfy, r.z - sn*0.28 + lz*0.3);
-    s.target.position.set(r.x+lx*10, rfy+EYE+ly*10, r.z+lz*10); s.intensity = SPOT_I; s.angle = LK === 4 && G.bf === r.pid ? 0.56 : 0.42;
+    s.target.position.set(r.x+lx*10, rfy+EYE+ly*10, r.z+lz*10); s.intensity = SPOT_I; s.angle = LK === 4 && G.bf === r.pid ? 0.56 : 0.42; s.distance = 26; s.penumbra = 0.5;
+    if (LK === 10){ s.intensity = SPOT_I*WARD_LIGHT.i; s.angle = WARD_LIGHT.angle; s.distance = WARD_LIGHT.dist; s.penumbra = WARD_LIGHT.pen; }
     torchGlare(s, mode === 'spect' && r.pid === specPid);
   }
   if (FLD.gTest && si < spots.length){ const s = spots[si++], q = FLD.gTest; s.position.set(q[0], q[1], q[2]); s.target.position.set(q[3], q[4], q[5]); s.intensity = SPOT_I; s.angle = 0.42; torchGlare(s, false); }   // tests: a teammate's light
@@ -11648,8 +11671,8 @@ function updateZoneEnv(dt){
   if (LK === 10 && level && level.ward && G.ph === 'play' && mode !== 'menu' && mode !== 'lobby'){   // v0.78.2 THE WARD: darker down the hall, black in a surge
     const d = wardDarkAt(camera.position.z), k2 = 1 - Math.exp(-(d > 0.9 ? 10 : 3)*dt);
     _fogT.setHex(0x040504); scene.fog.color.lerp(_fogT, k2); scene.background.copy(scene.fog.color);
-    scene.fog.density = lerp(scene.fog.density, 0.055 + 0.07*d, k2);
-    amb.intensity = lerp(amb.intensity, lerp(0.06, 0.004, d), k2); amb.color.lerp(ZSKY[10], k2); amb.groundColor.lerp(ZGND[10], k2); return; }
+    scene.fog.density = lerp(scene.fog.density, 0.07 + 0.07*d, k2);
+    amb.intensity = lerp(amb.intensity, lerp(0.015, 0.001, d), k2); amb.color.lerp(ZSKY[10], k2); amb.groundColor.lerp(ZGND[10], k2); return; }
   const boDark = G.ph === 'play' && LK !== 2 && LK !== 3 && (boT() > 0.4 || funNight() || bsCold());   // v0.52: map-wide Occupant blackout
   if (LK === 0 && level && level.lab){ const lb = G.ph === 'play' && (G.lbo > 0.4 || boDark), inL = inLab(camera.position.x, camera.position.z);
     if (lb || inL){
@@ -12251,7 +12274,7 @@ function placeCamera(dt){
     if (me.landDip > 0) me.landDip = Math.max(0, me.landDip - dt*4.5);
     const jumpY = role === 'survivor' ? (me.jy || 0) - 0.09*Math.sin(Math.PI*(me.landDip || 0)) : 0;   // v0.76.4
     camera.position.set(me.x, eye + jumpY + Math.sin(me.bob)*(role==='monster'?0.07:0.045) + (role === 'monster' && LK === 2 ? Math.max(floorY(me.x, me.z), -0.12) : floorY(me.x, me.z)), me.z);
-    VM.visible = role==='survivor' && me.hidden < 0 && (LK !== 10 || wardRealGun());   // v0.78.2: on THE WARD the arm holds the revolver (the old box gun until the models load)
+    VM.visible = role==='survivor' && me.hidden < 0 && (LK !== 10 || wardRealGun());   // v0.78.2: on THE WARD the arm holds the pistol (the old box gun until the models load)
     if (LK !== 10) VM.rotation.set(0, 0, 0);
     if (me.hidden >= 0){ const lk = level.lockers[me.hidden]; camera.position.set(lk.x + Math.sin(lk.ry)*0.18, 1.55 + Math.sin(nowS()*1.3)*0.008, lk.z + Math.cos(lk.ry)*0.18); }
     me.vmRun = lerp(me.vmRun||0, me.running ? 1 : 0, 1 - Math.exp(-8*dt));
@@ -12818,7 +12841,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 
-window.__hp = { wardHeadPos:wiHead, THREE, WG, WARD_GUN, wardGunPlace, WI_SRC, wardSurge, WARD, WARD_ASSETS, hostWard, wardUse, wardFire, wardReload, wardAction, wardObj, wardSide, wardCar, makeInmate, get scareWi(){ return scareWi; }, HIQ, hiSync, get concPTs(){ return concPTs; }, FLD, FL_K, FL_TH, get POST(){ return POST; }, get walls(){ return walls; }, get N(){ return N; }, vIdx, hIdx, collide, SL, slPeople, slOwner, slPack, smSpot, smTargets, lightAtCell, slTurn:()=>{ SL.wrong = 99; }, slNow:()=>{ SL.due = 0; }, nzEnter:()=>{ nzLocal = true; useReq({ k:'nzin' }); }, nzGlitch:()=>{ H.nzForce = true; }, nzWorld, CP, corpseGeo, makeCorpse, corpseWall, updateCorpses, SML, get smSrc(){ return smSrc; }, PERF, tvPower, get TVR(){ return TVR; }, setGfx:(o)=>{ Object.assign(SET, o); applyGfx(); applySet(); }, setLook:(v)=>sxSet('look', v), DRS, tryJump, JUMPS, jumpLen, setGrace:(v)=>{ G.grace = v; }, MATR, matSync, get SET(){ return SET; }, spots, killSurvivor, hostCreaker, hostBS, bsUse, bsObj, bsCold, get CRV(){ return CRV; }, inRoom1, lrCampSpot, FR, frOpen, frClose, frJoin, frRender, frToast, FPH, placeFPHand, get flSrc(){ return flSrc; }, updateLab, hostFun, hostPartygoers, funAction, funObj, funNight, funDoorsToWalls, get PGV(){ return PGV; }, get scarePg(){ return scarePg; }, get FL_DRAIN(){ return FL_DRAIN; }, LS_HUNT, startOpt:(v)=>{ startOpt = v; }, hostTick, nextStep, isDead, killSurvivor, get remotes(){ return remotes; }, setRole:(r)=>{ role = r; }, get MON_WALK(){ return MON_WALK; }, get MONS(){ return MONS; }, get LSJ(){ return LSJ; }, get deathT(){ return deathT; }, get scareLs(){ return scareLs; }, hostListener, lsAlert, get LSV(){ return LSV; }, TD, updateTension, tdFakeSteps, DFL, boT, panelBright, collide, gen52, hostSchool52, hostMonitors52, assign52, tardy52, roomAt52, schoolObj52, schoolTarget52, myRoom52, MV52, get HMJ(){ return HMJ; }, S52_LANES, get radio37(){ return radio37; }, get fig37(){ return fig37; }, get zLevel(){ return zLevel; }, get zK(){ return zK; }, deepDay37, deep37, forceFig37:()=>{ figT = 0; }, duskIn37, wakeLay37, nowS, buildLevel, hotelOpen188, hostOutage188, pipeObj2, pipeTarget2, p2Diag, MQV, hostMannequins852, mqSeen852, floorAt852, laneAt852, MLANES, mallObj852, mallTarget852, mallWayTo852, aiTick852, mallMove852, get mallHold(){ return mallHold; }, get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188, inLab, hostLab, labUse, labSensor, labStatus, startHatch, get hatchT(){ return hatchT; }, connected };
+window.__hp = { wardHeadPos:wiHead, wardGunTick, THREE, WG, WARD_GUN, wardGunPlace, WI_SRC, wardSurge, WARD, WARD_ASSETS, hostWard, wardUse, wardFire, wardReload, wardAction, wardObj, wardSide, wardCar, makeInmate, get scareWi(){ return scareWi; }, HIQ, hiSync, get concPTs(){ return concPTs; }, FLD, FL_K, FL_TH, get POST(){ return POST; }, get walls(){ return walls; }, get N(){ return N; }, vIdx, hIdx, collide, SL, slPeople, slOwner, slPack, smSpot, smTargets, lightAtCell, slTurn:()=>{ SL.wrong = 99; }, slNow:()=>{ SL.due = 0; }, nzEnter:()=>{ nzLocal = true; useReq({ k:'nzin' }); }, nzGlitch:()=>{ H.nzForce = true; }, nzWorld, CP, corpseGeo, makeCorpse, corpseWall, updateCorpses, SML, get smSrc(){ return smSrc; }, PERF, tvPower, get TVR(){ return TVR; }, setGfx:(o)=>{ Object.assign(SET, o); applyGfx(); applySet(); }, setLook:(v)=>sxSet('look', v), DRS, tryJump, JUMPS, jumpLen, setGrace:(v)=>{ G.grace = v; }, MATR, matSync, get SET(){ return SET; }, spots, killSurvivor, hostCreaker, hostBS, bsUse, bsObj, bsCold, get CRV(){ return CRV; }, inRoom1, lrCampSpot, FR, frOpen, frClose, frJoin, frRender, frToast, FPH, placeFPHand, get flSrc(){ return flSrc; }, updateLab, hostFun, hostPartygoers, funAction, funObj, funNight, funDoorsToWalls, get PGV(){ return PGV; }, get scarePg(){ return scarePg; }, get FL_DRAIN(){ return FL_DRAIN; }, LS_HUNT, startOpt:(v)=>{ startOpt = v; }, hostTick, nextStep, isDead, killSurvivor, get remotes(){ return remotes; }, setRole:(r)=>{ role = r; }, get MON_WALK(){ return MON_WALK; }, get MONS(){ return MONS; }, get LSJ(){ return LSJ; }, get deathT(){ return deathT; }, get scareLs(){ return scareLs; }, hostListener, lsAlert, get LSV(){ return LSV; }, TD, updateTension, tdFakeSteps, DFL, boT, panelBright, collide, gen52, hostSchool52, hostMonitors52, assign52, tardy52, roomAt52, schoolObj52, schoolTarget52, myRoom52, MV52, get HMJ(){ return HMJ; }, S52_LANES, get radio37(){ return radio37; }, get fig37(){ return fig37; }, get zLevel(){ return zLevel; }, get zK(){ return zK; }, deepDay37, deep37, forceFig37:()=>{ figT = 0; }, duskIn37, wakeLay37, nowS, buildLevel, hotelOpen188, hostOutage188, pipeObj2, pipeTarget2, p2Diag, MQV, hostMannequins852, mqSeen852, floorAt852, laneAt852, MLANES, mallObj852, mallTarget852, mallWayTo852, aiTick852, mallMove852, get mallHold(){ return mallHold; }, get guide(){ return guide; }, hostLurker, opusTweak, fillDevices, get LRK(){ return LRK; }, lrSpot, animLurker, get running(){ return me.running; }, get W(){ return W; }, get N(){ return N; }, get stunCharge(){ return stunCharge; }, losClear, me, H, net, hide, unhide, throwCan, contextAction, useSkin, get mySkin(){ return mySkin; }, set mySkin(v){ mySkin=v; }, inPit, zoneOf, get G(){ return G; }, set G(v){ G=v; }, get mode(){ return mode; }, get role(){ return role; }, get level(){ return level; }, get walls(){ return walls; }, mDisp, doShift, monsterPos, ability, get abCD(){ return abCD; }, disguisedFrom, get fakes(){ return fakes; }, enterVent, nearVent, get ventT(){ return ventT; }, get ventCD(){ return ventCD; }, set ventCD(v){ ventCD=v; }, get abCD2(){ return abCD; }, inPit, get LK(){ return LK; }, get crankK(){ return crankK; }, ability, get curRH(){ return curRH; }, get MON(){ return MON; }, sfx, voice, noiseLevel, get settingsOpen(){ return settingsOpen; }, myPid, monsterVoice, pitchDown, dropDust, get silT(){ return silT; }, set silNext(v){ silNext=v; }, advanceLevel, aiObjectives, poolBlock, aiTick, aiReset, bfsFrom, cellOf, cc, floorY, TU, PG, camera, scene, renderer, applyUse, AI_DIFF, set diffOpt(v){ diffOpt=v; }, get M37(){ return M37; }, buildL37test:(sd)=>build37(sd), ripP, ripWho, makeAvatar, animAvatar, buildLevelTest:(sd,k)=>buildLevel(sd,k), fpArm:(roll,axis,curl)=>{ FP_ROLL = roll; FP_AXIS = axis; if (curl) Object.assign(FP_CURL, curl); buildFPArm(survSrc); }, VM, collide, k37, h37, d37, nav37, isNight, dayK, aiTick37, collide37, K37, sdShape, floorAt188, vis188, hostElev188, aiTick188, myCar188, elevPress188, ELV, HO, elDisp, update188, inLab, hostLab, labUse, labSensor, labStatus, startHatch, get hatchT(){ return hatchT; }, connected };
 </script>
 </body>
 </html>
