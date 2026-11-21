@@ -6,7 +6,7 @@ First-person co-op Backrooms horror game for 1–4 players, played in the browse
 
 - Live: https://rytheguy18.github.io/Haunted-Pines/ (GitHub Pages, `main` branch, repo root)
 - Owner: Ryan (GitHub `rytheguy18` / `RyTheGuy18`). Plays it with friends and younger brothers, mostly on phones.
-- Current version: **v0.78.0** (shown bottom-right of the menu, `#ver`)
+- Current version: **v0.78.1** (shown bottom-right of the menu, `#ver`)
 
 ## Files
 
@@ -445,3 +445,4 @@ Controls (desktop): WASD, Shift sprint, C crouch, Left click / F flashlight, E h
 - Test hooks: `__hp.WARD, WARD_ASSETS, hostWard, wardUse, wardFire, wardReload, wardAction, wardObj, wardCar, makeInmate`; `__hp.H.wd.imm[pid] = 99` = untouchable (for tests). Tested headless: see the v0.78.0 test notes in the session (waves spawn far → near, inmates path out of open cells and down the hall, grab → death at the timer, a shot staggers / damages the target, reload cycle, wfree releases, elevator arrives at 300 s, everyone inside → closes → escaped → end).
 - Not done yet / ideas: remote players don't show a gun (they still hold the flashlight model); no "hands reaching through the closing doors" animation; Ryan's real models, sounds and textures.
 
+**v0.78.1 (Ryan: a headshot should be one hit on most zombies):** `WI_T[k].hs` = a headshot kills that type outright (walker, runner, crawler all `hs:true`); a type with `hs:false` (a future tougher inmate) takes `WARD_HEAD_DMG` 2 from a headshot instead. Body shots still 1 damage (walker 3, runner/crawler 2). The shooter hears an extra wet crack + double blood on a headshot.

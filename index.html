@@ -488,7 +488,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.78.0</div>
+<div class="osd" id="ver">v0.78.1</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -4179,7 +4179,9 @@ const WARD_COCK = 0.62, WARD_OPEN_T = 0.5, WARD_SHELL_T = 0.48, WARD_CLOSE_T = 0
 const WARD_GRAB = [7, 6, 5, 4];   // seconds you last once grabbed, by difficulty
 const WARD_CAP = [32, 38, 44, 48];   // most inmates alive at once
 // inmate types: speed m/s, hp, body height, radius
-const WI_T = [ { n:'walker', sp:1.25, hp:3, h:1.75, r:0.3 }, { n:'runner', sp:4.1, hp:2, h:1.72, r:0.3 }, { n:'crawler', sp:1.75, hp:2, h:0.55, r:0.34 } ];
+// hs: a headshot kills it in one hit (v0.78.1, Ryan). Give a tougher type hs:false and it only takes WARD_HEAD_DMG from a headshot.
+const WI_T = [ { n:'walker', sp:1.25, hp:3, h:1.75, r:0.3, hs:true }, { n:'runner', sp:4.1, hp:2, h:1.72, r:0.3, hs:true }, { n:'crawler', sp:1.75, hp:2, h:0.55, r:0.34, hs:true } ];
+const WARD_HEAD_DMG = 2;
 const WARD_WAVES = [   // t0..t1 s: rows that can open, seconds between spawns, how many per spawn, chance of a runner / crawler
   { t0:10,  t1:60,  rows:[9, 11], every:9,   n:[1, 1], run:0,    crawl:0,    msg:'Something is banging at the far end of the hall.' },
   { t0:60,  t1:150, rows:[7, 11], every:4.6, n:[1, 2], run:0.2,  crawl:0.1,  msg:'More doors are giving way down the hall.' },
@@ -4396,7 +4398,7 @@ function wardFire(){
     { const ox = o.x - V.x, oz = o.z - V.z, a = d.x*d.x + d.z*d.z, bq = ox*d.x + oz*d.z, c = ox*ox + oz*oz - ty.r*ty.r, dis = bq*bq - a*c; if (a > 1e-6 && dis >= 0){ const t = (-bq - Math.sqrt(dis))/a; const y = o.y + d.y*t; if (t > 0.1 && t < bt && y > 0 && y < (V.t === 2 ? 0.55 : 1.48)){ bt = t; best = { id, head:false, t }; } } } }
   // the first wall / floor / ceiling along the ray
   let wall = null; for (let s = 0.2; s < 45; s += 0.18){ const px = o.x + d.x*s, py = o.y + d.y*s, pz = o.z + d.z*s; if (py < 0.01 || py > WARD_H - 0.01 || !losClear(o.x, o.z, px, pz)){ wall = { s, x:px, y:clamp(py, 0.02, WARD_H - 0.02), z:pz, floor:py < 0.01, ceil:py > WARD_H - 0.01 }; break; } }
-  if (best && (!wall || best.t < wall.s)){ const V = WARD.iv.get(best.id); useReq({ k:'whit', i:best.id, h:best.head ? 1 : 0 }); if (V){ V.hitT = 0.25; wardBlood(o.x + d.x*best.t, o.y + d.y*best.t, o.z + d.z*best.t); } }
+  if (best && (!wall || best.t < wall.s)){ const V = WARD.iv.get(best.id); useReq({ k:'whit', i:best.id, h:best.head ? 1 : 0 }); if (V){ V.hitT = 0.25; const hx = o.x + d.x*best.t, hy = o.y + d.y*best.t, hz = o.z + d.z*best.t; wardBlood(hx, hy, hz); if (best.head){ wardBlood(hx, hy, hz); if (sfx.ctx){ const so = sfx.panner(hx, hy, hz, 2); sfx.noise(so,{ dur:0.09, type:'bandpass', freq:2600, q:1.5, gain:0.4 }); sfx.noise(so,{ dur:0.2, type:'lowpass', freq:300, gain:0.5, at:0.015 }); } } } }
   else if (wall) wardImpact(wall, d);
 }
 function wardReload(){
@@ -4631,7 +4633,7 @@ function wardUse(pid, m){
   if (m.k === 'wshot'){ if (pid !== myPid) wardRemoteShot(+m.x || 0, +m.z || 0); safe(()=>net.room && net.room.emit('snd', { k:'wShot', x:+m.x || 0, z:+m.z || 0, pid })); return; }
   if (isDead(pid)) return;
   if (m.k === 'whit'){ const q = H0.list.find(r=>r.id === (m.i|0)); if (!q || q.st === 3) return; const P = allPlayers().find(p=>p.pid === pid);
-    q.hp -= m.h ? 2 : 1;
+    q.hp -= m.h ? ((WI_T[q.t] || WI_T[0]).hs ? q.hp : WARD_HEAD_DMG) : 1;
     if (q.hp <= 0){ q.st = 3; q.sT = 0; wardRelease(q); return; }
     wardRelease(q); q.st = 1; q.sT = q.t === 1 ? 0.6 : 0.9;
     if (P){ const dx = q.x - P.x, dz = q.z - P.z, d = Math.hypot(dx, dz) || 1; [q.x, q.z] = collide(q.x + dx/d*0.55, q.z + dz/d*0.55, 0.3, q.x, q.z); } return; }
