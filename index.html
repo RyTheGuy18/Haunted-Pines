@@ -488,7 +488,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.78.6</div>
+<div class="osd" id="ver">v0.78.7</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -4459,7 +4459,7 @@ function wgLocal(inner, node, v){ inner.updateMatrixWorld(true); const R = new T
 const wgMat = gl => gl.scene.traverse(o=>{ if (o.isMesh){ const mp = o.material && o.material.map; if (mp){ mp.magFilter = THREE.NearestFilter; mp.colorSpace = THREE.SRGBColorSpace; } o.material = lam(0xffffff, { map:mp || null, side:THREE.DoubleSide }); o.frustumCulled = false; } });
 if (WARD_ASSETS.model.gun) new GLTFLoader().load(WARD_ASSETS.model.gun, gl=>{ wgMat(gl); WG.src = gl.scene; }, undefined, e=>console.warn('gun model failed', e));
 if (WARD_ASSETS.model.armGun) new GLTFLoader().load(WARD_ASSETS.model.armGun, gl=>{ wgMat(gl); gl.scene.updateMatrixWorld(true); WG.armSrc = gl.scene; WG.forHand = null;
-  // v0.78.6: Ryan placed the pistol himself in his export → its spot in front of `view` (the game camera) is where the game draws it
+  // v0.78.7: Ryan placed the pistol himself in his export → its spot in front of `view` (the game camera) is where the game draws it
   const vw = gl.scene.getObjectByName('view'), gr = gl.scene.getObjectByName('gun_ref'), ar = gl.scene.getObjectByName('ads_ref');
   if (vw && gr && ar){ const iv = vw.matrixWorld.clone().invert(); WG.camHip = iv.clone().multiply(gr.matrixWorld); WG.camAds = iv.clone().multiply(ar.matrixWorld); } }, undefined, e=>console.warn('arm + gun model failed', e));
 function wardGunPlace(force){
@@ -4767,7 +4767,7 @@ function wardRemoteShot(x, z){ wardSnd('shotFar', x, z, 0.9); const fl = level &
 const _aM1 = new THREE.Matrix4(), _aM2 = new THREE.Matrix4(), _aM3 = new THREE.Matrix4(), _aV = new THREE.Vector3(), _aS = new THREE.Vector3(), _aP = new THREE.Vector3(), _aQ = new THREE.Quaternion(), _aQ2 = new THREE.Quaternion();
 const VM_REST = new THREE.Vector3(0.28, -0.3, -0.5), _aM4 = new THREE.Matrix4(), _aM5 = new THREE.Matrix4(), _aP2 = new THREE.Vector3(), _aQ3 = new THREE.Quaternion(), _aS2 = new THREE.Vector3();
 function wardAdsPose(k){ const a = WARD.adsK || 0;
-  if (WG.camHip && WG.camAds && WG.g && WG.inner && WG.arm){   // Ryan's own hip + aimed placement (v0.78.6)
+  if (WG.camHip && WG.camAds && WG.g && WG.inner && WG.arm){   // Ryan's own hip + aimed placement (v0.78.7)
     const e = a*a*(3 - 2*a); WG.g.updateMatrix(); WG.inner.updateMatrix(); VM.updateMatrix();
     const GIi = _aM1.multiplyMatrices(WG.g.matrix, WG.inner.matrix).invert();
     // hip: keep the bob / recoil / reload offsets the frame put on VM (its offset from the rest pose), on top of Ryan's spot
