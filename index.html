@@ -488,7 +488,7 @@
 <div class="osd" id="osdTL">▶ PLAY <b>●</b></div>
 <div class="osd" id="osdTR">SP<br><span id="osdTime">0:00:00</span></div>
 <div class="osd" id="osdBL">CH 00 · LVL 0</div>
-<div class="osd" id="ver">v0.78.3</div>
+<div class="osd" id="ver">v0.78.4</div>
 
 <div id="hud">
   <div id="objBox"><div class="lbl" id="objLbl">OBJECTIVE</div><div id="obj"></div><div id="side"></div>
@@ -4170,6 +4170,12 @@ const WARD_ASSETS = {
   // (set WARD_ECHO = 0 if your recording already has its own tail).
   // pistol: shot (yours), shotFar (a teammate's), slide (racked after a mag change on an empty gun), magOut (mag release), magDrop (the
   // empty mag hitting the floor), magIn (new mag clicked in), slideRel (slide slamming forward), dry (empty click), light (weapon light click)
+  // v0.78.4: Ryan's Glock 19X recording (Pixabay "substancial fx gun pistol glock 19x"), cut into ONE file: 12 single shots (each a
+  // shot head + the burst's own echo tail), mag out, mag in, slide release, dry click, light click. `at` = [start, end] seconds in
+  // that file (a list = random variants). Any key also set in `sfx` below (a file of its own) wins over the pack.
+  pack: { file:'sfx/ward-glock.mp3', at:{ shot:[[0.09,0.824],[0.904,1.638],[1.718,2.452],[2.532,3.266],[3.346,4.08],[4.16,4.894],[4.974,5.708],
+    [5.788,6.587],[6.667,7.466],[7.546,8.345],[8.425,9.224],[9.304,10.102]], magOut:[10.182,10.552], magIn:[10.632,11.412],
+    slideRel:[11.492,11.982], slide:[11.492,11.982], dry:[12.062,12.312], light:[12.392,12.592] } },
   sfx: { shot:null, shotFar:null, slide:null, magOut:null, magDrop:null, magIn:null, slideRel:null, dry:null, light:null, ammo:null,
          groan:null, scream:null, grab:null, kill:null, doorBang:null, doorOpen:null, ding:null, elevOpen:null, elevClose:null, ringing:null },
   // models (.glb). gun: the pistol (G17 + Olight, see WARD_GUN for its units / axes / named slide + mag meshes).
@@ -4401,6 +4407,8 @@ function wardFire(){
   safe(()=>useReq({ k:'wshot', x:+me.x.toFixed(1), z:+me.z.toFixed(1) }));
   // the ray: from the eye along the view, hit the nearest inmate in front of the first wall
   const o = camera.getWorldPosition(new THREE.Vector3()), d = camera.getWorldDirection(new THREE.Vector3());
+  { const sp = (WARD_ADS.hip + (me.moving ? WARD_ADS.hipMove : 0))*(1 - (WARD.adsK || 0)), r = sp*Math.sqrt(Math.random()), a = Math.random()*Math.PI*2;   // v0.78.4: hip fire wanders, aimed is dead on
+    if (r > 0){ const u = new THREE.Vector3().crossVectors(d, Math.abs(d.y) < 0.9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0)).normalize(), v = new THREE.Vector3().crossVectors(u, d); d.addScaledVector(u, Math.cos(a)*r).addScaledVector(v, Math.sin(a)*r).normalize(); } }
   let best = null, bt = 45;
   for (const [id, V] of WARD.iv){ if (V.st === 3 || V.gone) continue; const ty = WI_T[V.t] || WI_T[0];
     // the head (a sphere) first, then the body (an upright cylinder)
@@ -4419,9 +4427,10 @@ function wardReload(){
 function wardGunTick(dt){
   const G0 = WARD.gun; if (!G0) return; G0.t += dt;
   if (G0.st === 'cycle' && G0.t >= WARD_CYCLE){ G0.st = 'ready'; G0.t = 0; }
-  else if (G0.st === 'out' && G0.t >= WARD_MAGOUT){ G0.st = 'in'; G0.t = 0; wardSnd('magDrop'); }
+  else if (G0.st === 'out' && G0.t >= WARD_MAGOUT){ G0.st = 'in'; G0.t = 0; G0.mi = false; wardSnd('magDrop'); }
+  else if (G0.st === 'in' && !G0.mi && G0.t >= WARD_MAGIN*0.32){ G0.mi = true; wardSnd('magIn'); }   // the recording's slap lands ~0.22 s in = as the mag seats
   else if (G0.st === 'in' && G0.t >= WARD_MAGIN){ G0.t = 0;   // the rounds left in the old mag go back in your pockets
-    const tot = G0.loaded + G0.spare; G0.loaded = Math.min(WARD_MAG, tot); G0.spare = tot - G0.loaded; wardSnd('magIn');
+    const tot = G0.loaded + G0.spare; G0.loaded = Math.min(WARD_MAG, tot); G0.spare = tot - G0.loaded;
     if (G0.lock) G0.st = 'rack'; else G0.st = 'ready'; }
   else if (G0.st === 'rack' && G0.t >= WARD_RACK){ G0.st = 'ready'; G0.t = 0; G0.lock = false; wardSnd('slideRel'); }
 }
@@ -4433,8 +4442,13 @@ function wardGunTick(dt){
    unit ≈ 0.109 m (`unit`), barrel along +z (`fwd` 1), top +y; `muzzle` / `lens` (the Olight's glass) in model units; `slide` / `mag` =
    mesh names that move (slide back on each shot and locked back when empty, mag drops out / slides in on a reload).
    Tune live with __hp.WARD_GUN + __hp.wardGunPlace(true). Ryan will re-pose the arm round the gun in Blender (starter file
-   tools/fp-arm-gun-blender.glb) and send back `arm` + `gun_ref` → WARD_ASSETS.model.armGun; then that arm replaces the flashlight arm here. */
-const WARD_GUN = { unit:0.109, fwd:1, anchor:[0, 0.66, -0.5], at:[-0.012, -0.01, 0], rot:[0, 0, 0], s:1, muzzle:[0, 1.04, 0.9], lens:[0, 0.74, 0.97],
+   tools/fp-arm-gun-blender.glb, v0.78.4: camera `view` at the origin looking down −z = the game camera, `arm` + `gun_ref` (the pistol) exactly
+   where the game draws them at the hip, `ads_preview` = where the pistol goes when aimed, reference only) and send back `arm` + `gun_ref` →
+   WARD_ASSETS.model.armGun; then that arm replaces the flashlight arm here (and stays visible while aiming). */
+// v0.78.4 AIM DOWN SIGHTS (hold right click / touch AIM): `sight` = the top of the rear sight (model units); aimed, it sits `adsD` m in front
+// of your eye, `adsY` m off the centre line, with the front post on the crosshair. `adsFov` = FOV multiplier aimed, `hip` = hip-fire spread (rad).
+const WARD_ADS = { inT:0.17, outT:0.13, fov:0.7, sens:0.6, walk:1.7, hip:0.028, hipMove:0.02 };
+const WARD_GUN = { sight:[0, 1.232, -0.72], adsD:0.42, adsY:0, unit:0.109, fwd:1, anchor:[0, 0.66, -0.5], at:[-0.012, -0.01, 0], rot:[0, 0, 0], s:1, muzzle:[0, 1.04, 0.9], lens:[0, 0.74, 0.97],
   slide:'g17_gen5_g17_gen5_slide_0', slideBack:0.24, mag:'mag_full_g17_gen5_mag_fde_0' };
 const WG = { src:null, g:null, inner:null, flash:null, lens:null, slide:null, mag:null, forHand:null, arm:null, armSrc:null, off:{ px:0, py:0, pz:0, rx:0, ry:0, rz:0 } };
 // a displacement given in the gun's model units (inner-local) → the same move in a mesh's own parent space
@@ -4472,10 +4486,14 @@ function wardGunPlace(force){
   return true; }
 const wardRealGun = () => !!(WG.g && WG.forHand === VM.userData.hand);
 // leaving the ward: the flashlight + its arm come back
-function wardGunOff(){ if (WG.g) WG.g.visible = false; const fl = VM.userData.fl; if (fl) fl.visible = true; if (WG.arm){ WG.arm.visible = false; if (VM.userData.hand) VM.userData.hand.visible = true; } }
+function wardGunOff(){ WARD.adsK = 0; WARD.aimTouch = false; { const cr = $('cross'); if (cr) cr.style.opacity = ''; } if (VM.userData.hand && !WG.arm) VM.userData.hand.visible = true; if (WG.g) WG.g.visible = false; const fl = VM.userData.fl; if (fl) fl.visible = true; if (WG.arm){ WG.arm.visible = false; if (VM.userData.hand) VM.userData.hand.visible = true; } }
 function wardVMTick(dt){
   const V = wardBuildVM(), G0 = WARD.gun, show = wardOn() && mode === 'play' && role === 'survivor' && me.alive && me.hidden < 0 && G0;
   const real = wardGunPlace();
+  { const st0 = G0 && G0.st, want = !!show && real && (zoomIn || WARD.aimTouch) && !me.running && st0 !== 'out' && st0 !== 'in' && st0 !== 'rack';   // v0.78.4 aim down sights
+    WARD.adsK = clamp((WARD.adsK || 0) + (want ? dt/WARD_ADS.inT : -dt/WARD_ADS.outT), 0, 1);
+    if (want !== !!WARD.adsWas){ WARD.adsWas = want; if (sfx.ctx){ const o = sfx.master; sfx.noise(o,{ dur:0.07, type:'bandpass', freq:want ? 1400 : 1100, q:1.2, gain:0.05 }); } }   // cloth rustle
+    const cr = $('cross'); if (cr) cr.style.opacity = WARD.adsK > 0.5 ? 0 : ''; }
   WARD.kick = Math.max(0, WARD.kick - dt*5.5); const k = WARD.kick*WARD.kick*(3 - 2*WARD.kick);
   WARD.flashT -= dt;
   if (real){ V.g.visible = false;
@@ -4522,13 +4540,18 @@ function wardEars(){
 }
 // ---- sounds: a file from WARD_ASSETS.sfx if set, else a code-made placeholder
 function wardLoadSounds(){ if (WARD.bufTried || !sfx.ctx) return; WARD.bufTried = true; const c = sfx.ctx;
+  const pk = WARD_ASSETS.pack; if (pk && pk.file) fetch(pk.file).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(b=>{
+    const cut = ([s0, s1]) => { const i0 = Math.max(0, Math.floor(s0*b.sampleRate)), n = Math.max(1, Math.min(b.length, Math.floor(s1*b.sampleRate)) - i0), o = c.createBuffer(1, n, b.sampleRate), d = new Float32Array(n); b.copyFromChannel(d, 0, i0); o.copyToChannel(d, 0); return o; };
+    for (const [k, v] of Object.entries(pk.at)) if (!WARD_ASSETS.sfx[k]) WARD.buf[k] = Array.isArray(v[0]) ? v.map(cut) : cut(v); }).catch(e=>console.warn('ward sound pack failed', e));
   for (const [k, url] of Object.entries(WARD_ASSETS.sfx)) if (url) fetch(url).then(r=>r.arrayBuffer()).then(ab=>new Promise((res, rej)=>c.decodeAudioData(ab, res, rej))).then(b=>{ WARD.buf[k] = b; }).catch(e=>console.warn('ward sound failed', url, e)); }
-function wardBufPlay(k, pos, gain=1, ref=4, rate=1){ const c = sfx.ctx, b = WARD.buf[k]; if (!c || !b) return false; const s = c.createBufferSource(); s.buffer = b; s.playbackRate.value = rate; const gn = c.createGain(); gn.gain.value = gain; s.connect(gn).connect(pos ? sfx.panner(pos.x, pos.y ?? 1.2, pos.z, ref) : sfx.master); s.start(); return gn; }
+function wardBufPlay(k, pos, gain=1, ref=4, rate=1){ const c = sfx.ctx; let b = WARD.buf[k]; if (!c || !b) return false;
+  if (Array.isArray(b)){ let i = Math.floor(Math.random()*b.length); if (b.length > 1 && i === WARD['last_' + k]) i = (i + 1) % b.length; WARD['last_' + k] = i; b = b[i]; }   /* a different take every time */
+  const s = c.createBufferSource(); s.buffer = b; s.playbackRate.value = rate; const gn = c.createGain(); gn.gain.value = gain; s.connect(gn).connect(pos ? sfx.panner(pos.x, pos.y ?? 1.2, pos.z, ref) : sfx.master); s.start(); return gn; }
 function wardEcho(src, amt){ if (!WARD_ECHO || !sfx.ctx || !sfx.verb) return; const w = sfx.ctx.createGain(); w.gain.value = amt; src.connect(w); w.connect(sfx.verb); }
 function wardSnd(k, x, z, v=1){
   if (!sfx.ctx) return; const pos = x != null ? { x, y:1.3, z } : null, P = () => pos ? sfx.panner(pos.x, pos.y, pos.z, k === 'shotFar' ? 7 : 3) : sfx.master;
   if (k === 'shot' || k === 'shotFar'){
-    const g1 = WARD.buf[k] ? wardBufPlay(k, pos, v, 7) : WARD.buf.shot ? wardBufPlay('shot', pos, v*0.8, 7) : null;
+    const g1 = WARD.buf[k] ? wardBufPlay(k, pos, v, 7, 0.97 + Math.random()*0.06) : WARD.buf.shot ? wardBufPlay('shot', pos, v*0.8, 7, 0.94 + Math.random()*0.05) : null;
     const bus = sfx.ctx.createGain(); bus.gain.value = v; bus.connect(P()); wardEcho(bus, 0.9);
     if (g1){ g1.connect(bus); }
     else {   // layered: hammer fall, the crack, the blast, a low thump, then the hallway slapping it back
@@ -4726,8 +4749,20 @@ function updateWard(dt){
 }
 function wardRemoteShot(x, z){ wardSnd('shotFar', x, z, 0.9); const fl = level && level.ward && level.ward.flash; if (fl){ fl.position.set(x, 1.45, z); fl.intensity = 7; } }
 // camera kick + roll on top of the normal camera (called from placeCamera)
+// v0.78.4: blend the whole arm (VM) to where the pistol's sights line up with your eye
+const _aM1 = new THREE.Matrix4(), _aM2 = new THREE.Matrix4(), _aM3 = new THREE.Matrix4(), _aV = new THREE.Vector3(), _aS = new THREE.Vector3(), _aP = new THREE.Vector3(), _aQ = new THREE.Quaternion(), _aQ2 = new THREE.Quaternion();
+function wardAdsPose(k){ const a = WARD.adsK || 0; if (a <= 0.001 || !WG.g || !WG.inner){ if (VM.userData.hand && !WG.arm) VM.userData.hand.visible = true; return; } const e = a*a*(3 - 2*a), W = WARD_GUN, R = W.sight;
+  WG.g.updateMatrix(); WG.inner.updateMatrix(); VM.updateMatrix();
+  const GI = _aM1.multiplyMatrices(WG.g.matrix, WG.inner.matrix), s = _aV.setFromMatrixColumn(_aM2.multiplyMatrices(VM.matrix, GI), 0).length();
+  _aQ.setFromAxisAngle(_aV.set(0, 1, 0), W.fwd > 0 ? Math.PI : 0);   // model forward → straight ahead (−z), top up
+  const T = _aM3.compose(_aP.set(0, W.adsY - k*k*0.006, -W.adsD + k*k*0.03), _aQ, _aS.setScalar(s)).multiply(_aM2.makeTranslation(-R[0], -R[1], -R[2])).multiply(GI.invert());
+  T.decompose(_aP, _aQ, _aS); _aQ2.setFromAxisAngle(_aV.set(1, 0, 0), k*k*0.09); _aQ.multiply(_aQ2);   // recoil while aimed: a short kick back and up
+  VM.position.lerp(_aP, e); VM.quaternion.slerp(_aQ, e);
+  // the flashlight arm isn't posed round a pistol grip, so aimed it would come across your view: it drops away until Ryan's own
+  // arm-round-the-gun export (WARD_ASSETS.model.armGun) is in, which stays
+  const H = VM.userData.hand; if (H && !WG.arm) H.visible = a < 0.35; }
 function wardCamFx(dt){ if (!wardOn() || role !== 'survivor') return; const k = WARD.kick;
-  if (wardRealGun()){ const o = WG.off; VM.position.x += o.px; VM.position.y += o.py; VM.position.z += o.pz; VM.rotation.set(o.rx, o.ry, o.rz); } if (k > 0){ camera.rotation.x += k*k*0.05; camera.rotation.z += WARD.roll*k; }
+  if (wardRealGun()){ const o = WG.off; VM.position.x += o.px; VM.position.y += o.py; VM.position.z += o.pz; VM.rotation.set(o.rx, o.ry, o.rz); wardAdsPose(k); } if (k > 0){ camera.rotation.x += k*k*0.05; camera.rotation.z += WARD.roll*k; }
   const gr = G.wg && G.wg[myPid]; if (gr && me.alive){ const t = nowS(); camera.rotation.z += Math.sin(t*23)*0.02; camera.position.y -= 0.08; } }
 
 /* ======== survivors: ammo run, pulling a teammate free, getting out ======== */
@@ -10194,7 +10229,7 @@ function startRoundLocal(){
     $('blacktext').textContent = LK === 7 ? 'YOU ARE A PARTYGOER' : 'YOU ARE THE OCCUPANT'; $('blacksub').textContent = (G.lv|0) === 0 && level.lab ? 'They start in a lab behind a portal at the edge of the halls. Its blast door shuts, but its power never lasts. Listen for them, and don\'t let them reach the exit.' : 'They wake up in the halls. You walk slowly, but you can run for a while (hold SHIFT / RUN). Listen for them, and don\'t let them reach the exit.';
     $('black').style.transition='none'; $('black').style.opacity = 1; setTimeout(()=>{ $('black').style.transition=''; }, 50);
   } else if (G.ex) msg('EXPLORATION MODE. Nothing is hunting you. Take your time.', 5);
-  else msg((G.lv|0) === 10 ? 'THE WARD. Hold the hall until the elevator gets here. Click to fire, R to reload, F for the light under the barrel. Spare rounds at the NURSES station halfway down.' : (G.lv|0) === 7 ? 'LEVEL FUN. Open the presents: one of them has the key to the EXIT. The rest are LOUD. Shut doors behind you: the Partygoers can\'t open them.' : (G.lv|0) === 6 ? 'LEVEL 52. When the bell rings, get to the classroom on your schedule before the tardy bell. Never be in the halls during class.' : (G.lv|0) === 0 && level.lab ? 'ASYNC LAB 4. The portal is open. Find 3 fuses out there. Something else is awake.' : (G.lv|0) === 5 ? 'Vent the 4 red pressure valves and find bolt cutters. The EXIT door is chained shut somewhere in these tunnels.' : (G.lv|0) === 4 ? 'Find the 4 receipts. Each one has a number of the security code. Three floors. Nobody is shopping.' : (G.lv|0) === 3 ? 'Find the keycard. The elevators work. Something else uses them too.' : (G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
+  else msg((G.lv|0) === 10 ? 'THE WARD. Hold the hall until the elevator gets here. Click to fire, hold right click to aim down the sights, R to reload, F for the light under the barrel. Spare rounds at the NURSES station halfway down.' : (G.lv|0) === 7 ? 'LEVEL FUN. Open the presents: one of them has the key to the EXIT. The rest are LOUD. Shut doors behind you: the Partygoers can\'t open them.' : (G.lv|0) === 6 ? 'LEVEL 52. When the bell rings, get to the classroom on your schedule before the tardy bell. Never be in the halls during class.' : (G.lv|0) === 0 && level.lab ? 'ASYNC LAB 4. The portal is open. Find 3 fuses out there. Something else is awake.' : (G.lv|0) === 5 ? 'Vent the 4 red pressure valves and find bolt cutters. The EXIT door is chained shut somewhere in these tunnels.' : (G.lv|0) === 4 ? 'Find the 4 receipts. Each one has a number of the security code. Three floors. Nobody is shopping.' : (G.lv|0) === 3 ? 'Find the keycard. The elevators work. Something else uses them too.' : (G.lv|0) === 2 ? 'Find the staircase. Something is in the water.' : (G.lv|0) === 1 ? 'Start the 5 generators. They are LOUD. Something else is awake.' : 'Find 3 fuses. Something else is awake.', 5);
   if ((G.lv|0) > 0){ seenZones.add(1); seenZones.add(2); }
 }
 function monFilter(){ return role==='monster' ? `sepia(.85) saturate(2.6) hue-rotate(-38deg) contrast(1.1) brightness(${LK === 1 ? .86 : LK === 2 ? 1.0 : LK === 3 || LK === 4 || LK === 6 ? .82 : .64})` : ''; }
@@ -10688,7 +10723,7 @@ canvas.addEventListener('wheel', e=>{ if (mode === 'play' && canZoom()){ e.preve
 addEventListener('contextmenu', e=>{ if (document.pointerLockElement === canvas || e.target === canvas) e.preventDefault(); });
 addEventListener('mousemove', e=>{
   if (document.pointerLockElement !== canvas || mode!=='play') return;
-  const sv = 0.0022*SET.sens/100*(1 - 0.72*zK); me.yaw -= e.movementX*sv; me.pitch = clamp(me.pitch - e.movementY*sv*(SET.invY === 'on' ? -1 : 1), -1.35, 1.35);
+  const sv = 0.0022*SET.sens/100*(1 - 0.72*zK)*(LK === 10 ? 1 - (1 - WARD_ADS.sens)*(WARD.adsK || 0) : 1); me.yaw -= e.movementX*sv; me.pitch = clamp(me.pitch - e.movementY*sv*(SET.invY === 'on' ? -1 : 1), -1.35, 1.35);
 });
 /* touch controls (v0.28.1, Ryan: better iPhone controls):
    - the stick appears where your left thumb lands and stays locked there (v0.28.2), with a small dead zone
@@ -10723,7 +10758,7 @@ touch.addEventListener('touchmove', e=>{
       const now = performance.now(), dt = Math.max(8, now - lookT); lookT = now;
       const ddx = t.clientX-lookL[0], ddy = t.clientY-lookL[1], spd = Math.hypot(ddx,ddy)/dt;   // px per ms
       const acc = 1 + Math.min(1.2, Math.max(0, spd - 0.35)*0.9);
-      const sv = 0.0062*SET.sens/100*acc*(1 - 0.72*zK); me.yaw -= ddx*sv; me.pitch = clamp(me.pitch-ddy*sv*0.85*(SET.invY === 'on' ? -1 : 1), -1.35, 1.35);
+      const sv = 0.0062*SET.sens/100*acc*(1 - 0.72*zK)*(LK === 10 ? 1 - (1 - WARD_ADS.sens)*(WARD.adsK || 0) : 1); me.yaw -= ddx*sv; me.pitch = clamp(me.pitch-ddy*sv*0.85*(SET.invY === 'on' ? -1 : 1), -1.35, 1.35);
       lookL=[t.clientX,t.clientY];
     }
   }
@@ -10762,7 +10797,7 @@ const ICON = {
 function setButtons(){
   const run = { label:'RUN', icon:'run', down:()=>{ runHeld=true; }, up:()=>{ runHeld=false; }, on:()=>runHeld };
   let cfg;
-  if (role==='survivor' && LK === 10) cfg = [ { label:'FIRE', icon:'fire', down:()=>wardFire() }, { label:'RELOAD', icon:'reload', down:()=>wardReload() },
+  if (role==='survivor' && LK === 10) cfg = [ { label:'FIRE', icon:'fire', down:()=>wardFire() }, { label:'RELOAD', icon:'reload', down:()=>wardReload() }, { label:'AIM', icon:'zoom', down:()=>{ WARD.aimTouch = !WARD.aimTouch; }, on:()=>!!WARD.aimTouch },
     { label:'LIGHT', icon:'light', down:()=>{ if(mode==='play' && me.hidden<0){ me.light=!me.light; sfx.click(); } }, on:()=>lightOn() }, run,
     { label:'CROUCH', icon:'crouch', down:()=>{ me.crouch = me.lowCeil ? true : !me.crouch; }, on:()=>me.crouch }, { label:'JUMP', icon:'jump', down:()=>tryJump(), on:()=>me.jy > 0 } ];   // v0.78 THE WARD
   else if (role==='survivor') cfg = [
@@ -11165,6 +11200,7 @@ function updateMe(dt){
   let sp;
   if (role === 'monster') sp = LK !== 2 ? (me.running ? MON_SPEED : MON_WALK) : (me.running ? MON_SPEED*1.15 : MON_SPEED) * (LK === 2 && !isNight() && h37(me.x, me.z) > -0.4 ? 0.72 : 1);   // the eel drifts slowly by day (not in the deep water: v0.44.1)
   else sp = me.crouch ? 1.35 : me.running ? (me.adren ? 5.6 : 5.0) : 2.6;
+  if (LK === 10 && role === 'survivor' && (WARD.adsK || 0) > 0.4) sp = Math.min(sp, WARD_ADS.walk);   // v0.78.4: aiming = a slow, steady walk
   if (LK === 2 && role === 'survivor'){ const dp = wadeDepth37(me.x, me.z);   // v0.43: wading chest-deep is slow, and you can't duck under
     if (dp > 0.05) sp *= 1 - 0.5*Math.min(1, dp/WADE_D);
     else if (me.running && k37(me.x, me.z) === K37.WATER) sp *= 0.85;   // v0.44.1: even the shallow water drags at a sprint
@@ -12283,7 +12319,7 @@ function placeCamera(dt){
     camera.rotation.set(me.pitch, me.yaw, Math.sin(me.bob*0.5)*(role==='monster'?0.02:0.006));
     if (SET.cmo !== 'steady' && me.hidden < 0) bodyCam(dt);
     if (LK === 10) wardCamFx(dt);
-    { const fv = lerp(camera.fov, dashT > 0 ? SET.fov + 16 : lerp(SET.fov, ZOOM_FOV, zK), 1-Math.exp(-14*dt)); if (Math.abs(fv-camera.fov) > 0.01){ camera.fov = fv; camera.updateProjectionMatrix(); } }
+    { const fv = lerp(camera.fov, dashT > 0 ? SET.fov + 16 : lerp(SET.fov, ZOOM_FOV, zK)*(LK === 10 ? 1 - (1 - WARD_ADS.fov)*(WARD.adsK || 0) : 1), 1-Math.exp(-(LK === 10 ? 22 : 14)*dt)); if (Math.abs(fv-camera.fov) > 0.01){ camera.fov = fv; camera.updateProjectionMatrix(); } }
   } else if (mode==='deadAnim'){
     // JUMPSCARE: it snaps into your face, the camera zooms and shakes, the light strobes, then a hard cut to black
     deathT += dt;
